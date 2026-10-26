@@ -10,7 +10,7 @@ Routes are `#today`, `#programme`, `#progress`, `#progress/history`, `#progress/
 
 ## Today and Programme
 
-Today shows the actual date, current programme week and a single Start or named Resume action. The four-session count is explicitly for the programme week/attempt, rather than the calendar week. Four completed main sessions reveal a week-review action; advancement remains manual. Daily check-in, Log bodyweight and pending recovery follow-ups sit below the main task.
+Today shows the actual date, current programme week and a single Start or named Resume action. The four-session count is explicitly for the programme week/attempt, rather than the calendar week. Four completed main sessions reveal a week-review action; advancement remains manual. Log bodyweight and pending recovery follow-ups sit below the main task.
 
 The weekday/session selector belongs to Programme. It previews the source weekly split without calendar dates. “Train this session today” states that the workout is recorded on the actual training date. An active workout appears in its own named Resume banner; starting another session is disabled until it is finished or discarded. Programme settings, exercise choices, setup, preparation, guidance and the roadmap remain accessible without competing with the training action.
 
@@ -32,9 +32,9 @@ One save leads to a short confirmation with Back to Today and View workout. It d
 
 ## Progress and quick entries
 
-Progress starts with adherence, recent workouts and a bodyweight trend when data exists. Empty states suggest a relevant first action, rather than showing blank charts or 0/0 habit ratios. Movement, volume, bodyweight and recovery have dedicated detail screens. Movement initially lists recorded exercise/setup identities; All exercises reveals the catalogue. Volume is labelled load × repetitions, in kg × reps or lb × reps.
+Progress starts with adherence, recent workouts and a bodyweight trend when data exists. Empty states suggest a relevant first action, rather than showing blank charts or meaningless ratios. Movement, volume, bodyweight and recovery have dedicated detail screens. Movement initially lists recorded exercise/setup identities; All exercises reveals the catalogue. Volume is labelled load × repetitions, in kg × reps or lb × reps.
 
-Daily habits use direct Met / Not met buttons. Tapping a selected answer clears it to unrecorded; untouched values stay unknown. Changes save immediately, with a quiet saved/unsaved status. Symptoms remain explicit observations. Bodyweight entry is separate and cannot replace an unfinished habit form. The existing nutrition references, symptom guidance, assisted/bodyweight tracking and progression gates remain intact.
+Daily habit tracking has been removed from Today and Recovery. Existing daily check-ins are discarded on load/import, while version-4 storage and backups retain an empty `daily` array for compatibility. Bodyweight entry, units, history and trends are unchanged. Workout symptoms and technique remain explicit observations; nutrition references, symptom guidance, assisted/bodyweight tracking and progression gates remain intact.
 
 ## Layout verification
 

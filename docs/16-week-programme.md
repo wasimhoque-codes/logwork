@@ -101,13 +101,13 @@ Actual RIR is optional and is never populated from the target. Rep/load suggesti
 
 Assisted machines progress through less assistance; push-ups through lower hand support, standard reps and feet elevation; inverted rows through more horizontal positioning; planks through time and leverage; dead bugs and bird-dogs through extension with control. Step-ups and lunges prioritize stable range before load; bridges prioritize pelvic control before modest resistance. Do not progress every core movement together.
 
-## Choices, symptoms and habits
+## Choices and workout symptoms
 
 Choose variations and equipment/setup in Plan. Defaults are leg press, Tuesday’s hip thrust machine, assisted dips, seated leg curl and Friday’s floor glute bridge. Tuesday’s floor glute bridge remains a selectable alternative. Dumbbell loads are per hand. Complete both sides before logging unilateral sets. Machine assistance is separate from lifted load. Working-load volume excludes assistance, bodyweight-only and timed work and does not double unilateral or per-hand values.
 
 Each new session snapshots its resolved prescription, variation, setup, support height and core level. Previous-session reuse and charts only match the same identity, setup, height, core level and load mode. Plan changes do not rewrite active or historical sessions.
 
-Daily check-ins record symptoms, protein, surplus, sleep and movement breaks. Habit values are met, not met or unrecorded; unrecorded observations never become successful recovery or failed habits. Symptoms can also be recorded before/after a session and during the next-day follow-up. Late follow-ups can be dated back to the response date.
+Symptoms can be recorded before/after a workout and during the next-day follow-up. Unrecorded observations remain unknown. Late follow-ups can be dated back to the response date.
 
 Targets from the source: maintenance +200–300 kcal/day, approximately 100–130 g protein/day at 60 kg (1.6–2.2 g/kg), average gain 0.15–0.3 kg/week, and 7–9 hours sleep. No maintenance calorie estimate is invented. Bodyweight guidance needs at least two entries per consecutive completed week. After two successive weekly comparisons without an increase, show the source’s +100–150 kcal/day reference; missing or stale weeks do not trigger it.
 
@@ -119,14 +119,14 @@ There are no progress photos, photo reminders, camera permissions or photo uploa
 
 ## Storage and compatibility
 
-Version 4 uses only `gym-hawk-v4`. On first launch without version-4 data, the app creates one new Week 1 attempt with empty history, active workout, bodyweight, habits and recovery records. Preferences reset to a blank name, kg and automatic rest timers. No illustrative loads or bodyweight are entered as records.
+Version 4 uses only `gym-hawk-v4`. On first launch without version-4 data, the app creates one new Week 1 attempt with empty history, active workout, bodyweight and recovery records. Preferences reset to a blank name, kg and automatic rest timers. No illustrative loads or bodyweight are entered as records.
 
 Only after saving version 4 successfully does the app remove `gym-hawk-v1`, `gym-hawk-v2` and `gym-hawk-v3`. Unrelated browser data is untouched. Failed writes retain older keys; failed cleanup is retried on subsequent saves. Old-tab writes cannot change the active version-4 store. Later launches and updates preserve new records. Corrupt version-4 data is preserved for raw export and valid-backup recovery, without fallback or automatic reset.
 
-Only version-4 backups are accepted. Backups include programme week and attempts, choices, sessions and active prescription, bodyweight, daily check-ins and recovery activities. Imports validate every record before confirmation and replacement. Data remains on the current browser/device; there is no account or automatic sync. Historical source and compatibility files retained in the workspace are not imported by the active app.
+Only version-4 backups are accepted. Backups include programme week and attempts, choices, sessions and active prescription, bodyweight and recovery activities. Imports validate every record before confirmation and replacement. Data remains on the current browser/device; there is no account or automatic sync. Historical source and compatibility files retained in the workspace are not imported by the active app.
 
 ## Mobile redesign compatibility
 
 The mobile redesign keeps version-4 data, programme attempts and prescription snapshots. It does not reset training records. Optional `resume` metadata records exercise index, running-rest end time or paused-rest seconds, and the originating Today/Programme screen. Imports validate index bounds, mutually exclusive timer states, bounded durations and allowed origins. Sessions without it default to the first unfinished exercise. Metadata never changes prescriptions, logged sets or progression eligibility.
 
-Daily habit changes now save immediately. Selecting an answer again returns that observation to unrecorded. The logging and review interface is described in `mobile-design.md`.
+Daily habit tracking has been retired. Loading or importing version-4 data discards only saved daily check-ins and normalises `daily` to an empty array; workout feedback and all other records remain intact. The logging and review interface is described in `mobile-design.md`.

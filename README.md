@@ -27,8 +27,8 @@ npm run preview
 - **Saved exercise choices:** leg press/belt squat, supported chest press, assisted/unassisted pull-ups and dips, seated/lying curls, bridge and push-up variations. Record equipment, support height and core variation. Choices affect future sessions only.
 - **Calisthenics progression:** assistance, bodyweight repetitions and lever/setup changes are tracked separately from external load. Suggestions require all targets, controlled technique and acceptable workout/next-day responses; nothing automatically raises loads.
 - **Saturday eligibility:** walking/mobility for Weeks 1–4, one-set Upper C from Week 5, explicit two-set choice from Week 6, optional core from Week 9, and no Saturday lifting in Week 16. Knee raises require a per-session confirmation and offer dead bugs instead.
-- **Recovery and daily check-ins:** walking/cycling and mobility minutes, symptoms, protein, calorie-surplus, sleep and movement habits. Unknown observations remain unknown. Preparation and cool-down checklists never become working sets.
-- **Three clear destinations:** Today for daily actions, Programme for training choices, and Progress for an overview, history and detailed trends. Daily habits save immediately. Review and cool-down share one screen before a single save confirmation.
+- **Recovery and workout feedback:** walking/cycling and mobility minutes, workout symptoms and technique observations. Unknown observations remain unknown. Preparation and cool-down checklists never become working sets.
+- **Three clear destinations:** Today for daily actions, Programme for training choices, and Progress for an overview, history and detailed trends. Review and cool-down share one screen before a single save confirmation.
 - **Nutrition references:** the source programme’s surplus, protein, sleep and weight-gain targets. Plateau guidance needs consecutive completed weeks with enough weigh-ins; no maintenance calories are invented.
 - **Fresh start:** version 4 starts at Week 1 with empty records and reset preferences. Tuesday defaults to the hip thrust machine, with floor glute bridge available as an alternative. Earlier browser keys are removed only after the new store saves successfully; new records survive reloads and updates. Only version-4 backups can be restored.
 - **Offline and private:** exact production assets and local fonts are cached. Records stay in browser storage. There are no personal photos, photo reminders or camera or photo-upload features.
@@ -39,7 +39,7 @@ See [the full programme and tracking rules](docs/16-week-programme.md) and [the 
 
 Data lives in `localStorage` on the current browser and device. There is no automatic cross-device sync. Export a backup before changing devices or clearing browser data.
 
-Version-4 backups include programme attempts/options, active and finished workouts, bodyweight, check-ins and recovery activities. Imports validate the whole backup before confirmation and replacement. Invalid saved data is preserved and can be exported raw; an unreadable version-4 storage key never silently resets or falls back to older data.
+Version-4 backups include programme attempts/options, active and finished workouts, bodyweight and recovery activities. Imports validate the whole backup before confirmation and replacement. Daily habit tracking has been removed; loading or importing version-4 data discards saved check-ins and normalises the retired `daily` field to an empty array. Workout feedback and all other records are preserved. Invalid saved data is preserved and can be exported raw; an unreadable version-4 storage key never silently resets or falls back to older data.
 
 Loads are stored in kilograms and converted for display/input. Dumbbell entries use one hand’s load. Unilateral values are per side; complete both sides before logging a set. Assistance is recorded as assistance and excluded from lifted-load volume. Volume is recorded external load × reps, excluding timed and bodyweight-only work, without doubling per-hand or per-side values. It is a consistent personal tracking measure rather than total biomechanical work.
 
@@ -58,9 +58,9 @@ python3 scripts/package.py
 
 Playwright needs its Chromium browser installed. It tests the production preview on desktop and a phone. If a cloud-backed project folder stalls static-file reads, serve a byte-for-byte copy of `dist` from a local temporary directory and set `PW_BASE_URL` to that preview when running the browser suite.
 
-The redesigned production build passes **77 model tests and 60 browser checks**. See [the validation report](docs/validation.md) for exact build identifiers and package verification.
+The current production build passes **81 model tests and 62 browser checks**. See [the validation report](docs/validation.md) for exact build identifiers and package verification.
 
-Coverage includes phase prescriptions/boundaries, week attempts, deload totals, variations, assistance and symptom-based progression, fresh-start storage, old-backup rejection, history editing, daily/recovery records, backups, offline reload, preparation checklists, sheet focus and layouts at 320×568, 390×844, tablet, desktop and a reduced keyboard viewport.
+Coverage includes phase prescriptions/boundaries, week attempts, deload totals, variations, assistance and symptom-based progression, fresh-start storage, old-backup rejection, history editing, bodyweight/recovery records, backups, offline reload, preparation checklists, sheet focus and layouts at 320×568, 390×844, tablet, desktop and a reduced keyboard viewport.
 
 ## Deploy to Cloudflare Pages
 

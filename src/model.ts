@@ -9,9 +9,8 @@ export type BodyEntry = { id:string; date:string; kg:number };
 export type Settings = { name:string; unit:Unit; autoRest:boolean };
 export type WeekAttempt = { id:string; week:number; started:string; ended?:string; decision?:'advance'|'repeat'|'complete'|'restart' };
 export type Programme = { week:number; status:'active'|'complete'; attempts:WeekAttempt[]; options:ProgrammeOptions };
-export type DailyCheckIn = { date:string; symptoms:Symptom; protein:boolean|null; surplus:boolean|null; sleep:boolean|null; movement:boolean|null };
 export type RecoveryEntry = { id:string; date:string; activity:'walking'|'cycling'; cardio:number; mobility:number; note:string; week:number; attemptId:string };
-export type Store = { version:4; settings:Settings; programme:Programme; sessions:Session[]; active:Session|null; body:BodyEntry[]; daily:DailyCheckIn[]; recovery:RecoveryEntry[] };
+export type Store = { version:4; settings:Settings; programme:Programme; sessions:Session[]; active:Session|null; body:BodyEntry[]; daily:[]; recovery:RecoveryEntry[] };
 export const STORAGE_KEY='gym-hawk-v4';
 export const RETIRED_STORAGE_KEYS=['gym-hawk-v1','gym-hawk-v2','gym-hawk-v3'] as const;
 export function localDate(d=new Date()) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -21,7 +20,6 @@ export const fromKg=(kg:number,unit:Unit)=>unit==='lb'?kg*2.2046226218:kg;
 export const toKg=(n:number,unit:Unit)=>unit==='lb'?n/2.2046226218:n;
 export function number(n:number,decimals=1) { return new Intl.NumberFormat('en-GB',{maximumFractionDigits:decimals}).format(n); }
 export const emptyFeedback=():Feedback=>({before:null,after:null,nextDay:null,nextDayDate:null,technique:null});
-export const blankDaily=(date=localDate()):DailyCheckIn=>({date,symptoms:null,protein:null,surplus:null,sleep:null,movement:null});
 export function freshStore():Store { return {version:4,settings:{name:'',unit:'kg',autoRest:true},programme:{week:1,status:'active',attempts:[{id:crypto.randomUUID(),week:1,started:localDate()}],options:structuredClone(DEFAULT_OPTIONS)},sessions:[],active:null,body:[],daily:[],recovery:[]}; }
 export function sessionResume(session:Session):ResumeState {
   if(session.resume)return session.resume;
@@ -49,7 +47,7 @@ export function exerciseKey(ex:Exercise,mode=ex.mode??'external') { return JSON.
 export function previousExercise(sessions:Session[],ex:Exercise,mode=ex.mode??'external') { const key=exerciseKey(ex,mode);for(const s of [...sessions].sort((a,b)=>b.startedAt-a.startedAt)) {const i=s.exercises.findIndex((log,i)=>log.sets.some(set=>set.done)&&exerciseKey(s.workout.exercises[i],log.mode)===key);if(i>=0)return s.exercises[i];} }
 export function newSession(w:Workout,store:Store):Session {
   if(store.programme.status==='complete'||w.category==='recovery'||!w.exercises.length)throw new Error('Choose an available resistance workout.');
-  return {id:crypto.randomUUID(),workoutId:w.id,programId:'programme-16',workout:structuredClone(w),date:localDate(),startedAt:Date.now(),resume:{exerciseIndex:0,restEnd:null,restPaused:null},phase:'full',week:store.programme.week,attemptId:currentAttempt(store).id,note:'',feedback:{...emptyFeedback(),before:store.daily.find(d=>d.date===localDate())?.symptoms??null},warmup:Array(7).fill(false),cooldown:Array(3).fill(false),exercises:w.exercises.map(ex=>{
+  return {id:crypto.randomUUID(),workoutId:w.id,programId:'programme-16',workout:structuredClone(w),date:localDate(),startedAt:Date.now(),resume:{exerciseIndex:0,restEnd:null,restPaused:null},phase:'full',week:store.programme.week,attemptId:currentAttempt(store).id,note:'',feedback:emptyFeedback(),warmup:Array(7).fill(false),cooldown:Array(3).fill(false),exercises:w.exercises.map(ex=>{
     const mode=ex.mode??'external',previous=previousExercise(store.sessions,ex,mode);
     return {id:ex.id,name:ex.name,mode,note:'',sets:Array.from({length:ex.sets},(_,i)=>{const last=previous?.sets.filter(set=>set.done)[i]??previous?.sets.filter(set=>set.done).at(-1);return {weight:mode==='bodyweight'?0:last?.weight??null,reps:Math.max(ex.min,Math.min(ex.max,last?.reps??ex.min)),rir:null,done:false};})};
   })};
@@ -152,7 +150,7 @@ function validNewSession(value:unknown):boolean {
 export function validateStore(value:unknown):Store {
   if(!record(value))invalid();
   if(value.version===1||value.version===2||value.version===3)throw new Error('This fresh-start release accepts only version-4 backups. Older backups cannot be restored.');
-  if(value.version!==4||!record(value.settings)||!string(value.settings.name,60)||!['kg','lb'].includes(String(value.settings.unit))||typeof value.settings.autoRest!=='boolean'||!record(value.programme)||!Array.isArray(value.sessions)||value.sessions.length>10000||!Array.isArray(value.body)||value.body.length>20000||!Array.isArray(value.daily)||value.daily.length>20000||!Array.isArray(value.recovery)||value.recovery.length>20000)invalid();
+  if(value.version!==4||!record(value.settings)||!string(value.settings.name,60)||!['kg','lb'].includes(String(value.settings.unit))||typeof value.settings.autoRest!=='boolean'||!record(value.programme)||!Array.isArray(value.sessions)||value.sessions.length>10000||!Array.isArray(value.body)||value.body.length>20000||!Array.isArray(value.recovery)||value.recovery.length>20000)invalid();
   const p=value.programme;
   if(!integer(p.week,1,16)||!['active','complete'].includes(String(p.status))||!Array.isArray(p.attempts)||!p.attempts.length||p.attempts.length>10000||!unique(p.attempts,'id')||!record(p.options))invalid();
   for(let i=0;i<p.attempts.length;i++) {const a=p.attempts[i];if(!record(a)||!string(a.id,100)||!integer(a.week,1,16)||!date(a.started)||a.ended!==undefined&&(!date(a.ended)||a.ended<a.started)||a.decision!==undefined&&!['advance','repeat','complete','restart'].includes(String(a.decision))||(i<p.attempts.length-1||p.status==='complete')&&(a.ended===undefined||a.decision===undefined))invalid();}
@@ -165,9 +163,9 @@ export function validateStore(value:unknown):Store {
   for(const s of all) {if(!validNewSession(s)||!record(s)||!(p.attempts as unknown[]).some(a=>record(a)&&a.id===s.attemptId&&a.week===s.week))invalid();}
   if(!value.sessions.every(s=>record(s)&&typeof s.endedAt==='number'&&(s.exercises as ExerciseLog[]).some(ex=>ex.sets.some(set=>set.done)))||value.active!==null&&(!record(value.active)||value.active.endedAt!==undefined)||!unique(all,'id'))invalid();
   if(!value.body.every(b=>record(b)&&string(b.id,100)&&date(b.date)&&finite(b.kg,20,500))||!unique(value.body,'id')||!unique(value.body,'date'))invalid();
-  if(!value.daily.every(d=>record(d)&&date(d.date)&&d.date<=localDate()&&symptom(d.symptoms)&&['protein','surplus','sleep','movement'].every(k=>flag(d[k])))||!unique(value.daily,'date'))invalid();
   if(!value.recovery.every(r=>record(r)&&string(r.id,100)&&date(r.date)&&r.date<=localDate()&&['walking','cycling'].includes(String(r.activity))&&integer(r.cardio,0,300)&&integer(r.mobility,0,300)&&Number(r.cardio)+Number(r.mobility)>0&&string(r.note)&&integer(r.week,1,16)&&(p.attempts as unknown[]).some(a=>record(a)&&a.id===r.attemptId&&a.week===r.week))||!unique(value.recovery,'id'))invalid();
-  return structuredClone(value) as unknown as Store;
+  // Retired check-ins are discarded on load and import, including old-client writes.
+  return {...structuredClone(value),daily:[]} as unknown as Store;
 }
 export function savedRaw() { return localStorage.getItem(STORAGE_KEY); }
 export function saveStore(store:Store) {

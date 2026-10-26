@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, ChevronRight } from './icons';
 import { Modal } from './components';
 import { WORKOUTS, WARMUP, COOLDOWN, MOBILITY, variantsFor, prescription, rirTarget, programmePhase, phaseGoal, RECOVERY_CARDIO, SOURCE_URL, type Exercise, type ExerciseChoice, type ProgrammeOptions } from './data';
-import { blankDaily, currentAttempt, attemptSessions, coreWorkoutCount, dateLabel, localDate, emptyFeedback, SYMPTOM_LABELS, symptomWorse, sessionLabel, type DailyCheckIn, type Feedback, type RecoveryEntry, type Session, type Store, type Symptom } from './model';
+import { currentAttempt, attemptSessions, coreWorkoutCount, dateLabel, localDate, emptyFeedback, SYMPTOM_LABELS, symptomWorse, sessionLabel, type Feedback, type RecoveryEntry, type Session, type Store, type Symptom } from './model';
 export function SymptomField({label,value,onChange}:{label:string;value:Symptom;onChange:(v:Symptom)=>void}) {
   return <label className="option-field">{label}<select aria-label={label} value={value??''} onChange={e=>onChange((e.target.value||null) as Symptom)}><option value="">Unrecorded</option>{Object.entries(SYMPTOM_LABELS).map(([v,text])=><option value={v} key={v}>{text}</option>)}</select>{symptomWorse(value)&&<p className="safety-cue">Stop the aggravating exercise. Reduce load or range, or use a supported alternative. Seek advice if symptoms persist.</p>}</label>;
 }
@@ -11,14 +11,6 @@ export function FeedbackFields({feedback,onChange,includeBefore=false}:{feedback
     <SymptomField label="After training" value={feedback.after} onChange={after=>onChange({...feedback,after})}/>
     <label className="option-field">Controlled technique<select aria-label="Controlled technique" value={feedback.technique===null?'':String(feedback.technique)} onChange={e=>onChange({...feedback,technique:e.target.value===''?null:e.target.value==='true'})}><option value="">Unrecorded</option><option value="true">Controlled on all logged sets</option><option value="false">Control needs improvement</option></select></label>
   </div>;
-}
-export function DailyModal({entry,onClose,onSave,saveError}:{entry?:DailyCheckIn;onClose:()=>void;onSave:(e:DailyCheckIn)=>void;saveError:boolean}) {
-  const draft=entry??blankDaily(),[changed,setChanged]=useState(false);
-  const save=(next:DailyCheckIn)=>{setChanged(true);onSave(next);};
-  return <Modal variant="sheet" title="Daily check-in" onClose={onClose}><p className="dialog-description">Tap an answer to record it. Tap it again to clear it.</p><SymptomField label="Symptoms today" value={draft.symptoms} onChange={symptoms=>save({...draft,symptoms})}/><div className="habit-list">{(['protein','surplus','sleep','movement'] as const).map(key=>{
-    const labels={protein:'Protein target',surplus:'Calorie surplus',sleep:'7–9 hours sleep',movement:'Movement breaks'};
-    return <div className="habit-row" key={key}><div><strong>{labels[key]}</strong><small>{key==='protein'?'100–130 g/day at 60 kg':key==='surplus'?'+200–300 kcal above maintenance':key==='movement'?'Short walks during sedentary hours':'Your previous night'}</small></div><div className="habit-answers" role="group" aria-label={labels[key]}>{[true,false].map(value=><button key={String(value)} aria-pressed={draft[key]===value} onClick={()=>save({...draft,[key]:draft[key]===value?null:value})}>{value?'Met':'Not met'}</button>)}</div></div>;
-  })}</div><p className="saved-indicator" role="status">{saveError?'Changes could not be saved. Export a backup.':changed?'Saved on this device':'Unanswered habits stay unrecorded.'}</p><button className="primary full-width" onClick={onClose}>Done</button></Modal>;
 }
 export function FollowupModal({session,onClose,onSave}:{session:Session;onClose:()=>void;onSave:(s:Session)=>void}) {
   const [response,setResponse]=useState<Symptom>(session.feedback?.nextDay??null),[recordedDate,setRecordedDate]=useState(session.feedback?.nextDayDate??localDate());

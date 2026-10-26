@@ -109,12 +109,11 @@ describe('v4 fresh-start storage and backups',()=>{
     expect(()=>validateStore(old)).toThrow('only version-4 backups');expect(JSON.stringify(old)).toBe(raw);
   });
   it('round trips every new record type and snapshots without losing unknowns',()=>{
-    const s=atWeek(9);s.active=newSession(selectedWorkout(s,4)!,s);s.daily=[{date:localDate(),symptoms:null,protein:true,surplus:null,sleep:false,movement:null}];s.recovery=[{id:'recovery',date:localDate(),activity:'cycling',cardio:25,mobility:15,note:'Easy',week:9,attemptId:currentAttempt(s).id}];expect(validateStore(JSON.parse(JSON.stringify(s)))).toEqual(s);
+    const s=atWeek(9);s.active=newSession(selectedWorkout(s,4)!,s);s.recovery=[{id:'recovery',date:localDate(),activity:'cycling',cardio:25,mobility:15,note:'Easy',week:9,attemptId:currentAttempt(s).id}];expect(validateStore(JSON.parse(JSON.stringify(s)))).toEqual(s);
   });
   it('rejects malformed fields, identity mismatches, duplicates and future followups',()=>{
     const s=atWeek(9);s.active=newSession(selectedWorkout(s,4)!,s);
     for(const mutate of [(v:typeof s)=>v.active!.workout.exercises[0].tempo='bad',(v:typeof s)=>v.active!.exercises[0].mode='external',(v:typeof s)=>v.active!.exercises[0].sets.push({...v.active!.exercises[0].sets[0]}),(v:typeof s)=>v.active!.feedback!.nextDay='none',(v:typeof s)=>v.programme.attempts.push({...v.programme.attempts[0]}),(v:typeof s)=>v.programme.options.choices['bad']={variantId:'bad',setup:'',supportCm:null,coreLevel:'Basic'}]){const copy=structuredClone(s);mutate(copy);expect(()=>validateStore(copy)).toThrow();}
-    const bad=structuredClone(s);bad.daily=[{date:localDate(),symptoms:null,protein:null,surplus:null,sleep:null,movement:null},{date:localDate(),symptoms:null,protein:null,surplus:null,sleep:null,movement:null}];expect(()=>validateStore(bad)).toThrow();
   });
   it('rejects internally consistent sets that violate foundation, consolidation or deload rules',()=>{
     for(const week of [1,5,13,16]){
