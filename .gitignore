@@ -1,0 +1,11 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.DS_Store
+*.tsbuildinfo
+artifacts/
+gym-hawk-pages.zip
+node_modules 2/
+sites/
+.openai/
