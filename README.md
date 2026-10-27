@@ -23,7 +23,7 @@ npm run preview
 ## Programme features
 
 - **16 weeks with explicit reviews:** four foundation weeks, hypertrophy base, relative-strength progression, consolidation and a Week 16 deload. Advance or repeat manually; time and logging never automatically change the week.
-- **Focused mobile logging:** one working set at a time, kg/lb, reps or seconds, labelled Log set, load carry-forward, exact-setup previous-session reuse, optional actual RIR and draft-based edits. Exercise position and running/paused rest survive reloads.
+- **Focused mobile logging:** one working set at a time, kg/lb, reps or seconds, labelled Log set, load carry-forward, exact-setup previous-session reuse, optional actual RIR and draft-based edits. Add extra sets to the current workout (up to 10 per exercise), or remove the final unlogged extra set. Future workouts retain their prescribed count. Exercise position and running/paused rest survive reloads.
 - **Saved exercise choices:** leg press/belt squat, supported chest press, assisted/unassisted pull-ups and dips, seated/lying curls, bridge and push-up variations. Record equipment, support height and core variation. Choices affect future sessions only.
 - **Calisthenics progression:** assistance, bodyweight repetitions and lever/setup changes are tracked separately from external load. Suggestions require all targets, controlled technique and acceptable workout/next-day responses; nothing automatically raises loads.
 - **Saturday eligibility:** walking/mobility for Weeks 1–4, one-set Upper C from Week 5, explicit two-set choice from Week 6, optional core from Week 9, and no Saturday lifting in Week 16. Knee raises require a per-session confirmation and offer dead bugs instead.
@@ -43,7 +43,7 @@ Version-4 backups include programme attempts/options, active and finished workou
 
 Loads are stored in kilograms and converted for display/input. Dumbbell entries use one hand’s load. Unilateral values are per side; complete both sides before logging a set. Assistance is recorded as assistance and excluded from lifted-load volume. Volume is recorded external load × reps, excluding timed and bodyweight-only work, without doubling per-hand or per-side values. It is a consistent personal tracking measure rather than total biomechanical work.
 
-Main-workout counts require every prescribed set and one completion per main workout type in the current programme attempt. Partial sessions, Wednesday recovery and optional Saturday are excluded. The calendar selector remains independent of programme weeks, so you can train on different days.
+Main-workout counts require every prescribed and added set and one completion per main workout type in the current programme attempt. Partial sessions, Wednesday recovery and optional Saturday are excluded. The calendar selector remains independent of programme weeks, so you can train on different days.
 
 The app records your observations; it does not establish medical clearance. Its training guide retains source technique/modification guidance and links to [NHS back-pain guidance](https://www.nhs.uk/conditions/back-pain/).
 
@@ -58,7 +58,7 @@ python3 scripts/package.py
 
 Playwright needs its Chromium browser installed. It tests the production preview on desktop and a phone. If a cloud-backed project folder stalls static-file reads, serve a byte-for-byte copy of `dist` from a local temporary directory and set `PW_BASE_URL` to that preview when running the browser suite.
 
-The current production build passes **81 model tests and 62 browser checks**. See [the validation report](docs/validation.md) for exact build identifiers and package verification.
+The current production build passes **92 model tests and 72 browser checks**. See [the validation report](docs/validation.md) for exact build identifiers and package verification.
 
 Coverage includes phase prescriptions/boundaries, week attempts, deload totals, variations, assistance and symptom-based progression, fresh-start storage, old-backup rejection, history editing, bodyweight/recovery records, backups, offline reload, preparation checklists, sheet focus and layouts at 320×568, 390×844, tablet, desktop and a reduced keyboard viewport.
 

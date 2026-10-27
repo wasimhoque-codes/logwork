@@ -1,6 +1,10 @@
 # Gym Hawk mobile interface
 
-The redesign uses a light background, white grouped surfaces, dark text and one blue accent. The existing Hawk identity and DM Sans font remain. Body/input text is 16px; secondary text is at least 14px. Touch targets are at least 44×44px. Content is centered within 680px on large screens, with one primary action per task.
+The design uses warm ivory (`#F7F6F2`), white grouped surfaces, deep ink text (`#1B2926`) and a restrained teal accent (`#147D72`). Manrope headings and DM Sans body text are bundled locally for offline use. Body/input text is 16px; secondary text is at least 14px. Touch targets are at least 44×44px. Content is centered within 680px on large screens, with one primary action per task.
+
+Today has a forest-green (`#123E36`) workout hero with subtle decorative arcs, mint metadata and a high-contrast mint action. Supporting cards share delicate borders, soft shadows, rounded corners and tinted icon containers. Navigation floats above the safe area with rounded corners and a pale mint selected state. Charts, focus rings, timers, logging inputs, sheets and completion screens use the same semantic CSS theme variables. Warning and error states retain their distinct colors. Short color transitions respect reduced motion.
+
+This visual update preserves routes, version-4 storage, programme prescriptions, logging behaviour and session-only extra sets. It does not migrate or reset records.
 
 ## Navigation
 

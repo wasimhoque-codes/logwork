@@ -113,7 +113,7 @@ describe('v4 fresh-start storage and backups',()=>{
   });
   it('rejects malformed fields, identity mismatches, duplicates and future followups',()=>{
     const s=atWeek(9);s.active=newSession(selectedWorkout(s,4)!,s);
-    for(const mutate of [(v:typeof s)=>v.active!.workout.exercises[0].tempo='bad',(v:typeof s)=>v.active!.exercises[0].mode='external',(v:typeof s)=>v.active!.exercises[0].sets.push({...v.active!.exercises[0].sets[0]}),(v:typeof s)=>v.active!.feedback!.nextDay='none',(v:typeof s)=>v.programme.attempts.push({...v.programme.attempts[0]}),(v:typeof s)=>v.programme.options.choices['bad']={variantId:'bad',setup:'',supportCm:null,coreLevel:'Basic'}]){const copy=structuredClone(s);mutate(copy);expect(()=>validateStore(copy)).toThrow();}
+    for(const mutate of [(v:typeof s)=>v.active!.workout.exercises[0].tempo='bad',(v:typeof s)=>v.active!.exercises[0].mode='external',(v:typeof s)=>v.active!.exercises[0].sets.pop(),(v:typeof s)=>v.active!.feedback!.nextDay='none',(v:typeof s)=>v.programme.attempts.push({...v.programme.attempts[0]}),(v:typeof s)=>v.programme.options.choices['bad']={variantId:'bad',setup:'',supportCm:null,coreLevel:'Basic'}]){const copy=structuredClone(s);mutate(copy);expect(()=>validateStore(copy)).toThrow();}
   });
   it('rejects internally consistent sets that violate foundation, consolidation or deload rules',()=>{
     for(const week of [1,5,13,16]){

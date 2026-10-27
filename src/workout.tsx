@@ -1,21 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, RotateCcw, Trash2, NotebookPen } from './icons';
+import { Check, ChevronLeft, ChevronRight, RotateCcw, Trash2, NotebookPen, Plus } from './icons';
 import { prescription, rirTarget, type Unit } from './data';
-import { fromKg, toKg, number, type Session, type SetLog, type ExerciseLog } from './model';
+import { fromKg, toKg, number, addSessionSet, removeLastSessionSet, MAX_SETS_PER_EXERCISE, type Session, type SetLog, type ExerciseLog } from './model';
 import { Modal } from './components';
 import { FeedbackFields } from './programme-ui';
 
 type Props={session:Session;exerciseIndex:number;unit:Unit;previous?:ExerciseLog;onIndex:(index:number)=>void;onSet:(setIndex:number,patch:Partial<SetLog>)=>void;onLog:(setIndex:number,values?:Pick<SetLog,'weight'|'reps'>)=>void;onUpdate:(fn:(s:Session)=>Session)=>void;onDiscard:()=>void;onGuide:()=>void;onUrgent:()=>void;onWarmup:()=>void;onReview:()=>void;rest?:React.ReactNode};
 export function WorkoutScreen({session,exerciseIndex,unit,previous,onIndex,onSet,onLog,onUpdate,onDiscard,onGuide,onUrgent,onWarmup,onReview,rest}:Props){
   const [picker,setPicker]=useState(false),[more,setMore]=useState(false),[showSets,setShowSets]=useState(false),[editing,setEditing]=useState<number|null>(null),[editDraft,setEditDraft]=useState<SetLog|null>(null),[error,setError]=useState<{field:'weight'|'reps';text:string}|null>(null);
-  const weightRef=useRef<HTMLInputElement>(null),repsRef=useRef<HTMLInputElement>(null),setRef=useRef<HTMLElement>(null),justLogged=useRef(false);
+  const weightRef=useRef<HTMLInputElement>(null),repsRef=useRef<HTMLInputElement>(null),setRef=useRef<HTMLElement>(null),justLogged=useRef(false),focusAfterSetChange=useRef(false);
   const exercise=session.workout.exercises[exerciseIndex],log=session.exercises[exerciseIndex],done=log.sets.filter(s=>s.done).length;
   const first=log.sets.findIndex(set=>!set.done),setIndex=editing??first,set=setIndex>=0?(editing!==null?editDraft??log.sets[setIndex]:log.sets[setIndex]):undefined,lastExercise=exerciseIndex===session.exercises.length-1;
   const last=previous?.sets.find(s=>s.done);
   useEffect(()=>{setEditing(null);setEditDraft(null);setError(null);setShowSets(false);},[exerciseIndex]);
   useEffect(()=>{if(justLogged.current){justLogged.current=false;setRef.current?.focus({preventScroll:true});}},[first,done]);
+  useEffect(()=>{if(focusAfterSetChange.current){focusAfterSetChange.current=false;setRef.current?.focus({preventScroll:true});setRef.current?.scrollIntoView({block:'nearest'});}},[log.sets.length]);
   const amount=(value:SetLog)=>`${log.mode==='bodyweight'?'Bodyweight':`${number(fromKg(value.weight??0,unit))} ${unit}${log.mode==='assistance'?' assistance':''}`} × ${value.reps}${exercise.timed?' sec':' reps'}${exercise.perSide?' / side':''}`;
   const patchLog=(patch:Partial<ExerciseLog>)=>onUpdate(s=>({...s,exercises:s.exercises.map((e,i)=>i===exerciseIndex?{...e,...patch}:e)}));
+  function addSet(){
+    if(log.sets.length>=MAX_SETS_PER_EXERCISE)return;
+    focusAfterSetChange.current=first<0&&editing===null;
+    onUpdate(s=>addSessionSet(s,exerciseIndex));
+  }
+  function removeSet(){
+    const lastIndex=log.sets.length-1;
+    if(lastIndex<exercise.sets||log.sets[lastIndex].done)return;
+    if(editing===lastIndex){setEditing(null);setEditDraft(null);}
+    if(setIndex===lastIndex)setError(null);
+    focusAfterSetChange.current=true;
+    onUpdate(s=>removeLastSessionSet(s,exerciseIndex));
+  }
   function changeSet(patch:Partial<SetLog>){
     setError(null);
     if(editing!==null)setEditDraft(value=>({...value??log.sets[editing],...patch}));
@@ -35,7 +49,9 @@ export function WorkoutScreen({session,exerciseIndex,unit,previous,onIndex,onSet
       {log.mode==='bodyweight'?<div className="bodyweight-load"><span>Load</span><strong>Bodyweight</strong></div>:<label>{log.mode==='assistance'?'Assistance':'Weight'} ({unit})<input ref={weightRef} type="number" min="0" max={fromKg(2000,unit)} step="any" inputMode="decimal" aria-label={`Set ${setIndex+1} ${log.mode==='assistance'?'assistance':'weight'} in ${unit}`} aria-invalid={error?.field==='weight'} aria-describedby={error?.field==='weight'?'set-error':undefined} value={set.weight===null?'':Math.round(fromKg(set.weight,unit)*100)/100} placeholder="—" onFocus={focusInput} onChange={e=>{changeSet({weight:e.target.value===''?null:Math.max(0,Math.min(2000,toKg(Number(e.target.value),unit)))});}}/></label>}
       <label>{exercise.timed?'Seconds':'Reps'}{exercise.perSide?' / side':''}<input ref={repsRef} type="number" min="1" max="1000" step="1" inputMode="numeric" aria-label={`Set ${setIndex+1} ${exercise.timed?'seconds':'reps'}`} aria-invalid={error?.field==='reps'} aria-describedby={error?.field==='reps'?'set-error':undefined} value={set.reps||''} onFocus={focusInput} onChange={e=>{changeSet({reps:Math.max(0,Math.min(1000,Math.trunc(Number(e.target.value))))});}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();submit();}}}/></label>
     </div>{error&&<p className="form-error" id="set-error" role="alert">{error.text}</p>}{editing!==null&&<button className="text-button full-width" onClick={()=>{setEditing(null);setEditDraft(null);setError(null);}}>Cancel edit</button>}{last&&<p className="previous-hint">Last time: {amount(last)}</p>}</section>:<section className="exercise-complete" ref={setRef} tabIndex={-1}><span className="completion-mark"><Check size={24}/></span><h3>Exercise complete</h3><p>{done} of {log.sets.length} sets logged</p></section>}
-    <details className="logged-sets" open={showSets} onToggle={event=>setShowSets(event.currentTarget.open)}><summary>All sets <span>{done} of {log.sets.length} logged</span></summary><div>{log.sets.map((value,i)=><div className="logged-set" key={i}><span>Set {i+1}<small>{value.done?amount(value):'Not logged'}</small></span><button className="text-button" aria-label={'Edit set '+(i+1)} onClick={()=>{setEditing(i);setEditDraft({...log.sets[i]});setShowSets(true);setError(null);requestAnimationFrame(()=>setRef.current?.scrollIntoView({block:'nearest'}));}}>Edit</button>{value.done&&<button className="text-button" aria-label={'Undo set '+(i+1)} onClick={()=>onSet(i,{done:false})}>Undo</button>}</div>)}</div></details>
+    <button className="secondary full-width add-set" disabled={log.sets.length>=MAX_SETS_PER_EXERCISE} aria-describedby={log.sets.length>=MAX_SETS_PER_EXERCISE?'set-limit':undefined} onClick={addSet}><Plus size={18}/>Add set</button>
+    {log.sets.length>=MAX_SETS_PER_EXERCISE&&<p className="input-hint" id="set-limit">10-set limit reached for this exercise.</p>}
+    <details className="logged-sets" open={showSets} onToggle={event=>setShowSets(event.currentTarget.open)}><summary>All sets <span>{done} of {log.sets.length} logged</span></summary><div>{log.sets.map((value,i)=><div className="logged-set" key={i}><span>Set {i+1}{i>=exercise.sets?' · Extra':''}<small>{value.done?amount(value):'Not logged'}</small></span><button className="text-button" aria-label={'Edit set '+(i+1)} onClick={()=>{setEditing(i);setEditDraft({...log.sets[i]});setShowSets(true);setError(null);requestAnimationFrame(()=>setRef.current?.scrollIntoView({block:'nearest'}));}}>Edit</button>{value.done&&<button className="text-button" aria-label={'Undo set '+(i+1)} onClick={()=>onSet(i,{done:false})}>Undo</button>}{i>=exercise.sets&&i===log.sets.length-1&&!value.done&&<button className="text-button" aria-label={'Remove extra set '+(i+1)} onClick={removeSet}>Remove</button>}</div>)}</div></details>
     <div className="exercise-navigation"><button className="text-button" disabled={exerciseIndex===0} onClick={()=>onIndex(exerciseIndex-1)}><ChevronLeft size={18}/>Previous</button>{set&&<button className="text-button" onClick={()=>lastExercise?onReview():onIndex(exerciseIndex+1)}>{lastExercise?'Review & finish':'Next exercise'}<ChevronRight size={18}/></button>}</div>
     <button className="text-button full-width" onClick={onGuide}>Training guide</button>
     <div className="workout-dock">{rest}<button className="primary full-width" onClick={set?submit:lastExercise?onReview:()=>onIndex(exerciseIndex+1)}>{set?((editing!==null?'Save set ':'Log set ')+(setIndex+1)):lastExercise?'Review & finish':'Next exercise'}{set?<Check size={20}/>:<ChevronRight size={20}/>}</button></div>

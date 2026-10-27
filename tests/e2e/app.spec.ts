@@ -38,6 +38,118 @@ test('expired rest never logs a set or advances an exercise',async({page})=>{
 test('exercise jumping, editing and undo preserve unfinished sets',async({page})=>{
   await startMonday(page);await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByText('All sets',{exact:false}).first().click();await page.getByRole('button',{name:'Edit set 1',exact:true}).click();await page.getByLabel('Set 1 weight in kg').fill('18');await page.getByRole('button',{name:'Cancel edit',exact:true}).click();await expect(page.locator('.logged-set').first()).toContainText('12 kg');await page.getByRole('button',{name:'Edit set 1',exact:true}).click();await page.getByLabel('Set 1 weight in kg').fill('14');await page.getByRole('button',{name:'Save set 1',exact:true}).click();await page.getByRole('button',{name:'Undo set 1',exact:true}).click();await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('14');await jump(page,'Pallof Press');await expect(page.getByRole('button',{name:'Review & finish',exact:true})).toBeVisible();const data=await backup(page);expect(data.active!.exercises[0].sets.every(set=>!set.done)).toBe(true);
 });
+test('adding and removing extras preserves the current set and edit drafts',async({page})=>{
+  const s=atWeek(1);s.active=newSession(selectedWorkout(s,1)!,s);
+  Object.assign(s.active.exercises[0].sets[1],{weight:14,reps:10,rir:3});
+  await seed(page,s);await go(page,'workout');
+  await page.getByLabel('Set 1 weight in kg').fill('12');
+  await page.getByRole('button',{name:'Add set',exact:true}).click();
+  await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 3');
+  await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('12');
+  await page.locator('.logged-sets summary').click();
+  await expect(page.locator('.logged-set').nth(2)).toContainText('Set 3 · Extra');
+  await page.getByRole('button',{name:'Edit set 3',exact:true}).click();
+  await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('14');
+  await expect(page.getByLabel('Set 3 reps',{exact:true})).toHaveValue('10');
+  await page.getByLabel('Set 3 weight in kg').fill('19');
+  await page.getByRole('button',{name:'Add set',exact:true}).click();
+  await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('19');
+  await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Remove extra set 4',exact:true}).click();
+  await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('19');
+  await page.getByRole('button',{name:'Remove extra set 3',exact:true}).click();
+  await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 2');
+  await expect(page.getByRole('group',{name:'Current working set'})).toBeFocused();
+  await expect(page.getByRole('button',{name:/Remove extra set/})).toHaveCount(0);
+  await page.getByRole('button',{name:'Add set',exact:true}).click();
+  const data=await backup(page);expect(data.active!.exercises[0].sets[2]).toEqual({weight:14,reps:10,rir:null,done:false});
+  expect(data.active!.workout).toEqual(s.active.workout);validateStore(data);
+});
+
+test('extras survive offline reload, save, history editing and backup restore without changing future counts',async({page,context})=>{
+  const s=atWeek(1);s.active=savedWorkout(s);delete s.active.endedAt;
+  const originalCount=s.active.exercises.reduce((n,e)=>n+e.sets.length,0);
+  await seed(page,s);await go(page,'workout');
+  await expect(page.getByRole('heading',{name:'Exercise complete',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Add set',exact:true}).click();
+  await expect(page.getByRole('group',{name:'Current working set'})).toBeFocused();
+  await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 3 of 3');
+  await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('12');
+  await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise<void>(resolve=>navigator.serviceWorker.addEventListener('controllerchange',()=>resolve(),{once:true}));});
+  await context.setOffline(true);await page.reload();
+  await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('12');
+  await page.getByRole('button',{name:'Log set 3',exact:true}).click();
+  await page.locator('.logged-sets summary').click();
+  await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Undo set 3',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Log set 3',exact:true}).click();
+  await save(page);await page.getByRole('button',{name:'View workout',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText((originalCount+1)+' sets');
+  await page.getByRole('button',{name:'Edit workout',exact:true}).click();
+  await page.getByLabel('Incline Dumbbell Press, Neutral Grip set 3 weight',{exact:true}).fill('15');
+  await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);
+  const data=await backup(page);expect(data.sessions[0].exercises[0].sets[2]).toMatchObject({weight:15,done:true});
+  expect(data.sessions[0].workout).toEqual(s.active.workout);validateStore(data);
+  await page.getByLabel('Import backup file').setInputFiles({name:'extras.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
+  await page.getByRole('button',{name:'Replace data and restore'}).click();await page.reload();
+  expect(await backup(page)).toEqual(data);
+  await startMonday(page);await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 2');
+  await context.setOffline(false);
+});
+
+test('the ten-set limit survives reload and removal re-enables adding',async({page})=>{
+  await startMonday(page);
+  for(let i=2;i<10;i++)await page.getByRole('button',{name:'Add set',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Add set',exact:true})).toBeDisabled();
+  await expect(page.getByText('10-set limit reached for this exercise.',{exact:true})).toBeVisible();
+  await page.reload();await expect(page.getByRole('button',{name:'Add set',exact:true})).toBeDisabled();
+  await page.locator('.logged-sets summary').click();
+  await page.getByRole('button',{name:'Remove extra set 10',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Add set',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'Add set',exact:true}).click();
+  const data=await backup(page);expect(data.active!.exercises[0].sets).toHaveLength(10);validateStore(data);
+});
+
+test('extra sets preserve pounds, assistance, bodyweight, timed and per-side logging',async({page})=>{
+  const s=atWeek(9);s.settings.unit='lb';s.active=newSession(selectedWorkout(s,4)!,s);
+  await seed(page,s);await go(page,'workout');
+  await page.getByLabel('Set 1 assistance in lb').fill('44');await page.getByRole('button',{name:'Log set 1',exact:true}).click();
+  await page.getByRole('button',{name:'Add set',exact:true}).click();
+  await page.locator('.logged-sets summary').click();await page.getByRole('button',{name:'Edit set 4',exact:true}).click();
+  await expect(page.getByLabel('Set 4 assistance in lb')).toHaveValue('44');await page.getByRole('button',{name:'Cancel edit',exact:true}).click();
+  await jump(page,'Side Plank');await expect(page.getByText('Complete both sides, then log one set.',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Add set',exact:true}).click();
+  await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Log set 2',exact:true}).click();
+  await expect(page.getByLabel('Set 3 seconds',{exact:true})).toHaveValue('20');
+  await expect(page.getByLabel('Set 3 weight in lb')).toHaveCount(0);
+  await page.getByRole('button',{name:'Log set 3',exact:true}).click();
+  const data=await backup(page);expect(data.active!.exercises[6].sets[2]).toEqual({weight:0,reps:20,rir:null,done:true});
+  expect(data.active!.exercises[0].sets[3].weight).toBeCloseTo(44/2.2046226218);validateStore(data);
+});
+
+test('add-set controls and focus remain usable above the dock on narrow phones',async({page},testInfo)=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
+  for(const [width,height] of [[320,568],[390,844]]){
+    await page.setViewportSize({width,height});await startMonday(page);
+    const add=page.getByRole('button',{name:'Add set',exact:true});await add.scrollIntoViewIfNeeded();
+    const button=await add.boundingBox(),dock=await page.locator('.workout-dock').boundingBox();
+    expect(button!.y).toBeGreaterThanOrEqual(0);expect(button!.y+button!.height).toBeLessThanOrEqual(dock!.y);
+    await add.click();await expect(page.getByLabel('Set 1 weight in kg')).toBeVisible();
+    await page.getByLabel('Set 1 weight in kg').fill('12');
+    for(let i=1;i<=3;i++)await page.getByRole('button',{name:'Log set '+i,exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Exercise complete',exact:true})).toBeVisible();
+    await add.click();await expect(page.getByRole('group',{name:'Current working set'})).toBeFocused();
+    const input=page.getByLabel('Set 4 weight in kg');await input.focus();await input.scrollIntoViewIfNeeded();
+    const field=await input.boundingBox(),restDock=await page.locator('.workout-dock').boundingBox();
+    expect(field!.y+field!.height).toBeLessThanOrEqual(restDock!.y);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+    await page.screenshot({path:testInfo.outputPath('extra-set-'+width+'.png')});
+    await page.locator('.logged-sets summary').click();await page.getByRole('button',{name:'Remove extra set 4',exact:true}).click();
+    await discard(page);
+  }
+});
+
 test('finish review keeps cool-down inline and saves once to confirmation',async({page})=>{
   await startMonday(page);await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Review and finish workout'}).click();await expect(page.getByText(/This will be saved as a partial workout/)).toBeVisible();await page.getByText('Cool-down checklist',{exact:false}).click();await page.getByRole('checkbox',{name:/Slow relaxed breathing/}).check();await page.reload();await expect(page.getByRole('heading',{name:'Review workout',exact:true})).toBeVisible();await page.getByText('Cool-down checklist',{exact:false}).click();await expect(page.getByRole('checkbox',{name:/Slow relaxed breathing/})).toBeChecked();await page.getByRole('button',{name:'Save workout',exact:true}).click();await expect(page.getByRole('heading',{name:'Workout saved',exact:true})).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);await page.getByRole('button',{name:'Back to Today',exact:true}).click();await expect(page.locator('.weekly-count')).toContainText('0');const data=await backup(page);expect(data.sessions).toHaveLength(1);expect(data.sessions[0].cooldown![2]).toBe(true);expect(data.active).toBeNull();
 });

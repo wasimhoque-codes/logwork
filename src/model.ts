@@ -1,6 +1,7 @@
 import { WORKOUTS, VARIANTS, DEFAULT_OPTIONS, resolveWorkout, weekEffort, type ProgrammeOptions, type Unit, type LoadMode, type Exercise, type Workout } from './data';
 export type SetLog = { weight:number|null; reps:number; rir:number|null; done:boolean };
 export type ExerciseLog = { id:string; name:string; mode:LoadMode; sets:SetLog[]; note:string };
+export const MAX_SETS_PER_EXERCISE=10;
 export type Symptom = 'none'|'stable'|'worse'|'radiating'|null;
 export type Feedback = { before:Symptom; after:Symptom; nextDay:Symptom; nextDayDate:string|null; technique:boolean|null };
 export type ResumeState = { exerciseIndex:number; restEnd:number|null; restPaused:number|null; origin?:'today'|'programme' };
@@ -33,11 +34,23 @@ export function currentAttempt(store:Store) { return store.programme.attempts.at
 export function attemptSessions(store:Store,attempt=currentAttempt(store)) { return store.sessions.filter(s=>s.programId==='programme-16'&&s.attemptId===attempt.id); }
 export function selectedWorkout(store:Store,day:number) {
   const w=WORKOUTS.find(w=>w.days.includes(day));
-  const extraUsed=attemptSessions(store).some(s=>s.workout.exercises.some((ex,i)=>{const base=WORKOUTS.find(w=>w.id===s.workoutId)?.exercises.find(e=>e.slot===ex.slot);return base&&ex.sets>base.sets&&s.exercises[i].sets.at(-1)?.done;}));
+  const extraUsed=attemptSessions(store).some(s=>s.workout.exercises.some((ex,i)=>{const base=WORKOUTS.find(w=>w.id===s.workoutId)?.exercises.find(e=>e.slot===ex.slot);return base&&ex.sets>base.sets&&s.exercises[i].sets[ex.sets-1]?.done;}));
   const options=extraUsed?{...store.programme.options,extraSlot:null}:store.programme.options;
   return w?resolveWorkout(w,store.programme.week,options):undefined;
 }
 export function doneSets(s:Session) { return s.exercises.flatMap(e=>e.sets).filter(set=>set.done).length; }
+export function addSessionSet(session:Session,exerciseIndex:number):Session {
+  const log=session.exercises[exerciseIndex];
+  if(session.endedAt!==undefined||!log||log.sets.length>=MAX_SETS_PER_EXERCISE)return session;
+  const last=log.sets.at(-1),exercise=session.workout.exercises[exerciseIndex];
+  const set:SetLog={weight:log.mode==='bodyweight'?0:last?.weight??null,reps:last?.reps??exercise.min,rir:null,done:false};
+  return {...session,exercises:session.exercises.map((e,i)=>i===exerciseIndex?{...e,sets:[...e.sets,set]}:e)};
+}
+export function removeLastSessionSet(session:Session,exerciseIndex:number):Session {
+  const log=session.exercises[exerciseIndex],exercise=session.workout.exercises[exerciseIndex];
+  if(session.endedAt!==undefined||!log||!exercise||log.sets.length<=exercise.sets||log.sets.at(-1)?.done)return session;
+  return {...session,exercises:session.exercises.map((e,i)=>i===exerciseIndex?{...e,sets:e.sets.slice(0,-1)}:e)};
+}
 export function completeSession(s:Session) { return s.endedAt!==undefined&&s.exercises.length>0&&s.exercises.every(e=>e.sets.length>0&&e.sets.every(set=>set.done)); }
 export function coreWorkoutCount(sessions:Session[]) { return new Set(sessions.filter(s=>s.programId==='programme-16'&&s.workout.category==='strength'&&completeSession(s)).map(s=>s.workoutId)).size; }
 export function sessionWorkout(s:Session) { return s.workout; }
@@ -66,7 +79,7 @@ export const symptomOkay=(v:Symptom)=>v==='none'||v==='stable';
 export const SYMPTOM_LABELS:Record<Exclude<Symptom,null>,string>={none:'No symptoms',stable:'Familiar, stable discomfort',worse:'Worse or sharp pain',radiating:'New leg symptoms / tingling / weakness'};
 export function pendingFollowups(store:Store,today=localDate()) { return store.sessions.filter(s=>s.programId==='programme-16'&&s.date<today&&s.feedback?.nextDay===null).sort((a,b)=>b.startedAt-a.startedAt); }
 export function progression(ex:Exercise,log:ExerciseLog,session:Session):{title:string;description:string}|null {
-  if(session.programId!=='programme-16'||!session.week||session.week<=4||session.week===16||ex.recovery||log.sets.length!==ex.sets||log.sets.some(set=>!set.done||set.reps<ex.max))return null;
+  if(session.programId!=='programme-16'||!session.week||session.week<=4||session.week===16||ex.recovery||log.sets.length<ex.sets||log.sets.some(set=>!set.done||set.reps<ex.max))return null;
   const feedback=session.feedback;
   if(!feedback||feedback.technique!==true||!symptomOkay(feedback.after)||!symptomOkay(feedback.nextDay)||symptomWorse(feedback.before)||!feedback.nextDayDate||feedback.nextDayDate<=session.date)return null;
   const loaded=log.mode!=='bodyweight';
@@ -130,7 +143,7 @@ function validNewSession(value:unknown):boolean {
     if(!original||spec.slot!==(base?.slot??'optional:core')||spec.min!==original.min||spec.max!==original.max||spec.rest!==original.rest||spec.tempo!==original.tempo||spec.role!==original.role||spec.method!==original.method||spec.kind!==original.kind||spec.timed!==original.timed||spec.perSide!==original.perSide||spec.mode!==original.mode||!string(spec.setup,200)||!(spec.supportCm===null||finite(spec.supportCm,0,300))||!['Basic','Controlled extension','Longer lever'].includes(String(spec.coreLevel)))return false;
     fullSets.push(original.sets);
     const log=value.exercises[i];
-    if(!record(log)||log.id!==spec.id||log.name!==spec.name||log.mode!==(spec.mode??'external')||!string(log.note)||!Array.isArray(log.sets)||log.sets.length!==spec.sets||!log.sets.every(set=>record(set)&&(set.weight===null||finite(set.weight,0,2000))&&integer(set.reps,set.done?1:0,1000)&&(set.rir===null||integer(set.rir,0,10))&&typeof set.done==='boolean'&&(!set.done||set.weight!==null)&&(log.mode!=='bodyweight'||set.weight===0)))return false;
+    if(!record(log)||log.id!==spec.id||log.name!==spec.name||log.mode!==(spec.mode??'external')||!string(log.note)||!Array.isArray(log.sets)||log.sets.length<spec.sets||log.sets.length>MAX_SETS_PER_EXERCISE||!log.sets.every(set=>record(set)&&(set.weight===null||finite(set.weight,0,2000))&&integer(set.reps,set.done?1:0,1000)&&(set.rir===null||integer(set.rir,0,10))&&typeof set.done==='boolean'&&(!set.done||set.weight!==null)&&(log.mode!=='bodyweight'||set.weight===0)))return false;
   }
   const week=Number(value.week);
   if(template.optional){
