@@ -76,7 +76,7 @@ test('Progress tabs have one tab stop, arrow keys, wrapping and labelled panels'
 
 test('sheet dismissal keeps focus trapped through exit and restores its trigger', async ({ page }) => {
   await page.goto('/#today');
-  const trigger = page.getByRole('button', { name: 'Log bodyweight Build a weekly trend' });
+  const trigger = page.getByRole('button', { name: 'Log bodyweight See your weight trend' });
   await trigger.click();
   await expect(dialog(page)).toBeVisible();
   await dialog(page).getByRole('button', { name: 'Close dialog', exact: true }).focus();
@@ -144,7 +144,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
   test(`visual review and layout clearance at ${width}px`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'One capture set per viewport.');
     test.setTimeout(120000);
-    const directory = path.resolve('artifacts/ux-polish'); await fs.mkdir(directory, { recursive: true });
+    const directory = path.resolve('artifacts/sky-blue'); await fs.mkdir(directory, { recursive: true });
     await page.setViewportSize({ width, height });
     await page.clock.setFixedTime(new Date('2026-10-30T10:00:00Z'));
     await seed(page, fixture(true, true));
@@ -167,7 +167,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     await page.goto('/#progress/bodyweight'); await shot('chart');
     await page.getByRole('button', { name: 'Go back', exact: true }).click();
     await page.getByRole('button', { name: 'Open settings' }).click(); await shot('settings');
-    await page.goto('/#today'); await page.getByRole('button', { name: 'Log bodyweight Build a weekly trend' }).click(); await shot('sheet'); await dismiss(page);
+    await page.goto('/#today'); await page.getByRole('button', { name: 'Log bodyweight See your weight trend' }).click(); await shot('sheet'); await dismiss(page);
     await page.getByRole('button', { name: 'Resume Upper A', exact: true }).click(); await shot('logger');
     const current = page.getByRole('group', { name: 'Current working set' });
     await current.scrollIntoViewIfNeeded();

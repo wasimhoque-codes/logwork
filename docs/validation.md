@@ -1,3 +1,21 @@
+# Gym Hawk bodyweight chart and sky-blue theme validation
+
+Validated on 30 October 2026. This update is local-only: no push or publication was performed. Version-4 storage, backups, prescriptions, workout history and logging behavior are preserved.
+
+- Model suite: 115 passed across 7 files (`npm test`). Ten new cases cover all readings within one week, sorting/immutability, irregular calendar spacing, inclusive seven-day boundaries, missing days, both UK DST boundaries, empty/single entries, flat/tiny changes, old history, pound conversion and preserved weekly nutrition guidance.
+- TypeScript and production build: passed with Node 24.11.1 (`npm run build`). Assets: `assets/index-CK1Hr6xM.js` and `assets/index-C-g7pgC4.css`.
+- Full browser suite: 122 passed across desktop and mobile Chromium (`PW_BASE_URL=http://127.0.0.1:4176 npm run test:e2e`). Eight duplicate screenshot-matrix runs are deliberately skipped under the mobile project; both four-viewport matrices run under the desktop project.
+- Chart behavior: both Progress views show each saved weigh-in, seven-day averages, latest reading/date, and neutral change since the first reading. Bodyweight has no range controls or point selection; other progress screens retain their filters. Old records and uneven date gaps remain visible. Single and empty states never fabricate a trend. The same-date replacement, deletion, offline reload, kg/lb display and backup restore flows passed; original kilograms are retained.
+- Accessibility: the static chart has a descriptive image label and a screen-reader data table. The table is clipped within its own visually hidden wrapper to avoid intrinsic-width overflow at 320px. Date/weight ticks stay inside the chart. Primary text, secondary labels and hero text passed 4.5:1 checks; chart observation dots passed 3:1. Dark text on sky blue is 7.55:1; white on purple is 4.80:1; pink dots on white are 3.85:1. No information depends on color alone.
+- Theme: sky-blue hero/primary controls, purple secondary controls and focus, pink observation markers, blue-gray/white surfaces, and derived accessible status shades. Removed the old ivory/teal/forest token names and colors from active source. Updated SVG/192px/512px icons, HTML theme color and manifest theme/background colors. PNG backgrounds were verified as RGB (102, 199, 244). Local fonts, 44px controls, fixed docks, input validation and reduced-motion behavior remain intact.
+- Visual review: 68 final screenshots at 320×568, 390×844, 768×1000 and 1440×1000, plus five review composites in `artifacts/sky-blue/`. Coverage includes Today, Programme, Progress empty/populated/history, bodyweight detail and isolated charts, settings, logger/rest, review/saved, record details and sheets. Isolated chart exports hide navigation only during capture; viewport screenshots retain it. Overflow, chart tick bounds, touch targets, keyboard-height clearance and enlarged-text regressions passed.
+- Validation environment: used `/private/tmp/gym-hawk-sky-blue.0G4ssE` with the locked dependencies installed locally, avoiding the project's cloud-placeholder stalls. Changed source files were synchronized back with checks for independent workspace edits. Final workspace source/build/package bytes are compared against the tested copy.
+- Package: `python3 scripts/package.py` verified all 11 production files byte for byte. ZIP: 188,663 bytes; SHA-256 `f3b2a92828765d966071849988b97d7e255ac6826549e3e73eb8a033435f5723`. Service-worker SHA-256: `eb4f7abc791e79251da110d143a5aed309b6d0be18f5659e635137180c9054e1`.
+
+Physical-device Safari/VoiceOver testing was not performed.
+
+---
+
 # Gym Hawk UX and motion polish validation
 
 Validated on 30 October 2026. This local-only update preserves version-4 storage, prescriptions, pending exercise-history and saved-workout extra-set features, and existing records. Nothing was published or pushed.

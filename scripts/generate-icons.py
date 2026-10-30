@@ -21,7 +21,7 @@ for size in (192,512):
         raw.append(0)
         for x in range(size):
             px,py=(x+.5)*48/size,(y+.5)*48/size
-            color=(255,255,255) if any(inside(px,py,p) for p in polygons) else (37,99,235)
+            color=(39,40,63) if any(inside(px,py,p) for p in polygons) else (102,199,244)
             raw.extend(color)
     png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('!2I5B',size,size,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(bytes(raw),9))+chunk(b'IEND',b'')
     Path(f'public/icon-{size}.png').write_bytes(png)

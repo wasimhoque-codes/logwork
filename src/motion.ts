@@ -32,7 +32,7 @@ export function useSetFeedback(ref: RefObject<HTMLElement | null>, logged: numbe
     previous.current = {logged,exercise};
     if (!increased || !ref.current || reducedMotion()) return;
     const animation = ref.current.animate([
-      { borderColor: 'var(--accent)', backgroundColor: 'var(--mint)' },
+      { borderColor: 'var(--accent)', backgroundColor: 'var(--selection)' },
       { borderColor: getComputedStyle(ref.current).borderColor, backgroundColor: getComputedStyle(ref.current).backgroundColor },
     ], { duration: motionDuration('--motion-content'), easing: 'ease-out' });
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');

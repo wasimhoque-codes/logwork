@@ -1,8 +1,8 @@
 # Gym Hawk mobile interface
 
-The design uses warm ivory (`#F7F6F2`), white grouped surfaces, deep ink text (`#1B2926`) and a restrained teal accent (`#147D72`). Manrope headings and DM Sans body text are bundled locally for offline use. Body/input text is 16px; secondary text is at least 14px. Touch targets are at least 44×44px. Content is centered within 680px on large screens, with one primary action per task.
+The design uses a cool blue-gray canvas (`#F4F7FB`), white surfaces, dark purple-derived text (`#27283F`) and sky blue (`#66C7F4`) as its main color. Purple (`#6C6EA0`) supplies secondary controls and focus, pink (`#FF1053`) marks observations, and blue-gray (`#C1CAD6`) supports borders. Manrope headings and DM Sans body text are bundled locally for offline use. Body/input text is 16px; secondary text is generally 14px, with compact 12–13px chart annotations. Touch targets are at least 44×44px. Content is centered within 680px on large screens, with one primary action per task.
 
-Today has a forest-green (`#123E36`) workout hero with subtle decorative arcs, mint metadata and a high-contrast mint action. Supporting cards share delicate borders, soft shadows, rounded corners and tinted icon containers. Navigation floats above the safe area with rounded corners and a pale mint selected state. Charts, focus rings, timers, logging inputs, sheets and completion screens use the same semantic CSS theme variables. Warning and error states retain their distinct colors. Short color transitions respect reduced motion.
+Today has a sky-blue workout hero with subtle decorative arcs, dark text and a white action. Supporting cards share delicate borders, soft shadows, rounded corners and tinted icon containers. Navigation floats above the safe area with a pale-blue selected state. Charts, focus rings, timers, logging inputs, sheets and completion screens share semantic CSS variables. Primary sky-blue controls use dark text; purple controls use white text. Error text uses an accessible pink-derived shade. Motion respects reduced-motion preferences.
 
 This visual update preserves routes, version-4 storage, programme prescriptions, logging behaviour and session-only extra sets. It does not migrate or reset records.
 
@@ -36,10 +36,14 @@ One save leads to a short confirmation with Back to Today and View workout. It d
 
 ## Progress and quick entries
 
-Progress starts with adherence, recent workouts and a bodyweight trend when data exists. Empty states suggest a relevant first action, rather than showing blank charts or meaningless ratios. Movement, volume, bodyweight and recovery have dedicated detail screens. Movement initially lists recorded exercise/setup identities; All exercises reveals the catalogue. Volume is labelled load × repetitions, in kg × reps or lb × reps.
+Progress starts with adherence, recent workouts and a shared bodyweight trend card, with a logging prompt when empty. Empty states suggest a relevant first action, rather than showing blank charts or meaningless ratios. Movement, volume, bodyweight and recovery have dedicated detail screens. Movement initially lists recorded exercise/setup identities; All exercises reveals the catalogue. Volume is labelled load × repetitions, in kg × reps or lb × reps.
 
-Daily habit tracking has been removed from Today and Recovery. Existing daily check-ins are discarded on load/import, while version-4 storage and backups retain an empty `daily` array for compatibility. Bodyweight entry, units, history and trends are unchanged. Workout symptoms and technique remain explicit observations; nutrition references, symptom guidance, assisted/bodyweight tracking and progression gates remain intact.
+Daily habit tracking has been removed from Today and Recovery. Existing daily check-ins are discarded on load/import, while version-4 storage and backups retain an empty `daily` array for compatibility. Bodyweight records, entry, units and history are preserved. Workout symptoms and technique remain explicit observations; nutrition references, symptom guidance, assisted/bodyweight tracking and progression gates remain intact.
 
 ## Layout verification
 
 The action docks reserve scrolling space and follow keyboard offsets. Browser checks cover 320×568 and 390×844, tablet/desktop sizes, a 320×330 keyboard viewport, enlarged text, focus order and overflow. Screenshots are in `artifacts/mobile-redesign/`. See `validation.md` for the current build and package results.
+
+## Bodyweight chart
+
+Overview and bodyweight detail show all saved weigh-ins as pink dots, with a purple 7-day rolling-average line and a light sky-blue fill. Dates use actual calendar spacing. Each average includes readings on its date and the preceding six calendar days; missing days add no observations. The chart has no date-range controls, point selection or tooltips. Latest weight, latest 7-day average/read count and change since the first reading have explicit dates and units. The axis follows the data with padding and a minimum 1 kg span, converted for pounds. A single reading stays a single point with explanatory copy; empty history prompts logging. A screen-reader table exposes every reading and its average without affecting layout. Weekly summaries and programme nutrition calculations retain their existing rules.
