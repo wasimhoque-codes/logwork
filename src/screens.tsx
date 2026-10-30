@@ -1,13 +1,27 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronRight, Check, Dumbbell, Activity, Plus, Download, Upload, Search, Trash2 } from './icons';
 import { WORKOUTS, DAY_NAMES, allExercises, programmePhase, phaseGoal, weekEffort, type Exercise, type Workout } from './data';
 import { attemptSessions, coreWorkoutCount, completeSession, sessionLabel, dateLabel, doneSets, fromKg, localDate, monday, number, progression, volume, exerciseKey, bodyAverages, bodyGuidance, pendingFollowups, SYMPTOM_LABELS, type Session, type Store, type Settings, type RecoveryEntry } from './model';
 import { Empty, LineChart, Modal } from './components';
+import { reducedMotion, useContentFade } from './motion';
 export { ExerciseDetails } from './programme-ui';
 export function WeekPicker({day,onDay,week=1}:{day:number;onDay:(day:number)=>void;week?:number}) {
-  return <div className="week-picker" role="tablist" aria-label="Weekly programme">{DAY_NAMES.map((name,i)=>{
+  const stripRef=useRef<HTMLDivElement>(null),firstReveal=useRef(true);
+  useLayoutEffect(()=>{
+    const strip=stripRef.current;if(!strip)return;
+    const reveal=(smooth=false)=>{
+      const selected=strip.querySelector<HTMLElement>('[aria-selected=true]');if(!selected)return;
+      const bounds=strip.getBoundingClientRect(),button=selected.getBoundingClientRect();
+      const delta=button.left<bounds.left+4||button.right>bounds.right-4?button.left-bounds.left-(bounds.width-button.width)/2:0;
+      if(delta)strip.scrollTo({left:strip.scrollLeft+delta,behavior:smooth&&!reducedMotion()?'smooth':'instant'});
+    };
+    reveal(!firstReveal.current);firstReveal.current=false;
+    let initialSize=true;const observer=new ResizeObserver(()=>{if(initialSize){initialSize=false;return;}reveal();});observer.observe(strip);
+    return()=>observer.disconnect();
+  },[day]);
+  return <div ref={stripRef} className="week-picker" role="tablist" aria-label="Weekly programme">{DAY_NAMES.map((name,i)=>{
     const w=WORKOUTS.find(w=>w.days.includes(i===6?0:i+1)),label=w?.optional&&(week<5||week===16)?'Mobility':w?.name??'Rest';
-    return <button key={name} role="tab" aria-label={name.slice(0,3)+' '+label} aria-selected={day===i} tabIndex={day===i?0:-1} onClick={event=>{onDay(i);event.currentTarget.scrollIntoView({block:'nearest',inline:'nearest'});}} onKeyDown={e=>{const next=e.key==='ArrowRight'?(i+1)%7:e.key==='ArrowLeft'?(i+6)%7:e.key==='Home'?0:e.key==='End'?6:null;if(next!==null){e.preventDefault();onDay(next);const button=e.currentTarget.parentElement?.querySelectorAll('button')[next];button?.focus();button?.scrollIntoView({block:'nearest',inline:'nearest'});}}}><span>{name.slice(0,3)}</span><strong>{label==='Active recovery'?'Recovery':label}</strong></button>;
+    return <button key={name} id={'programme-day-'+i} aria-controls="programme-day-panel" role="tab" aria-label={name.slice(0,3)+' '+label} aria-selected={day===i} tabIndex={day===i?0:-1} onClick={()=>onDay(i)} onKeyDown={e=>{const next=e.key==='ArrowRight'?(i+1)%7:e.key==='ArrowLeft'?(i+6)%7:e.key==='Home'?0:e.key==='End'?6:null;if(next!==null){e.preventDefault();onDay(next);e.currentTarget.parentElement?.querySelectorAll('button')[next]?.focus({preventScroll:true});}}}><span>{name.slice(0,3)}</span><strong>{label==='Active recovery'?'Recovery':label}</strong></button>;
   })}</div>;
 }
 export function Today({store,workout,onStart,onPlan,onReview,onBody,onFollowup}:{store:Store;workout?:Workout;onStart:()=>void;onPlan:()=>void;onReview:()=>void;onBody:()=>void;onFollowup:(s:Session)=>void}) {
@@ -23,15 +37,16 @@ export function Today({store,workout,onStart,onPlan,onReview,onBody,onFollowup}:
 }
 export function Plan({store,day,onDay,workout,onStart,onResume,onOptions,onWarmup,onGuide,onUrgent,onReview,onExercise}:{store:Store;day:number;onDay:(day:number)=>void;workout?:Workout;onStart:()=>void;onResume:()=>void;onOptions:()=>void;onWarmup:()=>void;onGuide:()=>void;onUrgent:()=>void;onReview:()=>void;onExercise:(e:Exercise)=>void}) {
   const p=store.programme;
+  const dayRef=useRef<HTMLDivElement>(null);useContentFade(dayRef,day,true);
   return <><div className="programme-heading"><p className="eyebrow">Week {p.week} · {programmePhase(p.week)}</p><button className="text-button" onClick={onOptions}>Programme settings</button></div><WeekPicker day={day} onDay={onDay} week={p.week}/>
     {store.active&&<aside className="active-banner"><p><strong>{store.active.workout.name} is in progress</strong><span>Finish or discard it before starting another session.</span></p><button className="secondary full-width" onClick={onResume}>Resume {store.active.workout.name}<ArrowRight size={18}/></button></aside>}
-    <section className="plan-card"><p className="overline">{DAY_NAMES[day]}</p><h2>{workout?.optional&&!workout.exercises.length?'Walking & mobility':workout?.name??'Rest day'}</h2><p className="dialog-description">{workout?.focus??'A day to recover.'}</p>{workout?.exercises.length?<p className="plan-effort">{workout.exercises.reduce((n,e)=>n+e.sets,0)} working sets · {weekEffort(p.week)} reps in reserve</p>:null}
+    <div ref={dayRef} id="programme-day-panel" role="tabpanel" aria-labelledby={'programme-day-'+day} tabIndex={0}><section className="plan-card"><p className="overline">{DAY_NAMES[day]}</p><h2>{workout?.optional&&!workout.exercises.length?'Walking & mobility':workout?.name??'Rest day'}</h2><p className="dialog-description">{workout?.focus??'A day to recover.'}</p>{workout?.exercises.length?<p className="plan-effort">{workout.exercises.reduce((n,e)=>n+e.sets,0)} working sets · {weekEffort(p.week)} reps in reserve</p>:null}
       {p.status==='complete'?<button className="primary full-width" onClick={onReview}>Review completed block</button>:workout&&<button className="primary full-width" disabled={!!store.active} onClick={onStart}>{workout.category==='recovery'?'Log recovery':'Train this session today'}<ArrowRight size={18}/></button>}
       {!!workout?.exercises.length&&<p className="input-hint">Recorded on {dateLabel(localDate(),{day:'numeric',month:'long'})}, whenever you train.</p>}
     </section>
     {!!workout?.exercises.length&&<section className="exercise-list" aria-label="Planned exercises">{workout.exercises.map((e,i)=><button className="exercise-row" key={e.slot??e.id} onClick={()=>onExercise(e)}><span className="row-number">{i+1}</span><span className="exercise-row-name">{e.name}<small>{e.sets} × {e.min===e.max?e.min:e.min+'–'+e.max}{e.timed?' sec':' reps'}{e.perSide?' / side':''} · {e.rest}s rest</small></span><ChevronRight size={18}/></button>)}</section>}
     {workout?.category==='recovery'&&<p className="recovery-callout">20–30 minutes easy walking or cycling, then 15–20 minutes gentle mobility. No intervals or sprints.</p>}
-    <details className="programme-resources"><summary>Preparation & guidance</summary><div className="guide-actions">{!!workout?.exercises.length&&<button className="secondary" onClick={onWarmup}>Warm-up</button>}<button className="secondary" onClick={onGuide}>Training guide</button></div><button className="text-button full-width" onClick={onUrgent}>Back pain: urgent help</button></details>
+    </div><details className="programme-resources"><summary>Preparation & guidance</summary><div className="guide-actions">{!!workout?.exercises.length&&<button className="secondary" onClick={onWarmup}>Warm-up</button>}<button className="secondary" onClick={onGuide}>Training guide</button></div><button className="text-button full-width" onClick={onUrgent}>Back pain: urgent help</button></details>
     <details className="roadmap"><summary>16-week roadmap</summary>{[{range:'1–4',week:1},{range:'5–8',week:5},{range:'9–12',week:9},{range:'13–15',week:13},{range:'16',week:16}].map(stage=><div key={stage.week}><strong>Weeks {stage.range} · {programmePhase(stage.week)}</strong><p>{phaseGoal(stage.week)}</p></div>)}</details><button className="summary-link" onClick={onReview}><span>Review or repeat Week {p.week}</span><ChevronRight size={18}/></button>
   </>;
 }

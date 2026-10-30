@@ -1,3 +1,63 @@
+# Gym Hawk UX and motion polish validation
+
+Validated on 30 October 2026. This local-only update preserves version-4 storage, prescriptions, pending exercise-history and saved-workout extra-set features, and existing records. Nothing was published or pushed.
+
+- Model suite: 105 tests passed across 6 files (`npm test`).
+- TypeScript and production build: passed (`npm run build`), using Node 24.11.1. Final assets: `assets/index-B5fc8n9c.js` and `assets/index-ChEyoWWZ.css`.
+- Full browser suite: 108 passed across desktop and mobile Chromium. Four duplicate screenshot-matrix runs are deliberately skipped under the mobile project; all four viewport sizes run under the desktop project. Command: `PW_BASE_URL=http://127.0.0.1:4175 npm run test:e2e`.
+- New behavior checks: Programme reveals Friday on entry at 320px and keeps Home/End selections visible without vertical page scrolling; Progress tabs support arrow keys, wrapping, Home/End, one tab stop and labelled panels; sheets retain focus through dismissal and restore their triggers; rapid navigation settles correctly; existing input elements, unsaved values, edit drafts, rest countdown and fixed docks survive motion.
+- Reduced motion: CSS animations/transitions (including disclosure pseudo-elements), route/exercise fades and set feedback are disabled. Sheet dismissal is immediate. Normal motion uses 140ms control feedback, 180ms content fades, 220ms panels and at most 160ms dismissal; timers and typing do not restart animations.
+- Visual review: 56 settled screenshots across Today, Programme, populated/empty Progress, history, charts, settings, logging/rest, review/saved screens, record details, bodyweight sheets and exercise history at 320×568, 390×844, 768×1000 and 1440×1000. Images and five review composites are in `artifacts/ux-polish/`. Screenshot capture waits for fonts and finite animations to finish. Captured buttons, links and disclosures are at least 44×44px; no horizontal overflow was detected. Logger inputs clear the dock at 320px. Existing keyboard-height and enlarged-text checks also passed.
+- Regression coverage: offline reload, backup round trips, saved editing, extra-set limits, kg/lb, assistance, bodyweight, timed/per-side values, focus return, programme boundaries and service-worker upgrades all passed.
+- Environment recovery: cloud/dataless dependencies were restored with `npm ci --os=darwin --cpu=arm64 --include=optional --no-audit --no-fund`. A subsequent build timed out reading a cloud-placeholder public asset. Final build/browser validation used `/private/tmp/gym-hawk-polish-validation`, after verifying all 44 source, test, public and configuration files against the workspace byte for byte. The tested output and screenshots were copied back and verified. Chromium required normal macOS access because its launch was blocked in the sandbox.
+- Package: `python3 scripts/package.py` verified 11 production files against the ZIP. The workspace `dist`, tested build and delivered archive were then compared byte for byte. ZIP: 186,088 bytes; SHA-256 `28955507d25e91c404b696d79f62a88dcc4256d3a3ee6cd3e4b4eba0964c71d9`. Service-worker SHA-256: `b1daaf9f7a27c7639a52a29c0ce27722c4949e5e134b43c53add42e65bbc3010`.
+
+Physical-device Safari/VoiceOver testing was not performed.
+
+---
+
+# Gym Hawk exercise-history validation
+
+Validated on 30 October 2026 against the final production build. Version-4 storage, backups and saved-workout extra-set editing are preserved.
+
+- Model tests: 105 passed across 6 files (`npm test`). New coverage checks five-session ordering, exact exercise/setup matching, active/later/unfinished exclusions, partial workouts, skipped unlogged rows, original set numbers, extras, saved edits and historical load-mode snapshots.
+- TypeScript and production build: passed (`npm run build`).
+- Full browser suite: 92 passed across desktop and mobile Chromium, including 10 new exercise-history checks. Command: `PW_BASE_URL=http://127.0.0.1:4174 npm run test:e2e`, using `python3 -m http.server 4174 --bind 127.0.0.1 --directory dist` to serve the exact production build. The initial full-suite attempt timed out starting Vite preview because a dependency was a cloud placeholder; the static-server run passed in full.
+- History is a secondary link beside Technique & options. Its read-only sheet shows the latest five matching saved sessions with dates/times, programme week, original logged-set numbers, weights/reps/seconds, RIR (including zero) and Extra labels. Empty history stays accessible with a clear message. The old inline hint and options banner are removed; prefilling and Copy last session are retained.
+- Workout preservation: verified unsaved weight/reps inputs, logged-set edit drafts, exercise switching, focus return, Escape dismissal, focus trapping, and continued rest countdown while history is open. Viewing history does not write workout data.
+- Data and modes: saved-workout weight edits and newly added sets appear in history; offline reload retains the records. kg/lb, assistance, bodyweight and timed/per-side history passed.
+- Mobile review: visually inspected the compact link and sheet at 320×568 and 390×844. Automated checks confirm the link stays above the action dock, has a 44px touch target, and the sheet scrolls through five sessions without horizontal overflow. Captures: `test-results/exercise-history-compact-l-787c7-without-obstructing-logging-{desktop,mobile}/history-{link,sheet}-{320,390}.png`.
+- Package: `python3 scripts/package.py` verified all 11 ZIP files byte for byte against the tested `dist`. This update has not been published.
+
+Build assets: `assets/index-DTWcnCQn.js`, `assets/index-L4bPJF30.css`.
+Service-worker SHA-256: `9c5c1457acd2247d3252db58f7a3101e619531890657462ec5c76b85d52a7540`.
+ZIP: 183,814 bytes; SHA-256 `fa21243163d4429e149b9807146402de1888e389fcf258e08a55fa7efeeecb60`.
+
+Physical-device Safari/VoiceOver testing was not performed.
+
+---
+
+# Gym Hawk saved-workout extra-set validation
+
+Validated on 29 October 2026 against the final production build. Version-4 storage and backups are unchanged; no data reset or migration is needed.
+
+- Model tests: 94 passed across 5 files (`npm test`), including additions/removals on complete and partial saved sessions, preserved metadata and prescription snapshots, completion, volume and progression.
+- TypeScript and production build: passed (`npm run build`).
+- Full browser suite: 82 passed across desktop and mobile Chromium (`npm run test:e2e`), including 10 new saved-workout checks.
+- Saved editing: Add set is available for each exercise, copies the preceding load and reps/seconds, clears RIR and starts unlogged. Save changes persists the draft; Cancel or closing discards it. Logged extras must be unchecked before removing the final extra, and prescribed rows cannot be removed.
+- Persistence and calculations: verified saved complete/partial workouts, exercises with no logged sets, invalid logged-load errors, the ten-set limit, totals/volume, offline reload, backup export/import and unchanged future prescribed counts. Unlogged extras persist as partial workouts.
+- Load modes: kg/lb, assistance, bodyweight, timed and per-side values passed; bodyweight focuses the seconds/reps field instead of the disabled weight field.
+- Mobile review: visually inspected saved-editor captures at 320×568 and 390×844. Automated checks cover focus after addition/removal, at least 44px control widths (including checkbox labels), and no dialog overflow. Captures: `test-results/saved-extra-sets-saved-ext-3fdd7-eyboard-focus-after-removal-{desktop,mobile}/saved-extra-{320,390}.png`.
+- Package: `python3 scripts/package.py` verified all 11 archived production files byte for byte against the tested `dist`. This update has not been published.
+
+Build assets: `assets/index-UqYEwigB.js`, `assets/index-B9kOssk9.css`.
+Service-worker SHA-256: `031192f1ef8271802be4cc0157cc5743df12fe4cd0246ce2354bd5dc3b7a6b59`.
+ZIP: 183,123 bytes; SHA-256 `7bca52ee612d1be34a9155b8a76f3e5ea0a34f7d27586524262cb24064ab50a8`.
+
+Physical-device Safari/VoiceOver testing was not performed.
+
+---
+
 # Gym Hawk ivory and teal design validation
 
 Validated on 27 October 2026 against the final production build. This redesign changes presentation only; version-4 storage, routes, prescriptions and existing extra-set behaviour are preserved.

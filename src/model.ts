@@ -41,14 +41,14 @@ export function selectedWorkout(store:Store,day:number) {
 export function doneSets(s:Session) { return s.exercises.flatMap(e=>e.sets).filter(set=>set.done).length; }
 export function addSessionSet(session:Session,exerciseIndex:number):Session {
   const log=session.exercises[exerciseIndex];
-  if(session.endedAt!==undefined||!log||log.sets.length>=MAX_SETS_PER_EXERCISE)return session;
+  if(!log||log.sets.length>=MAX_SETS_PER_EXERCISE)return session;
   const last=log.sets.at(-1),exercise=session.workout.exercises[exerciseIndex];
   const set:SetLog={weight:log.mode==='bodyweight'?0:last?.weight??null,reps:last?.reps??exercise.min,rir:null,done:false};
   return {...session,exercises:session.exercises.map((e,i)=>i===exerciseIndex?{...e,sets:[...e.sets,set]}:e)};
 }
 export function removeLastSessionSet(session:Session,exerciseIndex:number):Session {
   const log=session.exercises[exerciseIndex],exercise=session.workout.exercises[exerciseIndex];
-  if(session.endedAt!==undefined||!log||!exercise||log.sets.length<=exercise.sets||log.sets.at(-1)?.done)return session;
+  if(!log||!exercise||log.sets.length<=exercise.sets||log.sets.at(-1)?.done)return session;
   return {...session,exercises:session.exercises.map((e,i)=>i===exerciseIndex?{...e,sets:e.sets.slice(0,-1)}:e)};
 }
 export function completeSession(s:Session) { return s.endedAt!==undefined&&s.exercises.length>0&&s.exercises.every(e=>e.sets.length>0&&e.sets.every(set=>set.done)); }
@@ -57,6 +57,24 @@ export function sessionWorkout(s:Session) { return s.workout; }
 export function sessionLabel(s:Session) { return 'Week '+s.week; }
 export function volume(s:Session) { return s.exercises.reduce((total,e,i)=>total+(e.mode==='external'&&!s.workout.exercises[i].timed?e.sets.filter(set=>set.done).reduce((n,set)=>n+(set.weight??0)*set.reps,0):0),0); }
 export function exerciseKey(ex:Exercise,mode=ex.mode??'external') { return JSON.stringify([ex.id,mode,(ex.setup??'').trim().toLowerCase(),ex.supportCm??null,ex.coreLevel??'']); }
+export type ExerciseHistoryEntry = {
+  sessionId:string; date:string; startedAt:number; week?:number;
+  exercise:Exercise; mode:LoadMode; sets:(SetLog & {setNumber:number})[];
+};
+export function exerciseHistory(sessions:Session[],current:Session,exerciseIndex:number):ExerciseHistoryEntry[] {
+  const exercise=current.workout.exercises[exerciseIndex],log=current.exercises[exerciseIndex];
+  if(!exercise||!log)return [];
+  const key=exerciseKey(exercise,log.mode),entries:ExerciseHistoryEntry[]=[];
+  const previous=sessions.filter(s=>s.id!==current.id&&s.endedAt!==undefined&&s.startedAt<current.startedAt).sort((a,b)=>b.startedAt-a.startedAt);
+  for(const session of previous){
+    const index=session.exercises.findIndex((e,i)=>e.sets.some(set=>set.done)&&exerciseKey(session.workout.exercises[i],e.mode)===key);
+    if(index<0)continue;
+    const match=session.exercises[index];
+    entries.push({sessionId:session.id,date:session.date,startedAt:session.startedAt,week:session.week,exercise:session.workout.exercises[index],mode:match.mode,sets:match.sets.flatMap((set,i)=>set.done?[{...set,setNumber:i+1}]:[])});
+    if(entries.length===5)break;
+  }
+  return entries;
+}
 export function previousExercise(sessions:Session[],ex:Exercise,mode=ex.mode??'external') { const key=exerciseKey(ex,mode);for(const s of [...sessions].sort((a,b)=>b.startedAt-a.startedAt)) {const i=s.exercises.findIndex((log,i)=>log.sets.some(set=>set.done)&&exerciseKey(s.workout.exercises[i],log.mode)===key);if(i>=0)return s.exercises[i];} }
 export function newSession(w:Workout,store:Store):Session {
   if(store.programme.status==='complete'||w.category==='recovery'||!w.exercises.length)throw new Error('Choose an available resistance workout.');

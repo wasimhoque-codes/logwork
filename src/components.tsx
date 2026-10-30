@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { X, ChevronLeft, Dumbbell, MoveUpRight, Footprints, Activity, Flame, Heart, ArrowUpRight } from './icons';
 import type { Exercise } from './data';
 import { number } from './model';
+import { motionDuration, reducedMotion } from './motion';
 export function Hawk({ size = 29 }: {
     size?: number;
 }) { return <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true"><path d="M3 9h20l-9 10h10l-8 10h10L13 43l5-14H9l5-10H7zM24 9h20l-8 10H25l-5 6 4-12z" fill="currentColor"/></svg>; }
@@ -22,13 +23,28 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
     const returnFocus = useRef(document.activeElement as HTMLElement | null);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
+    const [closing, setClosing] = useState(false);
+    const closingRef = useRef(false), closedRef = useRef(false), dismissTimer = useRef<number | undefined>(undefined);
+    const finishDismiss = useCallback(() => {
+        if (closedRef.current) return;
+        closedRef.current = true;
+        window.clearTimeout(dismissTimer.current);
+        onCloseRef.current();
+    }, []);
+    const dismiss = useCallback(() => {
+        if (closingRef.current) return;
+        if (reducedMotion()) { finishDismiss(); return; }
+        closingRef.current = true;
+        setClosing(true);
+        dismissTimer.current = window.setTimeout(finishDismiss, Math.min(160, motionDuration('--motion-dismiss')));
+    }, [finishDismiss]);
     useEffect(() => {
         const previous = returnFocus.current;
         const getFocusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex="0"], summary') ?? []).filter(e => !e.hasAttribute('disabled') && e.getClientRects().length > 0);
         if (!ref.current?.contains(document.activeElement)) getFocusable()[0]?.focus();
         const handler = (e: KeyboardEvent) => {
             if (e.key === 'Escape')
-                onCloseRef.current();
+                dismiss();
             if (e.key === 'Tab') {
                 const elements = getFocusable(), first = elements[0], last = elements.at(-1);
                 if (e.shiftKey && document.activeElement === first) {
@@ -44,10 +60,13 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
         const oldOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
         document.addEventListener('keydown', handler);
-        return () => { document.body.style.overflow = oldOverflow; document.removeEventListener('keydown', handler); previous?.focus(); };
-    }, []);
-    return <div className={`modal-overlay ${variant === 'sheet' ? 'sheet-overlay' : variant === 'page'?'page-overlay':''}`} onClick={e => { if (e.target === e.currentTarget)
-        onClose(); }}><div className={`modal ${wide ? 'modal-wide' : ''} ${variant === 'sheet' ? 'modal-sheet' : variant === 'page'?'modal-page':''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading">{variant==='page'?<><button className="icon-button" aria-label="Back to previous screen" onClick={onClose}><ChevronLeft size={22}/></button><h2>{title}</h2></>:<><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20}/></button></>}</div>{children}</div></div>;
+        const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const onPreference = () => { if (preference.matches && closingRef.current) finishDismiss(); };
+        preference.addEventListener('change', onPreference);
+        return () => { window.clearTimeout(dismissTimer.current); preference.removeEventListener('change', onPreference); document.body.style.overflow = oldOverflow; document.removeEventListener('keydown', handler); if (previous?.isConnected) previous.focus({preventScroll:true}); };
+    }, [dismiss, finishDismiss]);
+    return <div className={`modal-overlay ${variant === 'sheet' ? 'sheet-overlay' : variant === 'page'?'page-overlay':''}`} data-state={closing?'closing':'open'} onAnimationEnd={e=>{if(closing&&e.target===e.currentTarget&&e.animationName==='overlay-out')finishDismiss();}} onClickCapture={e=>{if(closing){e.preventDefault();e.stopPropagation();}}} onClick={e => { if (e.target === e.currentTarget)
+        dismiss(); }}><div className={`modal ${wide ? 'modal-wide' : ''} ${variant === 'sheet' ? 'modal-sheet' : variant === 'page'?'modal-page':''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading">{variant==='page'?<><button className="icon-button" aria-label="Back to previous screen" onClick={dismiss}><ChevronLeft size={22}/></button><h2>{title}</h2></>:<><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={dismiss}><X size={20}/></button></>}</div>{children}</div></div>;
 }
 export function Empty({ title, text, icon = 'activity', action }: {
     title: string;

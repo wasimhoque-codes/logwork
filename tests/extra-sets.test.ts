@@ -33,11 +33,26 @@ describe('session-only extra sets',()=>{
       expect(added.workout.exercises[i]).toEqual(s.workout.exercises[i]);
     }
   });
-  it('caps additions at ten, refuses finished workouts and ignores invalid exercise indices',()=>{
+  it('caps additions at ten and ignores invalid exercise indices',()=>{
     let s=active().active!;for(let i=0;i<20;i++)s=addSessionSet(s,0);
     expect(s.exercises[0].sets).toHaveLength(10);expect(addSessionSet(s,0)).toBe(s);
     expect(addSessionSet(s,-1)).toBe(s);expect(addSessionSet(s,99)).toBe(s);
     const finished=complete(s);expect(addSessionSet(finished,0)).toBe(finished);expect(removeLastSessionSet(finished,0)).toBe(finished);
+  });
+  it.each([false,true])('edits finished sessions (partial=%s) without mutating metadata or the original',partial=>{
+    const store=active(),original=complete(store.active!);store.active=null;
+    if(partial)original.exercises[1].sets[0].done=false;
+    const before=structuredClone(original),added=addSessionSet(original,0),index=original.exercises[0].sets.length;
+    expect(original).toEqual(before);
+    expect(added.exercises[0].sets[index]).toEqual({weight:20,reps:original.exercises[0].sets.at(-1)!.reps,rir:null,done:false});
+    expect({...added,exercises:original.exercises}).toEqual(original);
+    expect(completeSession(added)).toBe(false);
+    store.sessions=[added];expect(validateStore(JSON.parse(JSON.stringify(store)))).toEqual(store);
+    expect(removeLastSessionSet(added,0)).toEqual(original);
+    expect(added.exercises[0].sets).toHaveLength(index+1);
+    added.exercises[0].sets[index].done=true;
+    expect(removeLastSessionSet(added,0)).toBe(added);
+    expect(newSession(selectedWorkout(store,1)!,store).exercises[0].sets).toHaveLength(original.workout.exercises[0].sets);
   });
   it('removes only the last unlogged extra, preserving prescribed and logged sets',()=>{
     const s=active().active!,one=addSessionSet(s,0),two=addSessionSet(one,0);
@@ -71,7 +86,7 @@ describe('session-only extra sets',()=>{
     ]){const copy=structuredClone(store);mutate(copy.active!);expect(()=>validateStore(copy)).toThrow();}
   });
   it('counts extras in completion and volume and applies all progression checks to them',()=>{
-    const original=complete(active().active!),s=addSessionSet({...original,endedAt:undefined},0),ex=s.workout.exercises[0],log=s.exercises[0];
+    const original=complete(active().active!),s=addSessionSet(original,0),ex=s.workout.exercises[0],log=s.exercises[0];
     s.endedAt=original.endedAt;
     expect(completeSession(s)).toBe(false);expect(progression(ex,log,s)).toBeNull();
     Object.assign(log.sets.at(-1)!,{weight:20,reps:ex.max,rir:3,done:true});
