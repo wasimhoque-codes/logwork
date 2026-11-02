@@ -1,3 +1,20 @@
+# Gym Hawk Progress dashboard validation
+
+Validated on 2 November 2026. This update preserves version-4 storage, backups, programme prescriptions, active workouts and saved history. Delivery includes the local app and production package plus a GitHub push; the hosted Site is not published.
+
+- Model suite: 139 passed across 8 files (`npm test`). The 24 new dashboard cases cover consecutive repeats, restart/advancement, unique main completions, partial and optional workouts, attempt recovery, missing baselines, exact setup identities, all-time load records, paired load/reps, card prioritization, extra-set volume, zero baselines, assistance, timed/per-side work, progression gates, stale/future weights, both UK DST boundaries, recovery windows, volume reconciliation and source immutability.
+- TypeScript and production build: passed with Node 24.11.1 (`npm run build`). Final assets: `assets/index-CEfvjMiX.js` and `assets/index-BrYeb6in.css`.
+- Full browser suite: 138 passed across desktop and mobile Chromium, with 12 deliberate skips for duplicate four-viewport screenshot matrices. Command: `PW_BASE_URL=http://127.0.0.1:4178 npm run test:e2e`. Existing History-tab assertions now accept its accessible log-count label. The final complete suite passed after this assertion update.
+- Dashboard behavior: latest saved current-attempt workouts compare against the immediately preceding repeat attempt, or the previous matching workout on ordinary weeks. Missing/changed setups have no fabricated comparison. Card navigation selects the exact exercise identity and all-time records; By muscle opens current-attempt muscle totals while direct volume links retain the weekly chart. A compact snapshot opens the unchanged full-history bodyweight chart and its accessible data table. Tests cover overlay focus trapping, Escape, trigger focus and scroll restoration, records navigation, logging, unit persistence, pending feedback, History totals and offline reload.
+- Visual/accessibility review: 24 new captures in `artifacts/progress-dashboard/`, covering empty, populated, repeated-week and completed-block states, full-chart overlays and muscle breakdowns at 320×568, 390×844, 768×1000 and 1440×1000. Cards stack below 600px and use two columns above it. New controls pass 44×44px target checks; enlarged text, horizontal overflow and bottom-dock clearance checks pass. The full regression suite also verifies existing contrast, chart marks, keyboard flows, reduced motion, logging, saved editing, backups and service-worker upgrades.
+- Data semantics: attempt summaries and volume use the current attempt; body/recovery snapshots use today and six preceding local calendar days. Overdue next-day feedback is explicitly counted across all dates. External volume uses kg × reps or lb × reps and excludes assistance, bodyweight and timed work. Per-hand/per-side values and timed core seconds are not doubled. Load PRs require an earlier comparable record and a new all-time external working load; progression retains its existing technique and recovery conditions.
+- Environment: validated in `/private/tmp/gym-hawk-progress.sow29twu` using locally installed locked dependencies to avoid cloud-placeholder stalls. All 51 workspace source, test, public, script and configuration inputs were compared byte for byte with the tested copy. The delivered `dist` matches the tested build. Chromium and the loopback preview used approved normal macOS access.
+- Package: `python3 scripts/package.py` verified all 11 production files byte for byte. ZIP: 194,724 bytes; SHA-256 `d21df23597130cace646af5aad46b3a84ab57dc721f4413ed58fd6e91f13f969`. Service-worker SHA-256: `80cc64ce5d75d1076d12e56df41d1853585bc3e871ad82709e52f4cd1ef1cd3e`.
+
+Physical-device Safari/VoiceOver testing was not performed.
+
+---
+
 # Gym Hawk bodyweight chart and sky-blue theme validation
 
 Validated on 30 October 2026. This update is local-only: no push or publication was performed. Version-4 storage, backups, prescriptions, workout history and logging behavior are preserved.

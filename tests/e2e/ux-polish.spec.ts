@@ -63,11 +63,11 @@ test('Programme reveals selected days on entry and keyboard navigation only scro
 test('Progress tabs have one tab stop, arrow keys, wrapping and labelled panels', async ({ page }) => {
   await page.goto('/#progress');
   const tabs = page.getByRole('tablist', { name: 'Progress views' });
-  const overview = tabs.getByRole('tab', { name: 'Overview' }), history = tabs.getByRole('tab', { name: 'History' });
+  const overview = tabs.getByRole('tab', { name: 'Overview' }), history = tabs.getByRole('tab', { name: /^History/ });
   await expect(overview).toHaveAttribute('tabindex', '0'); await expect(history).toHaveAttribute('tabindex', '-1');
   await overview.focus(); await page.keyboard.press('ArrowRight');
   await expect(history).toBeFocused(); await expect(history).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tabpanel', { name: 'History' })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: /^History/ })).toBeVisible();
   await page.keyboard.press('ArrowRight'); await expect(overview).toBeFocused();
   await page.keyboard.press('End'); await expect(history).toBeFocused();
   await page.keyboard.press('Home'); await expect(overview).toBeFocused();
@@ -162,7 +162,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     }
     await nav(page).getByRole('button', { name: 'Programme', exact: true }).click(); await shot('programme');
     await nav(page).getByRole('button', { name: 'Progress', exact: true }).click(); await shot('progress');
-    await page.getByRole('tab', { name: 'History', exact: true }).click(); await shot('history');
+    await page.getByRole('tab', { name: /^History/, exact: true }).click(); await shot('history');
     await page.locator('.history-row').first().click(); await shot('record'); await dismiss(page);
     await page.goto('/#progress/bodyweight'); await shot('chart');
     await page.getByRole('button', { name: 'Go back', exact: true }).click();
