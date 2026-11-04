@@ -499,3 +499,64 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
   .progress-unit select{min-width:60px;padding-left:8px}
   .body-chart-dialog .modal{padding-left:16px;padding-right:16px}
 }
+
+/* Progress: an uninterrupted history, with recent comparable appearances. */
+.journey-dashboard{gap:36px}
+.journey-dashboard>section{min-width:0}
+.journey-dashboard .dashboard-section-head>.text-button{min-width:44px}
+.journey-intro>.eyebrow{color:var(--accent-ink);margin-bottom:7px}
+.journey-intro>h2{font-size:32px;letter-spacing:-1.1px;line-height:1.2}
+.journey-subtitle{color:var(--muted);font-size:14px;line-height:1.7;margin:10px 0 22px}
+.journey-totals,.journey-comparisons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.journey-totals{margin-bottom:20px}
+.journey-stat{display:flex;flex-direction:column;gap:6px;padding:18px;border:1px solid var(--selection-line);border-radius:16px;background:var(--surface)}
+.journey-stat:first-child{background:var(--selection)}
+.journey-stat strong{font-family:Manrope,sans-serif;font-size:32px;line-height:1.2;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.journey-stat span{font-size:12px;color:var(--muted);line-height:1.5}
+.weekly-history,.journey-chart-card{padding:22px;border:1px solid var(--line);border-radius:20px;background:var(--surface);min-width:0}
+.weekly-chart-heading{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
+.weekly-chart-heading h3{font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;letter-spacing:0}
+.weekly-chart-heading .volume-detail-switch{margin:0;gap:6px;flex-wrap:wrap}
+.weekly-chart-heading .small-button{font-size:12px;padding:8px 12px;min-height:44px}
+.weekly-scroll{max-width:100%;overflow:auto;overscroll-behavior-x:contain;border-radius:5px}
+.weekly-scroll svg{display:block}
+.weekly-scroll text,.journey-plot text{font-family:'DM Sans',sans-serif;font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
+.weekly-bar{fill:var(--accent-ink)}
+.journey-selector{display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--muted);font-weight:500}
+.journey-selector select{width:100%;min-width:0;min-height:48px;background:var(--input);border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--text);font-size:16px;text-overflow:ellipsis}
+.journey-comparisons{margin:20px 0 24px;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.journey-comparisons>div{display:flex;flex-direction:column;gap:7px;min-width:0;padding:14px 12px;overflow-wrap:anywhere}
+.journey-comparisons>div:nth-child(even){border-left:1px solid var(--line)}
+.journey-comparisons>div:nth-child(n+3){border-top:1px solid var(--line);background:var(--input)}
+.journey-comparisons span,.journey-comparisons small{font-size:11px;color:var(--muted);line-height:1.5}
+.journey-comparisons strong{font-family:Manrope,sans-serif;font-size:17px;line-height:1.5;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.journey-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);margin:0 0 8px}
+.journey-legend>span{display:flex;align-items:center;gap:5px}
+.journey-legend>span:last-child{margin-left:auto}
+.journey-legend i{width:14px;height:2px;background:var(--subtle)}
+.journey-legend .recent-key{height:3px;background:var(--chart-line)}
+.journey-plot{width:100%;min-width:0}
+.journey-plot svg{display:block;overflow:visible}
+.journey-history-line{fill:none;stroke:var(--subtle);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.journey-old-point{fill:var(--subtle);stroke:var(--surface);stroke-width:1.5}
+.journey-plot g[role=button]{cursor:pointer;outline:none}
+.journey-plot g[role=button]:focus-visible circle{stroke:var(--text);stroke-width:3}
+.selected-observation{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:13px;line-height:1.5}
+.selected-observation>strong{text-align:right;font-weight:600}
+.selected-observation small{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:3px}
+.recent-lift{min-width:0;position:relative}
+.recent-lift .spotlight-card{width:100%;height:100%;box-shadow:none}
+.recent-lift .spotlight-card h3{min-height:0;margin-bottom:12px}
+.recent-lift .lift-value{font-size:22px}
+.recent-neutral-change{font-size:12px;color:var(--muted);line-height:1.6;margin-top:7px}
+.movement-spark{margin-top:16px;width:100%}
+.recent-lift .lift-card-foot{margin-top:10px;padding-top:10px;font-size:11px}
+.body-records-link{margin-top:12px;font-size:13px;min-height:44px}
+.support-grid{display:grid;gap:12px}
+.support-grid .attempt-card,.support-grid .snapshot-card{padding:20px;border-radius:18px;margin:0;min-width:0}
+.support-grid .attempt-card h2>strong{font-size:32px}
+.support-grid .attempt-workouts{grid-template-columns:repeat(2,minmax(0,1fr));margin:16px 0}
+.support-grid .attempt-start{margin-bottom:12px}
+.support-grid .attempt-context{font-size:12px}
+@media(min-width:600px){.journey-totals{grid-template-columns:repeat(4,minmax(0,1fr))}.journey-stat{padding:20px}.journey-comparisons strong{font-size:20px}.support-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-chart-heading{flex-direction:row;align-items:center;justify-content:space-between}.journey-intro>h2{font-size:36px}}
+@media(max-width:360px){.journey-dashboard{gap:28px}.journey-intro>h2{font-size:28px}.journey-stat{padding:15px 12px}.journey-stat strong{font-size:28px}.journey-stat span{font-size:11px}.weekly-history,.journey-chart-card{padding:16px}.journey-comparisons>div{padding:12px 9px}.journey-comparisons strong{font-size:15px}.journey-comparisons small{font-size:10px}.selected-observation{font-size:12px}.support-grid .attempt-card,.support-grid .snapshot-card{padding:17px}}

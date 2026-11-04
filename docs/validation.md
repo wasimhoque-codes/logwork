@@ -1,3 +1,18 @@
+# Gym Hawk journey dashboard validation
+
+Validated on 4 November 2026 against the production build. The dashboard now retains all saved training history across programme attempts and restarts, with separate recent comparisons based on each exercise's latest five appearances. Version-4 storage, backups and workout prescriptions are unchanged.
+
+- Unit tests: 149 passed across 9 files. New cases cover historical baselines, zero-training weeks, UK DST boundaries, partial and optional workouts, extra sets, interleaved exercises, exact setup/mode identities, representative sets, assistance, timed holds, unit conversion and source immutability.
+- Production TypeScript check and Vite build passed using Node 24.11.1 and locked Apple Silicon dependencies in a temporary validation checkout.
+- Full browser suite: 142 passed with 12 deliberate duplicate screenshot-matrix skips across desktop and phone Chromium. Command: `PW_BASE_URL=http://127.0.0.1:4181 node node_modules/@playwright/test/cli.js test`.
+- Browser coverage includes full-history charts, click/keyboard point selection, latest-five windows, exercise/detail agreement, assistance and timed units, bodyweight logging/records, pending feedback, persisted units and offline reload. Existing workout, saved-editing, backup and service-worker regression flows are retained.
+- Visual captures cover populated, sparse, repeated-attempt, completed-block and empty states at 320x568, 390x844, 768x1000 and 1440x1000 in `artifacts/progress-journey/`. Overflow, 44px targets, enlarged text and bottom-navigation clearance are checked.
+- `python3 scripts/package.py` verified all 11 production files byte for byte. The Site publishing checkout preserves the existing remote history and hosting identity; publication retains owner-only access.
+
+Physical-device Safari/VoiceOver testing was not performed. The earlier validation records below describe previous versions.
+
+---
+
 # Gym Hawk Progress dashboard validation
 
 Validated on 2 November 2026. This update preserves version-4 storage, backups, programme prescriptions, active workouts and saved history. Delivery includes the local app and production package plus a GitHub push; the hosted Site is not published.

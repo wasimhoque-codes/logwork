@@ -18,11 +18,10 @@ async function settled(page: Page) {
   await page.evaluate(async () => { await document.fonts.ready; await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))); });
 }
 
-test('Progress overlay and detail retain every weigh-in within one week, with rolling averages and no chart controls', async ({ page }) => {
+test('Progress overview and detail retain every weigh-in within one week, with rolling averages and no chart controls', async ({ page }) => {
   const store = fixture(); await seed(page, store);
   for (const route of ['progress', 'progress/bodyweight']) {
     await page.goto('/#' + route);
-    if (route === 'progress') await page.getByRole('button', { name: 'Open full bodyweight chart' }).click();
     await expect(chart(page).locator('.body-weigh-in')).toHaveCount(5);
     await expect(chart(page).locator('.body-average-line')).toHaveCount(1);
     await expect(chart(page).locator('.body-chart-latest')).toContainText('70.6 kg');
@@ -64,7 +63,7 @@ test('single and empty states show honest data and logging prompts', async ({ pa
   await expect(page.locator('.body-chart-empty')).toContainText('Log your first weigh-in');
   await expect(page.locator('.body-weigh-in')).toHaveCount(0);
   await page.goto('/#progress');
-  await page.locator('.body-trend').getByRole('button', { name: 'Log bodyweight', exact: true }).click();
+  await page.getByRole('button', { name: 'Log bodyweight', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Log bodyweight', exact: true })).toBeVisible();
 });
 
@@ -90,7 +89,7 @@ test('replacement, deletion, offline reload, units and backups preserve chart da
   await page.goto('/#progress/bodyweight'); await expect(chart(page).locator('.body-chart-latest')).toContainText('70.6 kg');
   await page.getByRole('button', { name: 'Delete bodyweight for 2026-10-30', exact: true }).click(); await page.getByRole('button', { name: 'Delete entry', exact: true }).click();
   await expect(chart(page).locator('.body-weigh-in')).toHaveCount(4); await expect(chart(page).locator('.body-chart-latest')).toContainText('70.3 kg');
-  await page.goto('/#progress'); await page.getByRole('button', { name: 'Open full bodyweight chart' }).click(); await expect(chart(page).locator('.body-weigh-in')).toHaveCount(4);
+  await page.goto('/#progress'); await expect(chart(page).locator('.body-weigh-in')).toHaveCount(4);
 });
 
 test('sky-blue controls, hero text and chart marks retain readable contrast', async ({ page }) => {

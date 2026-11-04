@@ -1,6 +1,6 @@
 import { WORKOUTS, type Exercise } from './data';
 import { bodyTrend } from './body-trend';
-import { attemptSessions, completeSession, coreWorkoutCount, currentAttempt, exerciseKey, localDate, pendingFollowups, progression, type ExerciseLog, type Session, type SetLog, type Store } from './model';
+import { attemptSessions, completeSession, coreWorkoutCount, currentAttempt, doneSets, exerciseKey, localDate, pendingFollowups, progression, volume, type ExerciseLog, type Session, type SetLog, type Store } from './model';
 
 // Date-only arithmetic must not gain or lose a day when the clocks change.
 export function calendarDay(date: string) {
@@ -34,6 +34,71 @@ export function exerciseVolume(exercise: Exercise, log: ExerciseLog) {
 function bestSet(exercise: Exercise, log: ExerciseLog): SetLog | undefined {
   return [...log.sets.filter(set => set.done)].sort((a, b) => log.mode === 'bodyweight' || exercise.timed
     ? b.reps - a.reps : (log.mode === 'assistance' ? (a.weight ?? 0) - (b.weight ?? 0) : (b.weight ?? 0) - (a.weight ?? 0)) || b.reps - a.reps)[0];
+}
+
+export type MovementRecord = { session: Session; exercise: Exercise; log: ExerciseLog; sets: SetLog[]; best: SetLog; value: number };
+export type MovementSeries = { key: string; exercise: Exercise; mode: ExerciseLog['mode']; records: MovementRecord[] };
+
+export function recordedSessions(sessions: Session[]) {
+  return sessions.filter(s => s.endedAt !== undefined && doneSets(s) > 0)
+    .sort((a, b) => a.startedAt - b.startedAt || a.id.localeCompare(b.id));
+}
+
+// Keep one observation per exercise identity per saved workout, including extra sets.
+export function movementSeries(sessions: Session[]): MovementSeries[] {
+  const series = new Map<string, MovementSeries>();
+  for (const session of recordedSessions(sessions)) {
+    const observations = new Map<string, { exercise: Exercise; log: ExerciseLog }>();
+    session.workout.exercises.forEach((exercise, index) => {
+      const log = session.exercises[index];
+      if (!log?.sets.some(set => set.done)) return;
+      const key = exerciseKey(exercise, log.mode), previous = observations.get(key);
+      observations.set(key, { exercise, log: previous ? { ...log, sets: [...previous.log.sets, ...log.sets] } : log });
+    });
+    for (const [key, { exercise, log }] of observations) {
+      const best = bestSet(exercise, log)!;
+      const item = series.get(key) ?? { key, exercise, mode: log.mode, records: [] };
+      item.exercise = exercise;
+      item.records.push({ session, exercise, log, sets: log.sets.filter(set => set.done), best,
+        value: exercise.timed || log.mode === 'bodyweight' ? best.reps : best.weight ?? 0 });
+      series.set(key, item);
+    }
+  }
+  return [...series.values()];
+}
+
+export function recentMovements(series: MovementSeries[]) {
+  return [...series].sort((a, b) => Number(b.exercise.role === 'main') - Number(a.exercise.role === 'main')
+    || b.records.at(-1)!.session.startedAt - a.records.at(-1)!.session.startedAt
+    || a.exercise.name.localeCompare(b.exercise.name) || a.key.localeCompare(b.key)).slice(0, 4);
+}
+
+export function defaultMovement(series: MovementSeries[]) {
+  return [...series].sort((a, b) => Number(b.exercise.role === 'main') - Number(a.exercise.role === 'main')
+    || b.records.length - a.records.length || b.records.at(-1)!.session.startedAt - a.records.at(-1)!.session.startedAt
+    || a.exercise.name.localeCompare(b.exercise.name) || a.key.localeCompare(b.key))[0];
+}
+
+const weekDay = (date: string) => {
+  const day = calendarDay(date);
+  return day - (new Date(day * 86400000).getUTCDay() + 6) % 7;
+};
+
+export function trainingJourney(store: Store, today = localDate()) {
+  const sessions = recordedSessions(store.sessions), series = movementSeries(sessions);
+  const weeks = new Map<number, { date: string; sessions: number; volume: number }>();
+  for (const session of sessions) {
+    const day = weekDay(session.date), week = weeks.get(day) ?? { date: new Date(day * 86400000).toISOString().slice(0, 10), sessions: 0, volume: 0 };
+    week.sessions++; week.volume += volume(session); weeks.set(day, week);
+  }
+  const activeWeeks = weeks.size;
+  if (sessions.length) {
+    const first = Math.min(...weeks.keys()), last = Math.max(weekDay(today), ...weeks.keys());
+    for (let day = first; day <= last; day += 7) if (!weeks.has(day)) weeks.set(day, { date: new Date(day * 86400000).toISOString().slice(0, 10), sessions: 0, volume: 0 });
+  }
+  return { sessions, series, firstDate: sessions.length ? sessions.reduce((first, s) => s.date < first ? s.date : first, sessions[0].date) : undefined,
+    sets: sessions.reduce((n, s) => n + doneSets(s), 0), activeWeeks,
+    weeks: [...weeks].sort(([a], [b]) => a - b).map(([, week]) => week) };
 }
 
 export function strengthSpotlight(store: Store) {
