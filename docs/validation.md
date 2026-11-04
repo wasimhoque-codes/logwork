@@ -1,3 +1,17 @@
+# Compact exercise tile validation
+
+Validated on 4 November 2026. Exercise tiles now put the full-history chart first, retaining only exercise identity, latest paired set, change since first and change across the latest five appearances. Custom setups remain visible when needed; first/best records and session history remain in details.
+
+- Before/after measurements at 390px: average tile height fell from 587.3px to 327.3px (44.3% shorter); maximum final height is 332.2px in the populated fixture. At 320px the average is 324.5px, 44.8% shorter. At 768px and 1440px the average is 328.4px, 45.2% shorter. Charts increased from 110px to 140px.
+- Unit suite: 150 passed. Production TypeScript and Vite build passed using the existing locked dependencies and Node 24.11.1.
+- Full browser suite: 140 passed, with 12 deliberate duplicate screenshot-matrix skips. Tests verify a shared legend, removed tile text, retained detail records, small-history dashes, custom setups, all load modes, units, 44px controls, navigation focus/scroll restoration, offline records and unchanged storage.
+- Screenshots and measured height comparisons are in `artifacts/compact-tiles/`, covering 320x568, 390x844, 768x1000 and 1440x1000 layouts plus sparse/empty grids and detailed charts. Enlarged text, overflow and navigation clearance pass.
+- The ZIP packaging check verifies all 11 production files byte for byte. The publishing build matches the browser-tested build. Version-4 data, routes and exercise calculations are unchanged; publication retains the existing private audience.
+
+Physical-device Safari/VoiceOver testing was not performed. Earlier validation records below describe prior versions.
+
+---
+
 # Exercises tab validation
 
 Validated on 4 November 2026. Progress now has Overview, Exercises and History tabs. Exercises shows every recorded identity in an alphabetical, searchable grid, with role filters, full-history mini charts, latest-five highlights, first/best/latest comparisons and exact movement details. Overview retains training totals, weekly graphs, bodyweight and programme/recovery context.

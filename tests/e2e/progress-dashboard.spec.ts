@@ -43,7 +43,12 @@ test('Overview stays focused and Exercises shows every recorded identity alphabe
   await openGrid(page); await expect(page).toHaveURL(/#progress\/exercises$/);
   await expect(page.locator('.exercise-tile')).toHaveCount(movementSeries(store.sessions).length);
   const names = await page.locator('.exercise-tile h3').allTextContents(); expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
-  await expect(page.locator('.exercise-tile').filter({ hasText: 'Chest-Supported Machine Row' })).toContainText('Peak load');
+  await expect(page.locator('.exercise-tile .exercise-metrics,.exercise-tile .lift-role,.exercise-tile-footer,.exercise-tile .journey-legend')).toHaveCount(0);
+  await expect(page.locator('.exercise-grid-legend')).toHaveCount(1);
+  await expect(page.locator('.exercise-tile').first().locator('.exercise-tile-changes dt')).toHaveText(['Since first','Last 1']);
+  await expect(page.locator('.exercise-tile p').getByText('Basic', {exact:true})).toHaveCount(0);
+  await expect(page.locator('.exercise-tile').first().getByText('Latest set', {exact:true})).toHaveCount(0);
+  await expect(page.locator('.exercise-tile').first().locator('svg[role=img]')).toHaveAttribute('height','140');
   await expect(page.locator('.exercise-tile').first().locator('svg [role=button]')).toHaveCount(0);
   await page.getByRole('tab', { name: /History/ }).click(); await expect(page.locator('.history-row')).toHaveCount(5);
 });
@@ -54,17 +59,19 @@ test('search, role filters, clear and detail return preserve place and focus', a
   await trigger.click(); await expect(page.locator('.exercise-detail')).toBeVisible(); await expect(page.getByLabel('Select exercise for strength chart')).toHaveCount(0);
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
   await expect(page.getByLabel('Search exercises and setups')).toHaveValue('Basic'); await expect(page.getByRole('button', { name: 'Main', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: name! })).toBeFocused(); expect(await page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
+  await expect(page.getByRole('button', { name: name! })).toBeFocused(); await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
   await trigger.click(); await page.goBack(); await expect(page.getByLabel('Search exercises and setups')).toHaveValue('Basic');
   await expect(page.getByRole('button', { name: name! })).toBeFocused();
   await page.getByRole('tab', { name: /History/ }).evaluate(el => (el as HTMLButtonElement).click()); await openGrid(page); await expect(page.getByRole('tab', { name: 'Exercises', exact: true })).toBeFocused();
-  expect(await page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
   await page.getByLabel('Search exercises and setups').fill('not found'); await expect(page.getByRole('heading', { name: 'No matching exercises' })).toBeVisible();
   await page.getByRole('button', { name: 'Clear filters' }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
 });
 test('interactive details preserve exact identity on reload and support keyboard point selection', async ({ page }) => {
   const store = fixture(); await seed(page, store); await openGrid(page); const series = movementSeries(store.sessions).find(s => s.records.length === 2)!;
   await openKey(page, series.key); await page.reload(); await expect(page.locator('.exercise-detail-heading h2')).toHaveText(series.exercise.name);
+  await expect(page.locator('.exercise-detail .exercise-metrics')).toContainText('First recorded');
+  await expect(page.locator('.exercise-detail .exercise-metrics')).toContainText('Peak load');
   const points = page.locator('[data-point]'); await expect(points).toHaveCount(2); await points.last().focus(); await page.keyboard.press('Home'); await expect(points.first()).toBeFocused();
   await expect(page.locator('.selected-observation')).toContainText('26 Oct 2026'); await page.keyboard.press('End'); await expect(page.locator('.selected-observation')).toContainText('2 Nov 2026');
   await page.getByRole('button', { name: 'Browse exercises', exact: true }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
@@ -82,6 +89,7 @@ test('old setups and latest-five comparisons survive new attempts and mixed work
   const alternate = structuredClone(first); alternate.id = 'other'; alternate.workout.exercises[0].setup = 'Different bench'; store.sessions.push(alternate);
   await seed(page, validateStore(reviewWeek(store, 'repeat'))); await expect(page.locator('.journey-subtitle')).toContainText('1 Jan 2025'); await openGrid(page);
   await expect(page.locator('.exercise-tile')).toHaveCount(15); await page.getByLabel('Search exercises and setups').fill('Different bench'); await expect(page.locator('.exercise-tile')).toHaveCount(1);
+  await expect(page.locator('.exercise-tile-heading p')).toHaveText('Different bench');
   await page.getByLabel('Search exercises and setups').fill(''); await openKey(page, exerciseKey(first.workout.exercises[0], first.exercises[0].mode));
   await expect(page.locator('[data-point]')).toHaveCount(7); await expect(page.locator('.exercise-metrics')).toContainText('+30 kg load'); await expect(page.locator('.exercise-metrics')).toContainText('+20 kg load'); await expect(page.locator('.workload-bars>div')).toHaveCount(5);
 });
@@ -109,6 +117,12 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
       if (state === 'sparse') await expect(page.locator('.exercise-tile').first().getByText('—', { exact: true })).toHaveCount(2);
       if (state === 'empty') await expect(page.getByRole('heading', { name: 'Your exercise progress starts here' })).toBeVisible();
       await page.screenshot({ path: path.join(directory, `${state}-${width}.png`), fullPage: true });
+      if (state === 'populated') {
+        const tiles = await page.locator('.exercise-tile').evaluateAll(nodes => nodes.map(n => ({ name: n.querySelector('h3')?.textContent, height: n.getBoundingClientRect().height })));
+        await fs.writeFile(path.join(directory, `heights-${width}.json`), JSON.stringify(tiles));
+        if (width <= 390) expect(Math.max(...tiles.map(t => t.height))).toBeLessThanOrEqual(380);
+        if (width === 390) expect(tiles.reduce((sum, tile) => sum + tile.height, 0) / tiles.length).toBeLessThanOrEqual(340);
+      }
       const targets = await page.locator('main button,header button,header select,[role=tab]').evaluateAll(nodes => nodes.filter(n => n.getClientRects().length > 0).map(n => { const b = n.getBoundingClientRect(); return { text: n.textContent, w: b.width, h: b.height }; })); expect(targets.filter(t => t.w < 43.5 || t.h < 43.5)).toEqual([]);
     }
     await page.evaluate(raw => localStorage.setItem('gym-hawk-v4', raw), JSON.stringify(store)); await page.reload(); await page.getByRole('button', { name: /View details for/ }).first().click(); await settled(page); await noOverflow(page); await page.screenshot({ path: path.join(directory, `detail-${width}.png`), fullPage: true });

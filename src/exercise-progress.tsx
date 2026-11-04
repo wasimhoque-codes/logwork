@@ -15,6 +15,13 @@ export function ExerciseMetrics({ series, unit }: { series: MovementSeries; unit
   const { first, latest, recent, best } = movementSummary(series);
   return <dl className="exercise-metrics"><div><dt>First recorded</dt><dd>{setLabel(first, unit)}</dd></div><div><dt>{bestLabel(series)}</dt><dd>{setLabel(best, unit)}</dd></div><div><dt>Since first</dt><dd>{series.records.length > 1 ? changeLabel(series, first, latest, unit) : '—'}</dd></div><div><dt>Latest {recent.length < 5 ? recent.length : 'five'} change</dt><dd>{recent.length > 1 ? changeLabel(series, recent[0], latest, unit) : '—'}</dd></div></dl>;
 }
+function tileSetupLabel(series: MovementSeries, catalogue: MovementSeries[]) {
+  const ex = series.exercise, setup = ex.setup?.trim();
+  const parts = [setup && setup.toLowerCase() !== 'basic' ? setup : '', ex.supportCm != null ? `${ex.supportCm} cm support` : '', ex.coreLevel && ex.coreLevel !== 'Basic' ? ex.coreLevel : ''].filter(Boolean);
+  if (parts.length) return parts.join(' · ');
+  return catalogue.some(other => other.key !== series.key && other.exercise.name === ex.name)
+    ? series.mode === 'bodyweight' ? 'Bodyweight' : series.mode === 'assistance' ? 'Assisted' : 'Standard setup' : '';
+}
 export function ExerciseGrid({ store, state, onState, onOpen, onStart }: { store: Store; state: ExerciseGridState; onState: (state: ExerciseGridState) => void; onOpen: (key: string) => void; onStart: () => void }) {
   const gridRef = useRef<HTMLDivElement>(null);
   const series = useMemo(() => movementSeries(store.sessions).sort((a, b) => a.exercise.name.localeCompare(b.exercise.name) || a.key.localeCompare(b.key)), [store.sessions]);
@@ -30,7 +37,17 @@ export function ExerciseGrid({ store, state, onState, onOpen, onStart }: { store
   return <div className="exercise-dashboard" ref={gridRef}>
     <div className="exercise-page-heading"><p className="eyebrow">Your lift journey</p><h2>Exercise progress</h2><p>{series.length} recorded {series.length === 1 ? 'exercise' : 'exercises'}</p></div>
     {series.length ? <><label className="exercise-search"><Search size={18}/><span className="sr-only">Search exercises and setups</span><input type="search" value={state.query} placeholder="Search exercises or setups" onChange={event => onState({ ...state, query: event.target.value, scroll: 0, focusKey: undefined })}/></label><div className="exercise-filters" role="group" aria-label="Exercise role">{[['all', 'All'], ['main', 'Main'], ['accessory', 'Accessory'], ['core', 'Core']].map(([value, label]) => <button key={value} aria-pressed={state.filter === value} onClick={() => onState({ ...state, filter: value, scroll: 0, focusKey: undefined })}>{label}</button>)}</div><p className="exercise-result-count" role="status">{visible.length} of {series.length} exercises</p>
-    <div className="exercise-grid">{visible.map(s => { const latest = s.records.at(-1)!; return <article className="exercise-tile" key={s.key} aria-label={`${s.exercise.name}${setupLabel(s) ? ` · ${setupLabel(s)}` : ''}`}><div className="exercise-tile-heading"><span className="lift-role">{s.exercise.role ?? 'Movement'}</span><h3>{s.exercise.name}</h3>{setupLabel(s) && <p>{setupLabel(s)}</p>}</div><div className="exercise-latest"><span>Latest set</span><strong>{setLabel(latest, store.settings.unit)}</strong></div><MovementChart series={s} unit={store.settings.unit} compact/><ExerciseMetrics series={s} unit={store.settings.unit}/><div className="exercise-tile-footer"><span>{s.records.length} recorded {s.records.length === 1 ? 'session' : 'sessions'}<small>Latest · {dateLabel(latest.session.date)}</small></span><button className="text-button" data-exercise-key={s.key} aria-label={`View details for ${s.exercise.name}${setupLabel(s) ? ` · ${setupLabel(s)}` : ''}`} onClick={() => { onState({ ...state, scroll: window.scrollY, focusKey: s.key }); onOpen(s.key); }}>View details<ChevronRight size={16}/></button></div><MovementTable series={s} records={s.records} unit={store.settings.unit}/></article>; })}</div>
+    {visible.length > 0 && <div className="journey-legend exercise-grid-legend" aria-label="Exercise chart legend"><span><i/>Full history</span><span><i className="recent-key"/>Latest 5 highlighted</span></div>}
+    <div className="exercise-grid">{visible.map(s => {
+      const { first, latest, recent } = movementSummary(s), setup = tileSetupLabel(s, series);
+      return <article className="exercise-tile" key={s.key} aria-label={`${s.exercise.name}${setupLabel(s) ? ` · ${setupLabel(s)}` : ''}`}>
+        <div className="exercise-tile-heading"><div><h3>{s.exercise.name}</h3>{setup && <p>{setup}</p>}</div><button className="icon-button" data-exercise-key={s.key} aria-label={`View details for ${s.exercise.name}${setupLabel(s) ? ` · ${setupLabel(s)}` : ''}`} onClick={() => { onState({ ...state, scroll: window.scrollY, focusKey: s.key }); onOpen(s.key); }}><ChevronRight size={20} aria-hidden="true"/></button></div>
+        <div className="exercise-tile-latest" aria-label="Latest recorded set"><strong>{setLabel(latest, store.settings.unit)}</strong></div>
+        <MovementChart series={s} unit={store.settings.unit} compact/>
+        <dl className="exercise-tile-changes"><div><dt>Since first</dt><dd>{s.records.length > 1 ? changeLabel(s, first, latest, store.settings.unit) : '—'}</dd></div><div><dt>Last {recent.length}</dt><dd>{recent.length > 1 ? changeLabel(s, recent[0], latest, store.settings.unit) : '—'}</dd></div></dl>
+        <MovementTable series={s} records={s.records} unit={store.settings.unit}/>
+      </article>;
+    })}</div>
     {!visible.length && <div className="dashboard-empty"><h3>No matching exercises</h3><button className="text-button" onClick={() => onState({ ...emptyExerciseGrid })}>Clear filters</button></div>}<ComparisonHelp/></> : <div className="dashboard-empty"><span className="snapshot-icon"><Dumbbell size={22}/></span><h3>Your exercise progress starts here</h3><p>Save a workout with logged sets to see your exercises here.</p><button className="primary" onClick={onStart}>Explore programme</button></div>}
   </div>;
 }
