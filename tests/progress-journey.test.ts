@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { freshStore, newSession, selectedWorkout, reviewWeek, volume, exerciseKey, type Store } from '../src/model';
-import { defaultMovement, movementSeries, recentMovements, trainingJourney } from '../src/progress-data';
+import { defaultMovement, movementSummary, movementSeries, recentMovements, trainingJourney } from '../src/progress-data';
 import { changeLabel, movementValue, setLabel } from '../src/progress-charts';
 
 function save(store: Store, date: string, day = 1, load = 20) {
@@ -85,4 +85,11 @@ describe('shared movement series', () => {
     b.exercises[0].mode = 'assistance'; c.workout.exercises[0].supportCm = 40; d.workout.exercises[0].coreLevel = 'hard';
     expect(movementSeries(store.sessions).filter(s => s.exercise.id === a.workout.exercises[0].id)).toHaveLength(4);
   });
+});
+
+it('summarises best records without losing reps or mutating history', () => {
+  const store = freshStore(); save(store, '2026-10-01', 4, 20); const latest = save(store, '2026-10-02', 4, 10);
+  latest.exercises[0].sets[0].reps = 4;
+  const original = structuredClone(store), series = movementSeries(store.sessions).find(s => s.mode === 'assistance')!;
+  const summary = movementSummary(series); expect(summary.best.value).toBe(10); expect(summary.first.value).toBe(20); expect(summary.recent).toHaveLength(2); expect(store).toEqual(original);
 });

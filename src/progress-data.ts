@@ -168,3 +168,14 @@ export function volumeDistribution(sessions: Session[]) {
   }
   return { groups, coreSeconds, muscles: [...muscles].map(([label, volume]) => ({ label, volume })).sort((a, b) => b.volume - a.volume || a.label.localeCompare(b.label)) };
 }
+
+export function movementSummary(series: MovementSeries) {
+  const first = series.records[0], latest = series.records.at(-1)!;
+  const recent = series.records.slice(-5);
+  const best = series.records.reduce((best, record) => {
+    const direction = series.mode === 'assistance' && !series.exercise.timed ? -1 : 1;
+    const difference = (record.value - best.value) * direction;
+    return difference > 0 || difference === 0 && record.best.reps > best.best.reps ? record : best;
+  }, first);
+  return { first, latest, recent, best };
+}

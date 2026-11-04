@@ -1,44 +1,28 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ArrowRight, ChevronRight, Check, Dumbbell, Activity, Plus, Clock3, CircleHelp } from './icons';
 import { BodyweightChart } from './body-chart';
 import { dateLabel, fromKg, number, type Store, type Session } from './model';
-import { attemptSummary, defaultMovement, recentMovements, recoverySnapshot, trainingJourney, volumeDistribution } from './progress-data';
-import { changeLabel, fullDate, MovementChart, MovementTable, setLabel, setupLabel, WeeklyChart } from './progress-charts';
+import { attemptSummary, recoverySnapshot, trainingJourney, volumeDistribution } from './progress-data';
+import { fullDate, WeeklyChart } from './progress-charts';
 import type { Page } from './routes';
 
-export function ProgressOverview({ store, onGo, onBody, onFollowup, onMovement, onVolume }: {
+export function ProgressOverview({ store, onGo, onBody, onFollowup, onVolume }: {
   store: Store; onGo: (page: Page) => void; onBody: () => void;
-  onFollowup: (s: Session) => void; onMovement: (key?: string) => void; onVolume: (attemptId: string) => void;
+  onFollowup: (s: Session) => void; onVolume: (attemptId: string) => void;
 }) {
   const journey = useMemo(() => trainingJourney(store), [store.sessions]);
-  const [selectedKey, setSelectedKey] = useState('');
-  const selected = journey.series.find(s => s.key === selectedKey) ?? defaultMovement(journey.series);
-  const cards = recentMovements(journey.series), summary = attemptSummary(store), recovery = recoverySnapshot(store);
+  const summary = attemptSummary(store), recovery = recoverySnapshot(store);
   const distribution = volumeDistribution(summary.sessions), unit = store.settings.unit;
   const weight = (kg: number) => number(fromKg(kg, unit), 2);
   const maxVolume = Math.max(...distribution.groups.map(g => g.volume), 1);
-  const first = selected?.records[0], latest = selected?.records.at(-1), recent = selected?.records.slice(-5);
   return <div className="progress-dashboard journey-dashboard">
     <section className="journey-intro" aria-labelledby="journey-title">
       <p className="eyebrow">Your journey</p><h2 id="journey-title">Since you started</h2>
       <p className="journey-subtitle">{journey.firstDate ? `Every session counts. Your story since ${fullDate(journey.firstDate)}.` : 'Your first workout is the start of your story.'}</p>
       <div className="journey-totals">{[[journey.sessions.length, 'Workouts logged'], [journey.sets, 'Sets logged'], [journey.activeWeeks, 'Weeks trained'], [journey.series.length, 'Exercises tracked']].map(([value, label]) => <div className="journey-stat" key={label}><strong>{number(Number(value), 0)}</strong><span>{label}</span></div>)}</div>
-      {journey.sessions.length > 0 ? <WeeklyChart weeks={journey.weeks} unit={unit}/> : <div className="dashboard-empty"><span className="snapshot-icon"><Dumbbell size={21}/></span><h3>Start with one session</h3><p>Save a workout with logged sets to see your training history and lift trends here.</p><button className="text-button" onClick={() => onGo('programme')}>Explore programme<ArrowRight size={16}/></button><button className="text-button" onClick={() => onMovement()}>All lifts<ChevronRight size={16}/></button></div>}
+      {journey.sessions.length > 0 ? <WeeklyChart weeks={journey.weeks} unit={unit}/> : <div className="dashboard-empty"><span className="snapshot-icon"><Dumbbell size={21}/></span><h3>Start with one session</h3><p>Save a workout with logged sets to see your training history and lift trends here.</p><button className="text-button" onClick={() => onGo('programme')}>Explore programme<ArrowRight size={16}/></button><button className="text-button" onClick={() => onGo('progress/exercises')}>All lifts<ChevronRight size={16}/></button></div>}
     </section>
-    {selected && first && latest && recent && <section className="journey-lift" aria-labelledby="lift-journey-title">
-      <div className="dashboard-section-head"><div><p className="eyebrow">From your first rep</p><h2 id="lift-journey-title">Your lift journey</h2></div><button className="text-button" onClick={() => onMovement(selected.key)}>Records<ChevronRight size={16}/></button></div>
-      <div className="journey-chart-card"><label className="journey-selector">Exercise<select aria-label="Select exercise for lift journey" value={selected.key} onChange={event => setSelectedKey(event.target.value)}>{journey.series.map(s => <option key={s.key} value={s.key}>{s.exercise.name}{setupLabel(s) ? ` · ${setupLabel(s)}` : ''}</option>)}</select></label>
-        <div className="journey-comparisons">
-          <div><span>First recorded</span><strong>{setLabel(first, unit)}</strong><small>{fullDate(first.session.date)}</small></div>
-          <div><span>Latest</span><strong>{setLabel(latest, unit)}</strong><small>{fullDate(latest.session.date)}</small></div>
-          <div><span>Change since first</span><strong>{selected.records.length > 1 ? changeLabel(selected, first, latest, unit) : '—'}</strong><small>{selected.records.length > 1 ? `Since ${fullDate(first.session.date)}` : 'One recorded session'}</small></div>
-          <div><span>Change across latest {recent.length < 5 ? recent.length : 'five'}</span><strong>{recent.length > 1 ? changeLabel(selected, recent[0], latest, unit) : '—'}</strong><small>{recent.length > 1 ? `${fullDate(recent[0].session.date)} – ${fullDate(latest.session.date)}` : 'Log another to compare'}</small></div>
-        </div><MovementChart key={selected.key} series={selected} unit={unit}/>
-      </div>
-    </section>}
-    {cards.length > 0 && <section aria-labelledby="recent-title"><div className="dashboard-section-head"><div><p className="eyebrow">Per exercise</p><h2 id="recent-title">Last 5 sessions</h2></div><button className="text-button" onClick={() => onMovement()}>All lifts<ChevronRight size={16}/></button></div><p className="spotlight-context">Each lift’s latest five recorded appearances, across all workouts and programme attempts.</p>
-      <div className="spotlight-grid">{cards.map(card => { const records = card.records.slice(-5), last = records.at(-1)!; return <article className="recent-lift" key={card.key}><button className="spotlight-card" onClick={() => onMovement(card.key)}><span className="lift-card-top"><span className="lift-role">{card.exercise.role ?? 'Movement'}</span><ChevronRight size={17}/></span><h3>{card.exercise.name}</h3>{setupLabel(card) && <span className="lift-setup">{setupLabel(card)}</span>}<strong className="lift-value">{setLabel(last, unit)}</strong><span className="recent-neutral-change">{records.length > 1 ? `${changeLabel(card, records[0], last, unit)} across latest ${records.length}` : 'One recorded session · no comparison yet'}</span><MovementChart series={card} unit={unit} mini/><span className="lift-card-foot"><span>{records.length} recorded {records.length === 1 ? 'session' : 'sessions'}</span><span>{fullDate(records[0].session.date)}{records.length > 1 ? ` – ${fullDate(last.session.date)}` : ''}</span></span></button><MovementTable series={card} records={records} unit={unit}/></article>; })}</div>
-    </section>}
+    <button className="exercise-explore" onClick={() => onGo('progress/exercises')}><span className="snapshot-icon"><Dumbbell size={22}/></span><span><strong>Explore exercises</strong><small>{journey.series.length} recorded exercises · charts & comparisons</small></span><ChevronRight size={20}/></button>
     <section aria-labelledby="bodyweight-overview-title"><div className="dashboard-section-head"><div><p className="eyebrow">The bigger picture</p><h2 id="bodyweight-overview-title">Bodyweight</h2></div><button className="text-button" onClick={onBody} aria-label="Log bodyweight"><Plus size={16}/>Log</button></div><div className="journey-chart-card body-trend"><BodyweightChart body={store.body} unit={unit}/><button className="text-button body-records-link" onClick={() => onGo('progress/bodyweight')}>View bodyweight records<ChevronRight size={16}/></button></div></section>
     <section aria-labelledby="support-title"><div className="dashboard-section-head"><div><p className="eyebrow">Keep building</p><h2 id="support-title">Programme & recovery</h2></div></div><div className="support-grid">
     <section className="attempt-card" aria-label="Current programme attempt">

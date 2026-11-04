@@ -1,3 +1,18 @@
+# Exercises tab validation
+
+Validated on 4 November 2026. Progress now has Overview, Exercises and History tabs. Exercises shows every recorded identity in an alphabetical, searchable grid, with role filters, full-history mini charts, latest-five highlights, first/best/latest comparisons and exact movement details. Overview retains training totals, weekly graphs, bodyweight and programme/recovery context.
+
+- Unit suite: 150 passed across 9 files. Best-record summaries preserve paired reps and load-mode semantics without mutating saved history.
+- TypeScript check and production Vite build passed using Node 24.11.1 and the locked dependencies in the temporary validation checkout.
+- Full browser suite: 140 passed, with 12 deliberate duplicate viewport-matrix skips. Final focused checks cover browser Back, toolbar Back, filter/scroll/focus restoration, three-tab navigation, exact exercise reload links and offline records/units.
+- Visual checks cover populated, sparse and empty grids plus detailed charts at 320x568, 390x844, 768x1000 and 1440x1000. Captures are in `artifacts/exercise-grid/`; overflow, 44px controls, enlarged text and bottom navigation clearance are checked.
+- Existing logging, saved edits, backup restore, bodyweight, progression gates and service-worker regression flows pass. Version-4 storage and original workout prescriptions are unchanged.
+- The production ZIP is verified byte for byte. Release source excludes the user attachment directory and preserves the existing Site identity and private audience.
+
+Physical-device Safari/VoiceOver testing was not performed. Earlier validation records below describe prior versions.
+
+---
+
 # Gym Hawk journey dashboard validation
 
 Validated on 4 November 2026 against the production build. The dashboard now retains all saved training history across programme attempts and restarts, with separate recent comparisons based on each exercise's latest five appearances. Version-4 storage, backups and workout prescriptions are unchanged.

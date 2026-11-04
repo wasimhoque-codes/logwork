@@ -560,3 +560,53 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .support-grid .attempt-context{font-size:12px}
 @media(min-width:600px){.journey-totals{grid-template-columns:repeat(4,minmax(0,1fr))}.journey-stat{padding:20px}.journey-comparisons strong{font-size:20px}.support-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-chart-heading{flex-direction:row;align-items:center;justify-content:space-between}.journey-intro>h2{font-size:36px}}
 @media(max-width:360px){.journey-dashboard{gap:28px}.journey-intro>h2{font-size:28px}.journey-stat{padding:15px 12px}.journey-stat strong{font-size:28px}.journey-stat span{font-size:11px}.weekly-history,.journey-chart-card{padding:16px}.journey-comparisons>div{padding:12px 9px}.journey-comparisons strong{font-size:15px}.journey-comparisons small{font-size:10px}.selected-observation{font-size:12px}.support-grid .attempt-card,.support-grid .snapshot-card{padding:17px}}
+
+/* Exercise library: comparable records at a glance. */
+.exercise-dashboard,.exercise-detail{display:grid;gap:20px;min-width:0}
+.exercise-dashboard>*,.exercise-detail>*{min-width:0}
+.exercise-page-heading .eyebrow,.exercise-detail-heading .eyebrow{color:var(--accent-ink);margin-bottom:6px}
+.exercise-page-heading h2,.exercise-detail-heading h2{font-size:26px;line-height:1.3;letter-spacing:-.8px}
+.exercise-page-heading>p:last-child,.exercise-detail-heading>p{font-size:13px;color:var(--muted);line-height:1.6;margin-top:8px}
+.exercise-search{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 14px;color:var(--muted)}
+.exercise-search input{min-width:0;width:100%;border:0;background:transparent;min-height:50px;font-size:16px;outline-offset:-3px}
+.exercise-filters{display:flex;gap:7px;flex-wrap:wrap}
+.exercise-filters button{min-height:44px;min-width:44px;padding:8px 15px;border:1px solid var(--line);border-radius:10px;color:var(--muted);background:var(--surface);font-size:13px}
+.exercise-filters button[aria-pressed=true]{background:var(--selection);color:var(--accent-ink);border-color:var(--selection-line);font-weight:600}
+.exercise-result-count{font-size:12px;color:var(--muted);margin:-8px 0 0}
+.exercise-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.exercise-tile{min-width:0;padding:20px;border:1px solid var(--line);border-radius:20px;background:var(--surface);display:flex;flex-direction:column}
+.exercise-tile-heading .lift-role{font-size:10px;color:var(--muted)}
+.exercise-tile-heading h3{font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.45;font-weight:600;letter-spacing:-.2px;margin:8px 0 0}
+.exercise-tile-heading p{font-size:12px;line-height:1.6;color:var(--muted);margin-top:4px}
+.exercise-latest{display:flex;flex-direction:column;gap:6px;margin:18px 0 8px}
+.exercise-latest>span{font-size:11px;color:var(--muted)}
+.exercise-latest>strong{font-family:Manrope,sans-serif;font-size:27px;line-height:1.35;letter-spacing:-.7px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.exercise-tile .movement-spark{margin:12px 0 18px}
+.compact-chart-dates{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-top:5px}
+.exercise-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.exercise-metrics>div{padding:12px 10px;min-width:0}
+.exercise-metrics>div:nth-child(even){border-left:1px solid var(--line)}
+.exercise-metrics>div:nth-child(n+3){border-top:1px solid var(--line);background:var(--input)}
+.exercise-metrics dt{font-size:10px;line-height:1.5;color:var(--muted);margin-bottom:6px}
+.exercise-metrics dd{font-family:Manrope,sans-serif;font-size:14px;line-height:1.5;font-weight:650;letter-spacing:-.2px;overflow-wrap:anywhere;margin:0;font-variant-numeric:tabular-nums}
+.exercise-tile-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;padding-top:14px;font-size:11px;color:var(--muted)}
+.exercise-tile-footer small{display:block;margin-top:4px;font-size:10px}
+.exercise-tile-footer button{font-size:12px;padding:6px 0 6px 6px;min-height:44px;flex-shrink:0}
+.comparison-help{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+.comparison-help p{font-size:13px;line-height:1.7;margin:10px 0}
+.exercise-detail .movement-chart{margin-top:22px}
+.exercise-detail-heading .text-button{font-size:13px;min-height:44px}
+.workload-bars{display:flex;gap:10px;align-items:end;min-width:0}
+.workload-bars>div{flex:1;min-width:0;text-align:center;font-size:10px;color:var(--muted)}
+.workload-bars strong{display:block;font-size:11px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.workload-track{height:100px;display:flex;align-items:end;justify-content:center;margin:8px 0}
+.workload-track>span{display:block;width:min(100%,44px);background:var(--chart-line);border-radius:5px 5px 0 0}
+.workload-unit{font-size:11px;color:var(--muted);text-align:right;margin-top:12px}
+.exercise-explore{display:flex;align-items:center;gap:14px;padding:20px;border-radius:18px;border:1px solid var(--selection-line);background:var(--selection);color:var(--text);text-align:left;width:100%}
+.exercise-explore .snapshot-icon{margin:0;flex:none;background:var(--surface)}
+.exercise-explore>span:nth-child(2){flex:1;min-width:0}
+.exercise-explore strong{display:block;font-size:17px;font-weight:600;line-height:1.4}
+.exercise-explore small{display:block;font-size:12px;color:var(--muted);line-height:1.6;margin-top:5px}
+.progress-switch button{flex:1;min-width:0}
+@media(min-width:600px){.exercise-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exercise-page-heading h2{font-size:30px}.exercise-detail .exercise-metrics dd{font-size:18px}}
+@media(max-width:360px){.exercise-tile{padding:16px}.exercise-filters{gap:5px}.exercise-filters button{padding-left:12px;padding-right:12px;font-size:12px}.exercise-page-heading h2{font-size:24px}.exercise-latest>strong{font-size:25px}.progress-switch button{font-size:13px;padding-left:6px;padding-right:6px}.progress-switch .history-count{min-width:18px;min-height:18px;margin-left:3px;font-size:10px}}

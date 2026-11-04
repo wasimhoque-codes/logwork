@@ -33,14 +33,15 @@ function usePlotWidth() {
 export function MovementTable({ series, records, unit }: { series: MovementSeries; records: MovementRecord[]; unit: Unit }) {
   return <div className="sr-only"><table><caption>{series.exercise.name} recorded sets</caption><thead><tr><th scope="col">Date</th><th scope="col">Representative set</th><th scope="col">Logged sets</th></tr></thead><tbody>{records.map(record => <tr key={record.session.id}><th scope="row">{fullDate(record.session.date)}</th><td>{setLabel(record, unit)}</td><td>{record.sets.length}</td></tr>)}</tbody></table></div>;
 }
-export function MovementChart({ series, unit, mini = false }: { series: MovementSeries; unit: Unit; mini?: boolean }) {
+export function MovementChart({ series, unit, mini = false, compact = false }: { series: MovementSeries; unit: Unit; mini?: boolean; compact?: boolean }) {
+  const simple = mini || compact;
   const { ref, width } = usePlotWidth(), id = useId(), [selectedId, setSelectedId] = useState('');
   const records = mini ? series.records.slice(-5) : series.records;
   const selected = records.findIndex(r => r.session.id === selectedId), index = selected < 0 ? records.length - 1 : selected;
   const current = records[index], values = records.map(r => movementValue(r, unit));
   const min = Math.min(...values), max = Math.max(...values), pad = Math.max((max - min) * .18, max === 0 ? 1 : Math.abs(max) * .04);
   const low = Math.max(0, min - pad), high = max + pad;
-  const left = mini ? 8 : 49, right = width - (mini ? 8 : 14), bottom = mini ? 62 : 188, top = mini ? 12 : 22;
+  const left = simple ? 8 : 49, right = width - (simple ? 8 : 14), bottom = compact ? 96 : mini ? 62 : 188, top = simple ? 12 : 22;
   const start = records[0].session.startedAt, end = records.at(-1)!.session.startedAt;
   const x = (i: number) => records.length === 1 ? (left + right) / 2 : left + (end === start ? i / (records.length - 1) : (records[i].session.startedAt - start) / (end - start)) * (right - left);
   const y = (value: number) => bottom - (value - low) / (high - low) * (bottom - top);
@@ -50,19 +51,21 @@ export function MovementChart({ series, unit, mini = false }: { series: Movement
     setSelectedId(records[i].session.id);
     if (focus) ref.current?.querySelector<SVGGElement>(`[data-point="${i}"]`)?.focus();
   }
-  return <div className={mini ? 'movement-spark' : 'movement-chart'}>
-    {!mini && <div className="journey-legend"><span><i/>Full history</span><span><i className="recent-key"/>Latest {Math.min(5, records.length)}</span><span>{movementUnit(series, unit)}</span></div>}
-    <div ref={ref} className="journey-plot"><svg width="100%" height={mini ? 76 : 222} viewBox={`0 0 ${width} ${mini ? 76 : 222}`} role={mini ? 'img' : 'group'} aria-label={mini ? `${series.exercise.name}: ${records.map(r => `${fullDate(r.session.date)}, ${setLabel(r, unit)}`).join('; ')}` : `${series.exercise.name} full-history chart. Use arrow keys to explore recorded sessions.`}>
+  return <div className={simple ? 'movement-spark' : 'movement-chart'}>
+    {!simple && <div className="journey-legend"><span><i/>Full history</span><span><i className="recent-key"/>Latest {Math.min(5, records.length)}</span><span>{movementUnit(series, unit)}</span></div>}
+    {compact && <div className="journey-legend"><span><i/>Full history</span><span><i className="recent-key"/>Latest {Math.min(5, records.length)}</span><span>{movementUnit(series, unit)}</span></div>}
+    <div ref={ref} className="journey-plot"><svg width="100%" height={compact ? 110 : mini ? 76 : 222} viewBox={`0 0 ${width} ${compact ? 110 : mini ? 76 : 222}`} role={simple ? 'img' : 'group'} aria-label={simple ? `${series.exercise.name}: ${records.map(r => `${fullDate(r.session.date)}, ${setLabel(r, unit)}`).join('; ')}` : `${series.exercise.name} full-history chart. Use arrow keys to explore recorded sessions.`}>
       <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop stopColor="var(--chart-fill)" stopOpacity=".2"/><stop offset="1" stopColor="var(--chart-fill)" stopOpacity="0"/></linearGradient></defs>
-      {!mini && [high, (low + high) / 2, low].map((value, i) => <g key={i} aria-hidden="true"><line x1={left} x2={right} y1={y(value)} y2={y(value)} className="body-chart-grid"/><text x={left - 8} y={y(value) + 4} textAnchor="end">{number(value, 1)}</text></g>)}
+      {!simple && [high, (low + high) / 2, low].map((value, i) => <g key={i} aria-hidden="true"><line x1={left} x2={right} y1={y(value)} y2={y(value)} className="body-chart-grid"/><text x={left - 8} y={y(value) + 4} textAnchor="end">{number(value, 1)}</text></g>)}
       {records.length > 1 && <><path d={`${path} L${x(records.length - 1)},${bottom} L${x(0)},${bottom} Z`} fill={`url(#${id})`} aria-hidden="true"/><path d={path} className="journey-history-line" aria-hidden="true"/><path d={records.slice(recentStart).map((record, j) => `${j ? 'L' : 'M'}${x(j + recentStart)},${y(movementValue(record, unit))}`).join(' ')} className="body-average-line" aria-hidden="true"/></>}
-      {records.map((record, i) => mini ? <circle key={record.session.id} cx={x(i)} cy={y(movementValue(record, unit))} r="3.5" className="body-weigh-in"/> : <g key={record.session.id} data-point={i} role="button" tabIndex={i === index ? 0 : -1} aria-pressed={i === index} aria-label={`${fullDate(record.session.date)}: ${setLabel(record, unit)}`} onClick={() => select(i)} onKeyDown={event => {
+      {records.map((record, i) => simple ? <circle key={record.session.id} cx={x(i)} cy={y(movementValue(record, unit))} r="3.5" className="body-weigh-in"/> : <g key={record.session.id} data-point={i} role="button" tabIndex={i === index ? 0 : -1} aria-pressed={i === index} aria-label={`${fullDate(record.session.date)}: ${setLabel(record, unit)}`} onClick={() => select(i)} onKeyDown={event => {
         const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? Math.min(records.length - 1, i + 1) : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? Math.max(0, i - 1) : event.key === 'Home' ? 0 : event.key === 'End' ? records.length - 1 : event.key === 'Enter' || event.key === ' ' ? i : null;
         if (next !== null) { event.preventDefault(); select(next, true); }
       }}><rect x={x(i) - 22} y={y(movementValue(record, unit)) - 22} width="44" height="44" fill="transparent"/><circle cx={x(i)} cy={y(movementValue(record, unit))} r={i === index ? 6 : 3.5} className={i >= recentStart ? 'body-weigh-in' : 'journey-old-point'} pointerEvents="none"/></g>)}
-      {!mini && <g aria-hidden="true"><text x={left} y="216" textAnchor="start">{dateLabel(records[0].session.date, { month: 'short', year: '2-digit', day: 'numeric' })}</text>{records.length > 1 && <text x={right} y="216" textAnchor="end">{dateLabel(records.at(-1)!.session.date, { month: 'short', year: '2-digit', day: 'numeric' })}</text>}</g>}
+      {!simple && <g aria-hidden="true"><text x={left} y="216" textAnchor="start">{dateLabel(records[0].session.date, { month: 'short', year: '2-digit', day: 'numeric' })}</text>{records.length > 1 && <text x={right} y="216" textAnchor="end">{dateLabel(records.at(-1)!.session.date, { month: 'short', year: '2-digit', day: 'numeric' })}</text>}</g>}
     </svg></div>
-    {!mini && <><div className="selected-observation" aria-live="polite" aria-atomic="true"><span>{fullDate(current.session.date)}<small>{current.session.workout.name}</small></span><strong>{setLabel(current, unit)}<small>{current.sets.length} logged sets</small></strong></div><p className="chart-caption">{records.length} recorded {records.length === 1 ? 'session. Log another to see a change.' : 'sessions. Select a point to inspect its set.'} {series.mode === 'assistance' ? 'Less assistance needs comparable reps and control.' : 'Compare reps, technique and load together.'} Only this exact variation and setup.</p><MovementTable series={series} records={records} unit={unit}/></>}
+    {compact && <div className="compact-chart-dates"><span>{dateLabel(records[0].session.date, { day: 'numeric', month: 'short', year: '2-digit' })}</span><span>{records.length > 1 ? dateLabel(records.at(-1)!.session.date, { day: 'numeric', month: 'short', year: '2-digit' }) : "One recorded session"}</span></div>}
+    {!simple && <><div className="selected-observation" aria-live="polite" aria-atomic="true"><span>{fullDate(current.session.date)}<small>{current.session.workout.name}</small></span><strong>{setLabel(current, unit)}<small>{current.sets.length} logged sets</small></strong></div><p className="chart-caption">{records.length} recorded sessions · Select a point to inspect its set.</p><MovementTable series={series} records={records} unit={unit}/></>}
   </div>;
 }
 export function WeeklyChart({ weeks, unit }: { weeks: ReturnType<typeof trainingJourney>['weeks']; unit: Unit }) {
