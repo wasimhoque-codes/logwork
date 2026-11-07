@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { replaceLocal } from './fixture';
+import { test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, localDate, type Store } from '../../src/model';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -179,7 +180,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     await page.getByRole('button', { name: 'Review and finish workout', exact: true }).click(); await shot('review');
     await page.getByRole('button', { name: 'Save workout', exact: true }).click(); await shot('saved');
     // Empty progress is a separate state, captured after the populated flows.
-    await page.evaluate(rawStore => localStorage.setItem('gym-hawk-v4', rawStore), JSON.stringify(freshStore()));
+    await replaceLocal(page, freshStore());
     await page.goto('/#progress'); await page.reload(); await shot('progress-empty');
   });
 }

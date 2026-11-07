@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 import { freshStore, fromKg, localDate, type Store } from '../../src/model';
 import fs from 'node:fs/promises';
 import path from 'node:path';

@@ -5,4 +5,4 @@ export function resolvePage(hash:string):Page {
   const alias:Record<string,Page>={plan:'programme',insights:'progress',history:'progress/history'};
   return alias[value]??(pages.includes(value as Page)?value as Page:'today');
 }
-export const pageTitles:Record<Page,string>={today:'Today',programme:'Programme',progress:'Progress','progress/exercises':'Progress','progress/history':'Progress','progress/movement':'Movement','progress/volume':'Training volume','progress/bodyweight':'Bodyweight','progress/recovery':'Recovery',settings:'Settings',workout:'Workout','workout/review':'Review workout','workout/saved':'Workout saved'};
+export const pageTitles:Record<Page,string>={today:'Today',programme:'Programme',progress:'Progress','progress/exercises':'Progress','progress/history':'Progress','progress/movement':'Movement','progress/volume':'Training volume','progress/bodyweight':'Bodyweight','progress/recovery':'Workout feedback',settings:'Settings',workout:'Workout','workout/review':'Review workout','workout/saved':'Workout saved'};

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { freshStore, selectedWorkout, newSession, reviewWeek, currentAttempt, volume, fromKg, type Store, type Session } from '../src/model';
-import { attemptSummary, bodySnapshot, calendarDay, recoverySnapshot, strengthSpotlight, volumeDistribution } from '../src/progress-data';
+import { attemptSummary, bodySnapshot, calendarDay, strengthSpotlight, volumeDistribution } from '../src/progress-data';
 
 function fixture(week = 5) {
   const store = freshStore(); store.programme.week = week; store.programme.attempts[0].week = week;
@@ -34,10 +34,11 @@ describe('attempt summary', () => {
     const summary = attemptSummary(store);
     expect(summary.complete).toBe(1); expect(summary.workouts.map(w => w.status)).toEqual(['complete', 'partial', 'pending', 'pending']);
   });
-  it('isolates attempt recovery, counts unique days and retains a completed attempt', () => {
+  it('excludes historical recovery from summaries and retains a completed attempt', () => {
     let store = fixture(); const old = currentAttempt(store).id; store = repeat(store);
     store.recovery = [old, currentAttempt(store).id, currentAttempt(store).id].map((attemptId, i) => ({ id: String(i), attemptId, week: 5, date: '2026-11-01', cardio: 25, mobility: 10, activity: 'walking', note: '' }));
-    expect(attemptSummary(store)).toMatchObject({ recoveryDays: 1, cardio: 50 });
+    expect(attemptSummary(store)).not.toHaveProperty('recoveryDays');
+    expect(attemptSummary(store)).not.toHaveProperty('cardio');
     store.programme.status = 'complete'; expect(attemptSummary(store).attempt.id).toBe(currentAttempt(store).id);
   });
 });
@@ -131,12 +132,7 @@ describe('seven calendar day snapshots', () => {
     store.body = Array.from({ length: 15 }, (_, i) => ({ id: String(i), date: new Date((end - 14 + i) * 86400000).toISOString().slice(0, 10), kg: i }));
     expect(bodySnapshot(store, date)).toMatchObject({ count: 7, average: 11, change: 7 });
   });
-  it('counts recovery logs, unique days, minutes and all overdue feedback separately', () => {
-    const store = fixture(); const old = save(store); old.date = '2026-10-01';
-    store.recovery = ['2026-10-26', '2026-10-27', '2026-11-02', '2026-11-02', '2026-11-03'].map((date, i) => ({ id: String(i), date, week: 5, attemptId: currentAttempt(store).id, activity: 'walking', cardio: 25, mobility: 10, note: '' }));
-    expect(recoverySnapshot(store, '2026-11-02')).toMatchObject({ logs: 3, days: 2, cardio: 75, mobility: 30 });
-    expect(recoverySnapshot(store, '2026-11-02').pending.map(s => s.id)).toEqual([old.id]);
-  });
+
 });
 
 describe('volume distribution', () => {
@@ -161,7 +157,7 @@ describe('volume distribution', () => {
   });
   it('does not mutate stored history while deriving the dashboard', () => {
     const store = fixture(); save(store); const original = structuredClone(store);
-    attemptSummary(store); strengthSpotlight(store); bodySnapshot(store); recoverySnapshot(store); volumeDistribution(store.sessions);
+    attemptSummary(store); strengthSpotlight(store); bodySnapshot(store); volumeDistribution(store.sessions);
     expect(store).toEqual(original);
   });
 });

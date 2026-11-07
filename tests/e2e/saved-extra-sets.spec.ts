@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, validateStore, doneSets, volume, type Store } from '../../src/model';
 import fs from 'node:fs/promises';
 
@@ -74,7 +74,7 @@ test('partially saved workouts allow sets on exercises with no logged sets and r
   const index=store.sessions[0].exercises[1].sets.length+1;
   const weight=page.getByLabel(`${name} set ${index} weight`,{exact:true});await expect(weight).toBeFocused();await expect(weight).toHaveValue('');
   await page.getByLabel(`${name} set ${index} logged`,{exact:true}).check();await page.getByRole('button',{name:'Save changes',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('Logged sets need a valid weight');
+  await expect(page.locator('.app-shell').getByRole('alert')).toContainText('Logged sets need a valid weight');
   await weight.fill('18');await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);
   const data=await backup(page);expect(data.sessions[0].exercises[1].sets.at(-1)).toMatchObject({weight:18,done:true});validateStore(data);
 });

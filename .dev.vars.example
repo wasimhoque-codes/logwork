@@ -1,0 +1,6 @@
+# Copy to .dev.vars for LOCAL development only. Never set LOCAL_DEV_AUTH remotely.
+LOCAL_DEV_AUTH=1
+# Production and preview require all three settings, plus an Access allow policy.
+# ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
+# ACCESS_AUDIENCE=your-access-application-audience
+# OWNER_EMAIL=your-email@example.com

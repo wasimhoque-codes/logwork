@@ -388,8 +388,6 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .attempt-workouts .complete{color:var(--text);background:var(--surface)}
 .attempt-workouts .complete .attempt-check{background:var(--support);border-color:var(--support);color:var(--surface)}
 .attempt-workouts .partial .attempt-check{background:var(--surface);color:var(--text);font-weight:700}
-.attempt-totals{display:flex;gap:10px 20px;flex-wrap:wrap;color:var(--muted);font-size:13px}
-.attempt-totals>span{display:flex;align-items:center;gap:6px}
 .attempt-context{display:flex;align-items:flex-start;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--selection-line);color:var(--muted);font-size:13px;line-height:1.6}
 .attempt-context>svg{flex:none;margin-top:2px}
 .dashboard-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
@@ -438,18 +436,13 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .snapshot-chart-link>span{display:flex;align-items:center;gap:2px;color:var(--accent-ink);font-size:12px;font-weight:600}
 .snapshot-empty{display:block;color:var(--muted);font-size:14px;line-height:1.6;margin:14px 0}
 .snapshot-empty .text-button{font-size:13px;padding-left:0}
-.recovery-minute-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:24px 0}
-.recovery-minute-grid>div{display:flex;flex-direction:column;gap:6px}
-.recovery-minute-grid strong{font-family:Manrope,sans-serif;font-size:23px;letter-spacing:-.4px}
-.recovery-minute-grid small{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted)}
-.recovery-minute-grid span{font-size:12px;color:var(--muted)}
 .pending-feedback{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--selection);border:1px solid var(--selection-line);border-radius:10px;color:var(--accent-ink);padding:10px;font-size:13px;line-height:1.5}
 .pending-feedback>svg{flex:none}
 .pending-feedback>span{flex:1}
 .pending-feedback small{display:block;font-size:11px;margin-top:3px;color:var(--muted)}
 .feedback-clear{display:flex;gap:7px;align-items:flex-start;color:var(--muted);font-size:12px;line-height:1.6}
 .feedback-clear>svg{flex:none;margin-top:2px}
-.recovery-detail-link{padding-left:0;font-size:13px;margin-top:8px}
+.feedback-detail-link{padding-left:0;font-size:13px;margin-top:8px}
 .distribution-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px}
 .distribution-row+.distribution-row{margin-top:22px}
 .distribution-row>div:first-child{display:flex;justify-content:space-between;align-items:baseline;gap:6px 12px;flex-wrap:wrap;margin-bottom:10px;font-size:14px}
@@ -617,3 +610,15 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .progress-switch button{flex:1;min-width:0}
 @media(min-width:600px){.exercise-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exercise-page-heading h2{font-size:30px}.exercise-detail .exercise-metrics dd{font-size:18px}}
 @media(max-width:360px){.exercise-tile{padding:14px}.exercise-tile-heading h3{font-size:16px}.exercise-tile-latest>strong{font-size:22px}.exercise-filters{gap:5px}.exercise-filters button{padding-left:12px;padding-right:12px;font-size:12px}.exercise-page-heading h2{font-size:24px}.exercise-latest>strong{font-size:25px}.progress-switch button{font-size:13px;padding-left:6px;padding-right:6px}.progress-switch .history-count{min-width:18px;min-height:18px;margin-left:3px;font-size:10px}}
+
+.rest-day-suggestions>ul{display:flex;flex-wrap:wrap;gap:10px 24px;list-style:none;padding:0;margin:20px 0;font-weight:600}
+
+.app-loading{min-height:70dvh;display:grid;place-items:center;color:#565880}
+.sync-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.75rem;color:var(--muted);padding:4px 20px 8px;min-height:32px}
+.sync-strip .text-button{font-size:inherit;padding:6px 4px;white-space:nowrap}
+.sync-choice{padding:16px 0;border-bottom:1px solid var(--border)}
+.sync-choice p{overflow-wrap:anywhere}
+.sync-choice-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.sync-strip{padding:0;min-height:14px;font-size:.65rem;line-height:1.25;justify-content:flex-start;gap:8px}
+.sync-strip .text-button{font-size:.75rem}

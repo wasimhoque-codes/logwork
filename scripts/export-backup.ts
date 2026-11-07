@@ -1,0 +1,12 @@
+import { writeFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { CliDatabase } from './cloudflare-cli';
+import { snapshot } from '../src/server/database';
+const args=process.argv.slice(2),output=args[args.indexOf('--output')+1];
+if(!args.includes('--output')||!output||!args.some(a=>a==='--local'||a==='--remote'))throw new Error('Usage: npm run db:export -- --local|--remote --output /private/path/backup.json [--env preview]');
+const path=resolve(output);
+if(existsSync(path))throw new Error('Choose a new output filename; existing files are not overwritten.');
+const value=(await snapshot(new CliDatabase(args.includes('--remote'),args.includes('preview')))).store;
+if(!value)throw new Error('Database has no active records.');
+writeFileSync(path,JSON.stringify(value,null,2)+'\n',{mode:0o600,flag:'wx'});
+console.log('Version-4 backup exported to '+path);

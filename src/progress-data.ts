@@ -1,6 +1,6 @@
 import { WORKOUTS, type Exercise } from './data';
 import { bodyTrend } from './body-trend';
-import { attemptSessions, completeSession, coreWorkoutCount, currentAttempt, doneSets, exerciseKey, localDate, pendingFollowups, progression, volume, type ExerciseLog, type Session, type SetLog, type Store } from './model';
+import { attemptSessions, completeSession, coreWorkoutCount, currentAttempt, doneSets, exerciseKey, localDate, progression, volume, type ExerciseLog, type Session, type SetLog, type Store } from './model';
 
 // Date-only arithmetic must not gain or lose a day when the clocks change.
 export function calendarDay(date: string) {
@@ -14,12 +14,9 @@ export function attemptSummary(store: Store) {
   while (start > 0 && attempts[start - 1].week === attempt.week && attempts[start - 1].decision === 'repeat') start--;
   const number = attempts.length - start, previous = number > 1 ? attempts.at(-2) : undefined;
   const sessions = attemptSessions(store).filter(s => s.endedAt !== undefined);
-  const recovery = store.recovery.filter(r => r.attemptId === attempt.id);
   return { attempt, number, previous, sessions,
     complete: coreWorkoutCount(sessions),
     previousComplete: previous ? coreWorkoutCount(attemptSessions(store, previous)) : 0,
-    recoveryDays: new Set(recovery.map(r => r.date)).size,
-    cardio: recovery.reduce((n, r) => n + r.cardio, 0),
     workouts: WORKOUTS.filter(w => w.category === 'strength').map(w => ({ id: w.id, name: w.name,
       status: sessions.some(s => s.workoutId === w.id && completeSession(s)) ? 'complete' as const
         : sessions.some(s => s.workoutId === w.id) ? 'partial' as const : 'pending' as const })),
@@ -140,15 +137,6 @@ export function bodySnapshot(store: Store, today = localDate()) {
   return { latest: points.at(-1), points: recent, average, count: recent.length,
     change: average !== null && previousAverage !== null ? average - previousAverage : null,
     startDay: end - 6, endDay: end };
-}
-
-export function recoverySnapshot(store: Store, today = localDate()) {
-  const end = calendarDay(today), inWindow = (date: string) => calendarDay(date) >= end - 6 && calendarDay(date) <= end;
-  const entries = store.recovery.filter(r => inWindow(r.date));
-  return { logs: entries.length, days: new Set(entries.map(r => r.date)).size,
-    cardio: entries.reduce((n, r) => n + r.cardio, 0), mobility: entries.reduce((n, r) => n + r.mobility, 0),
-    // Follow-ups remain actionable even when the workout is older than the snapshot.
-    pending: pendingFollowups(store, today) };
 }
 
 export function volumeDistribution(sessions: Session[]) {

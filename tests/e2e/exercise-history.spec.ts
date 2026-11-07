@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, addSessionSet, localDate, number, fromKg, type Store } from '../../src/model';
 
 function fixture(day=1,count=6) {

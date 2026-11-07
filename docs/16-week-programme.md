@@ -123,7 +123,7 @@ Version 4 uses only `gym-hawk-v4`. On first launch without version-4 data, the a
 
 Only after saving version 4 successfully does the app remove `gym-hawk-v1`, `gym-hawk-v2` and `gym-hawk-v3`. Unrelated browser data is untouched. Failed writes retain older keys; failed cleanup is retried on subsequent saves. Old-tab writes cannot change the active version-4 store. Later launches and updates preserve new records. Corrupt version-4 data is preserved for raw export and valid-backup recovery, without fallback or automatic reset.
 
-Only version-4 backups are accepted. Backups include programme week and attempts, choices, sessions and active prescription, bodyweight and recovery activities. Imports validate every record before confirmation and replacement. Data remains on the current browser/device; there is no account or automatic sync. Historical source and compatibility files retained in the workspace are not imported by the active app.
+Only version-4 backups are accepted. Backups include programme week and attempts, choices, sessions and active prescription, bodyweight and preserved historical recovery activities. Rest days show optional Mobility, Running and Walking suggestions without tracking activities or minutes. Historical recovery entries remain in backups but are hidden from History and Progress; workout symptom feedback is retained. Imports validate every record before confirmation and replacement. Data remains on the current browser/device; there is no account or automatic sync. Historical source and compatibility files retained in the workspace are not imported by the active app.
 
 ## Mobile redesign compatibility
 

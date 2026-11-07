@@ -4,26 +4,44 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0",
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build --webpack",
+    "build:worker": "opennextjs-cloudflare build && node scripts/build-offline.mjs",
+    "preview": "npm run build:worker && opennextjs-cloudflare preview",
+    "deploy": "tsx scripts/deploy.ts --check && npm run build:worker && tsx scripts/deploy.ts",
+    "cf:typegen": "wrangler types --env-interface WranglerBindings .wrangler/types.d.ts",
+    "db:migrate:local": "tsx scripts/migrate.ts --local",
+    "db:migrate:remote": "tsx scripts/migrate.ts --remote",
+    "db:import": "tsx scripts/import-backup.ts",
+    "db:export": "tsx scripts/export-backup.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "deploy:preview": "tsx scripts/deploy.ts --check --preview && npm run build:worker && tsx scripts/deploy.ts --preview"
   },
   "dependencies": {
-    "@fontsource-variable/dm-sans": "^5.3.0",
-    "@fontsource-variable/manrope": "^5.3.0",
-    "lucide-react": "^0.468.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@fontsource-variable/manrope": "5.3.0",
+    "lucide-react": "0.468.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "next": "16.4.5",
+    "@opennextjs/cloudflare": "1.20.16",
+    "jose": "6.2.15"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.1",
-    "@types/react": "^19.1.13",
-    "@types/react-dom": "^19.1.9",
-    "@vitejs/plugin-react": "^5.0.3",
-    "typescript": "~5.9.2",
-    "vite": "^7.1.7",
-    "vitest": "^5.0.3"
+    "@playwright/test": "1.63.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3",
+    "wrangler": "4.158.0",
+    "tsx": "4.23.15",
+    "@types/node": "24.10.0",
+    "fake-indexeddb": "6.2.7"
+  },
+  "overrides": {
+    "glob": "14.0.4",
+    "minimatch": "11.0.5"
   }
 }

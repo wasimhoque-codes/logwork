@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { replaceLocal } from './fixture';
+import { test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, reviewWeek, currentAttempt, localDate, exerciseKey, validateStore, type Store } from '../../src/model';
 import { movementSeries } from '../../src/progress-data';
 import fs from 'node:fs/promises';
@@ -50,7 +51,7 @@ test('Overview stays focused and Exercises shows every recorded identity alphabe
   await expect(page.locator('.exercise-tile').first().getByText('Latest set', {exact:true})).toHaveCount(0);
   await expect(page.locator('.exercise-tile').first().locator('svg[role=img]')).toHaveAttribute('height','140');
   await expect(page.locator('.exercise-tile').first().locator('svg [role=button]')).toHaveCount(0);
-  await page.getByRole('tab', { name: /History/ }).click(); await expect(page.locator('.history-row')).toHaveCount(5);
+  await page.getByRole('tab', { name: /History/ }).click(); await expect(page.locator('.history-row')).toHaveCount(3);
 });
 test('search, role filters, clear and detail return preserve place and focus', async ({ page }) => {
   await seed(page, fixture()); await openGrid(page);
@@ -113,7 +114,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     test.skip(testInfo.project.name !== 'desktop', 'One capture matrix per viewport.'); await page.setViewportSize({ width, height }); const store = fixture(); await seed(page, store); await openGrid(page);
     const directory = path.resolve('artifacts/exercise-grid'); await fs.mkdir(directory, { recursive: true });
     for (const state of ['populated', 'sparse', 'empty']) { const data = state === 'empty' ? freshStore() : structuredClone(store); if (state === 'sparse') data.sessions = [data.sessions[0]];
-      await page.evaluate(raw => localStorage.setItem('gym-hawk-v4', raw), JSON.stringify(data)); await page.reload(); await settled(page); await noOverflow(page);
+      await replaceLocal(page, data); await page.reload(); await settled(page); await noOverflow(page);
       if (state === 'sparse') await expect(page.locator('.exercise-tile').first().getByText('—', { exact: true })).toHaveCount(2);
       if (state === 'empty') await expect(page.getByRole('heading', { name: 'Your exercise progress starts here' })).toBeVisible();
       await page.screenshot({ path: path.join(directory, `${state}-${width}.png`), fullPage: true });
@@ -125,7 +126,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
       }
       const targets = await page.locator('main button,header button,header select,[role=tab]').evaluateAll(nodes => nodes.filter(n => n.getClientRects().length > 0).map(n => { const b = n.getBoundingClientRect(); return { text: n.textContent, w: b.width, h: b.height }; })); expect(targets.filter(t => t.w < 43.5 || t.h < 43.5)).toEqual([]);
     }
-    await page.evaluate(raw => localStorage.setItem('gym-hawk-v4', raw), JSON.stringify(store)); await page.reload(); await page.getByRole('button', { name: /View details for/ }).first().click(); await settled(page); await noOverflow(page); await page.screenshot({ path: path.join(directory, `detail-${width}.png`), fullPage: true });
+    await replaceLocal(page, store); await page.reload(); await page.getByRole('button', { name: /View details for/ }).first().click(); await settled(page); await noOverflow(page); await page.screenshot({ path: path.join(directory, `detail-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Go back', exact: true }).click(); await page.evaluate(() => document.documentElement.style.fontSize = '20px'); await noOverflow(page);
     const last = page.locator('.comparison-help summary'); await last.scrollIntoViewIfNeeded(); const caption = await last.boundingBox(), dock = await page.getByRole('navigation', { name: 'Main navigation' }).boundingBox(); expect(caption!.y + caption!.height).toBeLessThanOrEqual(dock!.y);
   });
