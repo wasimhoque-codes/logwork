@@ -43,7 +43,7 @@ body {
   -webkit-font-smoothing:antialiased
 }
 
-h1,h2,h3,.journey-stat strong,.journey-comparisons strong,.exercise-tile-changes dd,.exercise-tile-latest>strong,.exercise-metrics dd {
+h1,h2,h3,.journey-stat strong,.journey-comparisons strong,.exercise-tile-latest>strong,.exercise-metrics dd {
   font-family:inherit
 }
 
@@ -1188,7 +1188,7 @@ input:focus,select:focus,textarea:focus {
   color:#c2ceb9
 }
 
-.weekly-history,.journey-chart-card,.distribution-card,.attempt-card,.snapshot-card,.exercise-tile,.movement-chart,.chart-panel {
+.weekly-history,.journey-chart-card,.distribution-card,.attempt-card,.snapshot-card,.exercise-tile,.chart-panel {
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:22px;
@@ -1420,16 +1420,6 @@ input:focus,select:focus,textarea:focus {
   font-size:28px
 }
 
-.exercise-tile-changes dd {
-  font-family:inherit;
-  font-size:14px;
-  font-weight:550
-}
-
-.exercise-grid-legend {
-  font-size:12px
-}
-
 .exercise-detail-heading h2 {
   font-weight:550
 }
@@ -1437,16 +1427,6 @@ input:focus,select:focus,textarea:focus {
 .journey-comparisons strong {
   font-family:inherit;
   font-weight:550
-}
-
-.selected-observation {
-  border-radius:12px;
-  background:var(--input)
-}
-
-.workload-track>span {
-  border-radius:5px 5px 0 0;
-  background:#91b270
 }
 
 .metric-records>div {
@@ -2582,7 +2562,7 @@ input:focus,select:focus,textarea:focus {
     font-size:12px
   }
 
-  .weekly-history,.journey-chart-card,.distribution-card,.attempt-card,.snapshot-card,.exercise-tile,.movement-chart,.chart-panel {
+  .weekly-history,.journey-chart-card,.distribution-card,.attempt-card,.snapshot-card,.exercise-tile,.chart-panel {
     padding:20px;
     border-radius:22px
   }
@@ -3409,4 +3389,252 @@ input:focus,select:focus,textarea:focus {
   .app-shell[data-page=settings]>main {
     max-width:680px;
   }
+}
+
+/* Exercise progress */
+.exercise-tile-latest > span {
+  display:block;
+  color:var(--muted);
+  font-size:.75rem;
+}
+
+.exercise-tile .movement-preview {
+  margin:6px 0 8px;
+}
+
+.exercise-tile-change {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:4px 12px;
+  margin-top:auto;
+  padding-top:10px;
+  border-top:1px solid var(--line);
+  color:var(--muted);
+  font-size:.8125rem;
+}
+
+.exercise-tile-change strong {
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+
+.exercise-trend-heading {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:12px 20px;
+}
+
+.exercise-trend .exercise-latest {
+  gap:4px;
+  margin:0;
+}
+
+.exercise-trend .exercise-latest > span {
+  font-size:.8125rem;
+}
+
+.exercise-trend-measure {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:space-between;
+  gap:4px 12px;
+  margin:22px 0 0;
+  color:var(--muted);
+  font-size:.8125rem;
+}
+
+.movement-plot text {
+  font-size:11px;
+}
+
+.movement-plot .movement-label-selected {
+  fill:var(--text);
+  font-weight:700;
+}
+
+.movement-line {
+  fill:none;
+  stroke:var(--chart-line);
+  stroke-width:2.5;
+  stroke-linejoin:round;
+  stroke-linecap:round;
+}
+
+.movement-dot {
+  fill:var(--surface);
+  stroke:var(--chart-line);
+  stroke-width:2;
+}
+
+.movement-dot.is-selected {
+  fill:var(--chart-line);
+}
+
+.movement-ring {
+  fill:none;
+  stroke:var(--chart-line);
+  stroke-opacity:.4;
+}
+
+.movement-guide {
+  stroke:var(--chart-line);
+  stroke-opacity:.6;
+  stroke-dasharray:3 4;
+}
+
+.movement-plot [data-point] {
+  cursor:pointer;
+  touch-action:manipulation;
+}
+
+.movement-plot [data-point]:focus-visible {
+  outline:none;
+}
+
+.movement-plot [data-point]:focus-visible .movement-ring {
+  stroke:var(--focus);
+  stroke-width:2;
+  stroke-opacity:1;
+}
+
+.selected-workout {
+  margin-top:8px;
+  padding-top:18px;
+  border-top:1px solid var(--line);
+}
+
+.selected-workout-heading {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px 12px;
+}
+
+.selected-workout-heading .eyebrow {
+  margin:0 0 3px;
+  font-size:.75rem;
+}
+
+.selected-workout-heading h3 {
+  font-size:1.125rem;
+}
+
+.selected-workout-nav {
+  display:flex;
+  gap:6px;
+}
+
+.selected-workout-nav .icon-button {
+  min-width:44px;
+  min-height:44px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:none;
+}
+
+.selected-workout-nav .icon-button[aria-disabled=true] {
+  opacity:.45;
+  cursor:default;
+}
+
+.selected-workout-session {
+  margin-top:14px;
+}
+
+.selected-workout-session h4 {
+  margin:0 0 8px;
+  color:var(--muted);
+  font-size:.8125rem;
+  font-weight:600;
+}
+
+.selected-workout-sets {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));
+  gap:8px;
+  margin:0;
+  padding:0;
+  list-style:none;
+}
+
+.selected-workout-sets li {
+  display:grid;
+  gap:4px;
+  min-width:0;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow-wrap:anywhere;
+}
+
+.selected-workout-sets li.is-top-set {
+  border-color:var(--selection-line);
+  background:var(--selection);
+}
+
+.selected-workout-sets strong,.selected-workout-stats dd {
+  font-size:.9375rem;
+  font-variant-numeric:tabular-nums;
+}
+
+.workout-set-label {
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:2px 8px;
+  color:var(--muted);
+  font-size:.75rem;
+}
+
+.workout-set-label > span {
+  color:var(--accent-ink);
+  font-weight:650;
+}
+
+.selected-workout-stats {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 24px;
+  margin:14px 0 0;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+}
+
+.selected-workout-stats > div {
+  flex:1 0 max-content;
+  max-width:100%;
+}
+
+.selected-workout-stats dt {
+  color:var(--muted);
+  font-size:.75rem;
+}
+
+.selected-workout-stats dd {
+  margin:2px 0 0;
+  font-weight:650;
+  overflow-wrap:anywhere;
+}
+
+.exercise-comparisons[open] .exercise-metrics {
+  margin-top:8px;
+}
+
+.exercise-dashboard .exercise-filters button,.exercise-trend-range button,
+.app-shell[data-page="progress/exercises"] .progress-switch button,
+.app-shell[data-page="progress/exercises"] .app-header .icon-button,
+.app-shell[data-page="progress/exercises"] .progress-unit select {
+  min-width:44px;
+  min-height:44px;
+}
+
+.movement-dot.is-dense {
+  fill:var(--chart-line);
+  stroke:none;
 }

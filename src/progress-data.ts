@@ -35,6 +35,7 @@ function bestSet(exercise: Exercise, log: ExerciseLog): SetLog | undefined {
 
 export type MovementRecord = { session: Session; exercise: Exercise; log: ExerciseLog; sets: SetLog[]; best: SetLog; value: number };
 export type MovementSeries = { key: string; exercise: Exercise; mode: ExerciseLog['mode']; records: MovementRecord[] };
+export type MovementDay = { date: string; day: number; workouts: MovementRecord[]; best: MovementRecord };
 
 export function recordedSessions(sessions: Session[]) {
   return sessions.filter(s => s.endedAt !== undefined && doneSets(s) > 0)
@@ -62,6 +63,27 @@ export function movementSeries(sessions: Session[]): MovementSeries[] {
     }
   }
   return [...series.values()];
+}
+
+function beatsMovementRecord(candidate: MovementRecord, best: MovementRecord) {
+  const direction = best.log.mode === 'assistance' && !best.exercise.timed ? -1 : 1;
+  const difference = (candidate.value - best.value) * direction;
+  return difference > 0 || (difference === 0 && candidate.best.reps > best.best.reps);
+}
+
+export function movementDays(series: MovementSeries): MovementDay[] {
+  const days = new Map<string, MovementDay>();
+  for (const record of series.records) {
+    const date = record.session.date;
+    const existing = days.get(date);
+    if (!existing) {
+      days.set(date, { date, day: calendarDay(date), workouts: [record], best: record });
+      continue;
+    }
+    existing.workouts.push(record);
+    if (beatsMovementRecord(record, existing.best)) existing.best = record;
+  }
+  return [...days.values()].sort((a, b) => a.day - b.day);
 }
 
 export function recentMovements(series: MovementSeries[]) {
@@ -160,10 +182,6 @@ export function volumeDistribution(sessions: Session[]) {
 export function movementSummary(series: MovementSeries) {
   const first = series.records[0], latest = series.records.at(-1)!;
   const recent = series.records.slice(-5);
-  const best = series.records.reduce((best, record) => {
-    const direction = series.mode === 'assistance' && !series.exercise.timed ? -1 : 1;
-    const difference = (record.value - best.value) * direction;
-    return difference > 0 || difference === 0 && record.best.reps > best.best.reps ? record : best;
-  }, first);
+  const best = series.records.reduce((best, record) => beatsMovementRecord(record, best) ? record : best, first);
   return { first, latest, recent, best };
 }

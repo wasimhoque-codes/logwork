@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { Unit } from './data';
 import { dateLabel, fromKg, number } from './model';
-import type { MovementRecord, MovementSeries, trainingJourney } from './progress-data';
+import type { MovementDay, MovementRecord, MovementSeries, trainingJourney } from './progress-data';
 
 export const fullDate = (date: string) => dateLabel(date, { day: 'numeric', month: 'short', year: 'numeric' });
 export const movementUnit = (series: MovementSeries, unit: Unit) => series.exercise.timed ? 'sec' : series.mode === 'bodyweight' ? 'reps' : unit;
@@ -30,41 +30,131 @@ function usePlotWidth() {
   }, []);
   return { ref, width };
 }
-export function MovementTable({ series, records, unit }: { series: MovementSeries; records: MovementRecord[]; unit: Unit }) {
-  return <div className="sr-only"><table><caption>{series.exercise.name} recorded sets</caption><thead><tr><th scope="col">Date</th><th scope="col">Representative set</th><th scope="col">Logged sets</th></tr></thead><tbody>{records.map(record => <tr key={record.session.id}><th scope="row">{fullDate(record.session.date)}</th><td>{setLabel(record, unit)}</td><td>{record.sets.length}</td></tr>)}</tbody></table></div>;
-}
-export function MovementChart({ series, unit, mini = false, compact = false }: { series: MovementSeries; unit: Unit; mini?: boolean; compact?: boolean }) {
-  const simple = mini || compact;
-  const { ref, width } = usePlotWidth(), id = useId(), [selectedId, setSelectedId] = useState('');
-  const records = mini ? series.records.slice(-5) : series.records;
-  const selected = records.findIndex(r => r.session.id === selectedId), index = selected < 0 ? records.length - 1 : selected;
-  const current = records[index], values = records.map(r => movementValue(r, unit));
-  const min = Math.min(...values), max = Math.max(...values), pad = Math.max((max - min) * .18, max === 0 ? 1 : Math.abs(max) * .04);
-  const low = Math.max(0, min - pad), high = max + pad;
-  const left = simple ? 8 : 49, right = width - (simple ? 8 : 14), bottom = compact ? 126 : mini ? 62 : 188, top = simple ? 12 : 22;
-  const start = records[0].session.startedAt, end = records.at(-1)!.session.startedAt;
-  const x = (i: number) => records.length === 1 ? (left + right) / 2 : left + (end === start ? i / (records.length - 1) : (records[i].session.startedAt - start) / (end - start)) * (right - left);
-  const y = (value: number) => bottom - (value - low) / (high - low) * (bottom - top);
-  const path = records.map((record, i) => `${i ? 'L' : 'M'}${x(i)},${y(movementValue(record, unit))}`).join(' ');
-  const recentStart = Math.max(0, records.length - 5);
-  function select(i: number, focus = false) {
-    setSelectedId(records[i].session.id);
-    if (focus) ref.current?.querySelector<SVGGElement>(`[data-point="${i}"]`)?.focus();
+export function recentMovementChange(series: MovementSeries, first: MovementRecord, last: MovementRecord, unit: Unit) {
+  if (!series.exercise.timed && series.mode !== 'bodyweight' && first.value === last.value) {
+    const reps = last.best.reps - first.best.reps;
+    return `${reps > 0 ? '+' : reps < 0 ? '−' : ''}${Math.abs(reps)} reps${series.exercise.perSide ? ' / side' : ''}`;
   }
-  return <div className={simple ? 'movement-spark' : 'movement-chart'}>
-    {!simple && <div className="journey-legend"><span><i/>Full history</span><span><i className="recent-key"/>Latest {Math.min(5, records.length)}</span><span>{movementUnit(series, unit)}</span></div>}
-    <div ref={ref} className="journey-plot"><svg width="100%" height={compact ? 140 : mini ? 76 : 222} viewBox={`0 0 ${width} ${compact ? 140 : mini ? 76 : 222}`} role={simple ? 'img' : 'group'} aria-label={simple ? `${series.exercise.name}: ${records.map(r => `${fullDate(r.session.date)}, ${setLabel(r, unit)}`).join('; ')}` : `${series.exercise.name} full-history chart. Use arrow keys to explore recorded sessions.`}>
-      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop stopColor="var(--chart-fill)" stopOpacity=".2"/><stop offset="1" stopColor="var(--chart-fill)" stopOpacity="0"/></linearGradient></defs>
-      {!simple && [high, (low + high) / 2, low].map((value, i) => <g key={i} aria-hidden="true"><line x1={left} x2={right} y1={y(value)} y2={y(value)} className="body-chart-grid"/><text x={left - 8} y={y(value) + 4} textAnchor="end">{number(value, 1)}</text></g>)}
-      {records.length > 1 && <><path d={`${path} L${x(records.length - 1)},${bottom} L${x(0)},${bottom} Z`} fill={`url(#${id})`} aria-hidden="true"/><path d={path} className="journey-history-line" aria-hidden="true"/><path d={records.slice(recentStart).map((record, j) => `${j ? 'L' : 'M'}${x(j + recentStart)},${y(movementValue(record, unit))}`).join(' ')} className="body-average-line" aria-hidden="true"/></>}
-      {records.map((record, i) => simple ? <circle key={record.session.id} cx={x(i)} cy={y(movementValue(record, unit))} r="3.5" className={compact && i < recentStart ? 'journey-old-point' : 'body-weigh-in'}/> : <g key={record.session.id} data-point={i} role="button" tabIndex={i === index ? 0 : -1} aria-pressed={i === index} aria-label={`${fullDate(record.session.date)}: ${setLabel(record, unit)}`} onClick={() => select(i)} onKeyDown={event => {
-        const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? Math.min(records.length - 1, i + 1) : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? Math.max(0, i - 1) : event.key === 'Home' ? 0 : event.key === 'End' ? records.length - 1 : event.key === 'Enter' || event.key === ' ' ? i : null;
-        if (next !== null) { event.preventDefault(); select(next, true); }
-      }}><rect x={x(i) - 22} y={y(movementValue(record, unit)) - 22} width="44" height="44" fill="transparent"/><circle cx={x(i)} cy={y(movementValue(record, unit))} r={i === index ? 6 : 3.5} className={i >= recentStart ? 'body-weigh-in' : 'journey-old-point'} pointerEvents="none"/></g>)}
-      {!simple && <g aria-hidden="true"><text x={left} y="216" textAnchor="start">{dateLabel(records[0].session.date, { month: 'short', year: '2-digit', day: 'numeric' })}</text>{records.length > 1 && <text x={right} y="216" textAnchor="end">{dateLabel(records.at(-1)!.session.date, { month: 'short', year: '2-digit', day: 'numeric' })}</text>}</g>}
-    </svg></div>
-    {compact && <div className="compact-chart-dates"><span>{dateLabel(records[0].session.date, { day: 'numeric', month: 'short', year: '2-digit' })}</span><span>{records.length > 1 ? dateLabel(records.at(-1)!.session.date, { day: 'numeric', month: 'short', year: '2-digit' }) : ""}</span></div>}
-    {!simple && <><div className="selected-observation" aria-live="polite" aria-atomic="true"><span>{fullDate(current.session.date)}<small>{current.session.workout.name}</small></span><strong>{setLabel(current, unit)}<small>{current.sets.length} logged sets</small></strong></div><p className="chart-caption">{records.length} recorded sessions · Select a point to inspect its set.</p><MovementTable series={series} records={records} unit={unit}/></>}
+  return changeLabel(series, first, last, unit);
+}
+
+export function movementMeasure(series: MovementSeries, unit: Unit) {
+  const measure = series.exercise.timed ? 'Longest hold'
+    : series.mode === 'bodyweight' ? 'Most reps'
+    : series.mode === 'assistance' ? 'Least assistance' : 'Heaviest load';
+  return `${measure} · ${movementUnit(series, unit)}${series.exercise.perSide ? ' / side' : ''}`;
+}
+
+function movementScale(values: number[], whole: boolean) {
+  const min = Math.min(...values), max = Math.max(...values);
+  const padding = Math.max((max - min) * .08, max * .02, whole ? 1 : .01);
+  const lower = Math.max(0, min - padding), upper = max + padding;
+  const rawStep = (upper - lower) / 3;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const step = Math.max(whole ? 1 : .01, [1, 2, 5, 10].find(n => n * magnitude >= rawStep)! * magnitude);
+  const start = Math.floor(lower / step);
+  const end = Math.max(start + 1, Math.ceil(upper / step));
+  return Array.from({ length: end - start + 1 }, (_, i) => (start + i) * step);
+}
+
+function chartLabels(positions: number[], labels: string[], selected: number) {
+  const kept = new Set<number>();
+  const priority = new Set([selected, 0, positions.length - 1, ...positions.keys()]);
+  for (const index of priority) {
+    // Reserve horizontal room for the full label, even on a flat line.
+    if ([...kept].every(k => Math.abs(positions[k] - positions[index]) >= (labels[k].length + labels[index].length) * 3 + 5)) {
+      kept.add(index);
+    }
+  }
+  return kept;
+}
+
+type MovementChartProps = { series: MovementSeries; days: MovementDay[]; unit: Unit } & (
+  { onSelect?: undefined; selected?: undefined } | { onSelect: (index: number) => void; selected: number }
+);
+
+export function MovementChart({ series, days, unit, selected, onSelect }: MovementChartProps) {
+  const simple = onSelect === undefined;
+  const { ref, width } = usePlotWidth();
+  const id = useId();
+  const index = selected ?? days.length - 1;
+  const values = days.map(day => movementValue(day.best, unit));
+  const isLoad = !series.exercise.timed && series.mode !== 'bodyweight';
+  const ticks = movementScale(values, !isLoad);
+  const tickLabels = ticks.map(value => number(value, 2));
+  const low = ticks[0], high = ticks.at(-1)!;
+  const height = simple ? 108 : 222, top = simple ? 21 : 27, bottom = height - 30;
+  const left = simple ? 27 : Math.max(29, Math.max(...tickLabels.map(label => label.length)) * 7 + 13);
+  const right = width - 27;
+  const first = days[0], last = days.at(-1)!;
+  const positions = days.map(({ day }) => first === last ? (left + right) / 2 : left + (day - first.day) / (last.day - first.day) * (right - left));
+  const y = (value: number) => bottom - (value - low) / (high - low) * (bottom - top);
+  const path = days.map((_, i) => `${i ? 'L' : 'M'}${positions[i]},${y(values[i])}`).join(' ');
+  const showYear = first.date.slice(0, 4) !== last.date.slice(0, 4);
+  const dates = days.map(({ date }) => dateLabel(date, { day: 'numeric', month: 'short', year: showYear ? '2-digit' : undefined }));
+  // Keep long labels inside the chart even when the point is near an edge.
+  const datePositions = positions.map((x, i) => {
+    const margin = dates[i].length * 3 + 4;
+    return Math.min(width - margin, Math.max(margin, x));
+  });
+  const reps = days.map(({ best }) => `${best.best.reps} reps`);
+  const labels = dates.map((date, i) => isLoad && reps[i].length > date.length ? reps[i] : date);
+  const labeled = chartLabels(datePositions, labels, index);
+  const describe = ({ date, best }: MovementDay) => `${fullDate(date)}, ${setLabel(best, unit)}`;
+
+  return <div className={simple ? 'movement-preview' : 'movement-detail-plot'}>
+    <div ref={ref} className="journey-plot movement-plot">
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}
+        role={simple ? 'img' : 'group'}
+        aria-label={simple ? `${series.exercise.name}. ${days.map(describe).join('; ')}` : `${series.exercise.name} progress. Use arrow keys to select a date.`}>
+        <defs><linearGradient id={id} x1="0%" x2="0%" y1="0%" y2="100%">
+          <stop stopColor="var(--chart-fill)" stopOpacity=".32"/>
+          <stop offset="100%" stopColor="var(--chart-fill)" stopOpacity="0"/>
+        </linearGradient></defs>
+        <g aria-hidden="true" pointerEvents="none">
+          {!simple && ticks.map((value, i) => <g key={value}>
+            <line x1={left} x2={right} y1={y(value)} y2={y(value)} className="body-chart-grid"/>
+            <text x={left - 8} y={y(value) + 4} textAnchor="end">{tickLabels[i]}</text>
+          </g>)}
+          {days.length > 1 && <>
+            <path d={`${path} L${positions.at(-1)},${bottom} L${positions[0]},${bottom} Z`} fill={`url(#${id})`}/>
+            <path d={path} className="movement-line"/>
+          </>}
+          {!simple && <line x1={positions[index]} x2={positions[index]} y1={y(values[index])} y2={bottom + 5} className="movement-guide"/>}
+        </g>
+        {days.map((day, i) => {
+          const x = positions[i], cy = y(values[i]), active = i === index;
+          const gapToNeighbour = Math.min(x - (positions[i - 1] ?? -Infinity), (positions[i + 1] ?? Infinity) - x);
+          const dense = gapToNeighbour < 11;
+          const mark = <>
+            {active && <circle cx={x} cy={cy} r={9} className="movement-ring"/>}
+            <circle cx={x} cy={cy} r={active ? 5 : dense ? 1.7 : 3.5} className={active ? 'movement-dot is-selected' : dense ? 'movement-dot is-dense' : 'movement-dot'}/>
+          </>;
+          if (!onSelect) return <g key={day.date} aria-hidden="true">{mark}</g>;
+          const hitStart = i === 0 ? 0 : (positions[i - 1] + x) / 2;
+          const hitEnd = i === days.length - 1 ? width : (x + positions[i + 1]) / 2;
+          return <g key={day.date} data-point={i} role="button" tabIndex={active ? 0 : -1}
+            aria-pressed={active} aria-label={describe(day)} onClick={() => onSelect(i)}
+            onKeyDown={event => {
+              const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: days.length - 1, Enter: i, ' ': i }[event.key];
+              if (next === undefined) return;
+              event.preventDefault();
+              const target = Math.min(days.length - 1, Math.max(0, next));
+              onSelect(target);
+              ref.current?.querySelector<SVGGElement>(`[data-point="${target}"]`)?.focus({ preventScroll: true });
+            }}>
+            <rect x={hitStart} width={hitEnd - hitStart} y={5} height={height - 6} fill="transparent"/>
+            <g aria-hidden="true" pointerEvents="none">{mark}</g>
+          </g>;
+        })}
+        <g aria-hidden="true" pointerEvents="none">
+          {isLoad && [...labeled].map(i => <text key={days[i].date} x={positions[i]} y={y(values[i]) - 14}
+            textAnchor="middle" className={i === index ? 'movement-label-selected' : undefined}>{reps[i]}</text>)}
+          {[...labeled].map(i => <text key={days[i].date} x={datePositions[i]} y={height - 7}
+            textAnchor="middle" className={i === index ? 'movement-label-selected' : undefined}>{dates[i]}</text>)}
+        </g>
+      </svg>
+    </div>
   </div>;
 }
 export function WeeklyChart({ weeks, unit }: { weeks: ReturnType<typeof trainingJourney>['weeks']; unit: Unit }) {

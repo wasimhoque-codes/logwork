@@ -523,20 +523,8 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .journey-comparisons>div:nth-child(n+3){border-top:1px solid var(--line);background:var(--input)}
 .journey-comparisons span,.journey-comparisons small{font-size:11px;color:var(--muted);line-height:1.5}
 .journey-comparisons strong{font-family:Manrope,sans-serif;font-size:17px;line-height:1.5;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
-.journey-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);margin:0 0 8px}
-.journey-legend>span{display:flex;align-items:center;gap:5px}
-.journey-legend>span:last-child{margin-left:auto}
-.journey-legend i{width:14px;height:2px;background:var(--subtle)}
-.journey-legend .recent-key{height:3px;background:var(--chart-line)}
 .journey-plot{width:100%;min-width:0}
 .journey-plot svg{display:block;overflow:visible}
-.journey-history-line{fill:none;stroke:var(--subtle);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
-.journey-old-point{fill:var(--subtle);stroke:var(--surface);stroke-width:1.5}
-.journey-plot g[role=button]{cursor:pointer;outline:none}
-.journey-plot g[role=button]:focus-visible circle{stroke:var(--text);stroke-width:3}
-.selected-observation{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:13px;line-height:1.5}
-.selected-observation>strong{text-align:right;font-weight:600}
-.selected-observation small{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:3px}
 .recent-lift{min-width:0;position:relative}
 .recent-lift .spotlight-card{width:100%;height:100%;box-shadow:none}
 .recent-lift .spotlight-card h3{min-height:0;margin-bottom:12px}
@@ -552,7 +540,7 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .support-grid .attempt-start{margin-bottom:12px}
 .support-grid .attempt-context{font-size:12px}
 @media(min-width:600px){.journey-totals{grid-template-columns:repeat(4,minmax(0,1fr))}.journey-stat{padding:20px}.journey-comparisons strong{font-size:20px}.support-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-chart-heading{flex-direction:row;align-items:center;justify-content:space-between}.journey-intro>h2{font-size:36px}}
-@media(max-width:360px){.journey-dashboard{gap:28px}.journey-intro>h2{font-size:28px}.journey-stat{padding:15px 12px}.journey-stat strong{font-size:28px}.journey-stat span{font-size:11px}.weekly-history,.journey-chart-card{padding:16px}.journey-comparisons>div{padding:12px 9px}.journey-comparisons strong{font-size:15px}.journey-comparisons small{font-size:10px}.selected-observation{font-size:12px}.support-grid .attempt-card,.support-grid .snapshot-card{padding:17px}}
+@media(max-width:360px){.journey-dashboard{gap:28px}.journey-intro>h2{font-size:28px}.journey-stat{padding:15px 12px}.journey-stat strong{font-size:28px}.journey-stat span{font-size:11px}.weekly-history,.journey-chart-card{padding:16px}.journey-comparisons>div{padding:12px 9px}.journey-comparisons strong{font-size:15px}.journey-comparisons small{font-size:10px}.support-grid .attempt-card,.support-grid .snapshot-card{padding:17px}}
 
 /* Exercise library: comparable records at a glance. */
 .exercise-dashboard,.exercise-detail{display:grid;gap:20px;min-width:0}
@@ -576,8 +564,6 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .exercise-latest{display:flex;flex-direction:column;gap:6px;margin:18px 0 8px}
 .exercise-latest>span{font-size:11px;color:var(--muted)}
 .exercise-latest>strong{font-family:Manrope,sans-serif;font-size:27px;line-height:1.35;letter-spacing:-.7px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-.exercise-tile .movement-spark{margin:6px 0 10px}
-.compact-chart-dates{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-top:5px}
 .exercise-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .exercise-metrics>div{padding:12px 10px;min-width:0}
 .exercise-metrics>div:nth-child(even){border-left:1px solid var(--line)}
@@ -586,22 +572,9 @@ input:focus,select:focus,textarea:focus,.set-inputs input:focus{border-color:var
 .exercise-metrics dd{font-family:Manrope,sans-serif;font-size:14px;line-height:1.5;font-weight:650;letter-spacing:-.2px;overflow-wrap:anywhere;margin:0;font-variant-numeric:tabular-nums}
 .exercise-tile-latest{margin:4px 0 0}
 .exercise-tile-latest>strong{font-family:Manrope,sans-serif;font-size:24px;line-height:1.35;letter-spacing:-.6px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.exercise-tile-changes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:auto 0 0}
-.exercise-tile-changes>div{min-width:0}
-.exercise-tile-changes dt{font-size:11px;line-height:1.5;color:var(--muted);margin-bottom:3px}
-.exercise-tile-changes dd{font-family:Manrope,sans-serif;font-size:14px;font-weight:650;line-height:1.5;font-variant-numeric:tabular-nums;letter-spacing:-.2px;overflow-wrap:anywhere;margin:0}
-.exercise-grid-legend{margin:-6px 0 -6px;gap:16px}
-.exercise-grid-legend>span:last-child{margin-left:0}
 .comparison-help{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
 .comparison-help p{font-size:13px;line-height:1.7;margin:10px 0}
-.exercise-detail .movement-chart{margin-top:22px}
 .exercise-detail-heading .text-button{font-size:13px;min-height:44px}
-.workload-bars{display:flex;gap:10px;align-items:end;min-width:0}
-.workload-bars>div{flex:1;min-width:0;text-align:center;font-size:10px;color:var(--muted)}
-.workload-bars strong{display:block;font-size:11px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
-.workload-track{height:100px;display:flex;align-items:end;justify-content:center;margin:8px 0}
-.workload-track>span{display:block;width:min(100%,44px);background:var(--chart-line);border-radius:5px 5px 0 0}
-.workload-unit{font-size:11px;color:var(--muted);text-align:right;margin-top:12px}
 .exercise-explore{display:flex;align-items:center;gap:14px;padding:20px;border-radius:18px;border:1px solid var(--selection-line);background:var(--selection);color:var(--text);text-align:left;width:100%}
 .exercise-explore .snapshot-icon{margin:0;flex:none;background:var(--surface)}
 .exercise-explore>span:nth-child(2){flex:1;min-width:0}
