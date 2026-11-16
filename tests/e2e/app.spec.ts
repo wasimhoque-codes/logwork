@@ -1,5 +1,6 @@
 import { test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, currentAttempt, localDate, validateStore, reviewWeek, type Store } from '../../src/model';
+import { fixedWorkoutForDay } from '../../src/data';
 import fs from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
@@ -22,6 +23,94 @@ test('three-tab navigation, old links and returning from settings',async({page})
 test('today starts in one tap and prefilled sets log in one tap',async({page})=>{
   await page.clock.setFixedTime(new Date('2026-10-26T10:00:00Z'));await go(page,'today');await page.getByRole('button',{name:'Start workout',exact:true}).click();await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 2');
   await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('12');await page.getByRole('button',{name:'Log set 2',exact:true}).click();await expect(page.getByRole('heading',{name:'Exercise complete',exact:true})).toBeVisible();await expect(page.locator('.workout-dock').getByRole('button',{name:'Next exercise',exact:true})).toBeVisible();await page.getByRole('button',{name:'More exercise options'}).click();await page.getByText('Optional RIR',{exact:true}).click();await page.getByLabel('Set 1 RIR',{exact:true}).selectOption('4');await page.getByLabel('Exercise notes',{exact:true}).fill('Bench setting two');await close(page);const data=await backup(page);expect(data.active!.exercises[0].sets[0].rir).toBe(4);expect(data.active!.exercises[0].note).toBe('Bench setting two');
+});
+
+test('Today shows the partial workout actually saved and keeps it on reload', async ({page}) => {
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.clock.setFixedTime(new Date('2026-11-16T12:00:00Z'));
+  await go(page, 'today');
+  const card = page.getByRole('region', {name:'Today’s workout'});
+  await expect(card.getByRole('heading', {name:'Upper A'})).toBeVisible();
+  await go(page, 'programme');
+  await page.getByRole('tab', {name:'Tue Lower A'}).click();
+  await page.getByRole('button', {name:'Train this session today'}).click();
+  await page.getByLabel('Set 1 weight in kg').fill('12');
+  await page.getByRole('button', {name:'Log set 1', exact:true}).click();
+  await save(page);
+  await page.getByRole('button', {name:'Back to Today'}).click();
+  await expect(card.locator('.today-check')).toHaveCSS('animation-name', 'today-check-in');
+  await expect(card.getByRole('button', {name:/^Up next/})).toHaveCSS('animation-name', 'today-preview-in');
+
+  for (const reload of [false, true]) {
+    if (reload) await page.reload();
+    await expect(card.getByRole('status')).toHaveText('Done');
+    await expect(card.getByRole('heading', {name:'Lower A'})).toBeVisible();
+    await expect(card.getByText('1 exercise · 1 set logged')).toBeVisible();
+    await expect(card.getByRole('button', {name:'Start workout'})).toHaveCount(0);
+  }
+  const view = card.getByRole('button', {name:'View workout', exact:true});
+  await view.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog')).toContainText('Lower A');
+  await close(page);
+  await expect(view).toBeFocused();
+});
+
+const previews = [
+  {date:'2026-11-16', tomorrow:'2026-11-17', tab:'Tue Lower A', summary:'Legs, glutes and core', workoutDay:2},
+  {date:'2026-11-17', tomorrow:'2026-11-18', tab:'Wed Active recovery', summary:'Try hip switches or open books.'},
+  {date:'2026-11-20', tomorrow:'2026-11-21', tab:'Sat Upper C', summary:'Calisthenics, shoulders and arms', workoutDay:6},
+  {date:'2026-11-21', tomorrow:'2026-11-22', tab:'Sun Rest', summary:'Rest, or take an easy walk and do some gentle mobility.'},
+];
+for (const preview of previews) {
+  test(`Today previews and opens ${preview.tab}`, async ({page}) => {
+    await page.clock.setFixedTime(new Date(preview.date + 'T12:00:00Z'));
+    const store = freshStore();
+    store.programme.options.saturdayTwoSets = true;
+    const session = savedWorkout(store);
+    session.date = preview.date;
+    store.sessions = [session];
+    await seed(page, store);
+    await go(page, 'today');
+    const upcoming = page.getByRole('button', {name:/^Up next/});
+    await expect(upcoming).toContainText(preview.summary);
+    await expect(upcoming.locator('time')).toHaveAttribute('datetime', preview.tomorrow);
+    if (preview.workoutDay) {
+      const workout = fixedWorkoutForDay(preview.workoutDay, store.programme.options)!;
+      const sets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets, 0);
+      await expect(upcoming).toContainText(`${workout.exercises.length} exercises · ${sets} working sets`);
+      if (workout.optional) await expect(upcoming).toContainText('Optional');
+    }
+    await upcoming.click();
+    await expect(page.getByRole('tab', {name:preview.tab})).toHaveAttribute('aria-selected', 'true');
+  });
+}
+
+test('Today shows the latest save alongside an active workout and rolls over at local midnight', async ({page}) => {
+  await page.clock.install({time:new Date(2026, 10, 16, 23, 59, 50)});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const store = freshStore();
+  const older = savedWorkout(store, 1);
+  const latest = savedWorkout(store, 2);
+  older.date = latest.date = '2026-11-16';
+  latest.endedAt = older.endedAt! + 30000;
+  store.sessions = [latest, older];
+  store.active = newSession(fixedWorkoutForDay(4, store.programme.options)!, store);
+  store.active.date = older.date;
+  await seed(page, store);
+  await go(page, 'today');
+  const card = page.getByRole('region', {name:'Today’s workout'});
+  await expect(card.getByRole('status')).toHaveText('Done');
+  await expect(card.getByRole('heading', {name:'Lower A'})).toBeVisible();
+  await expect(card.getByRole('button', {name:'Resume Upper B'})).toBeVisible();
+  await expect(card.locator('.today-check')).toHaveCSS('animation-name', 'none');
+  await expect(card.getByRole('button', {name:/^Up next/})).toHaveCSS('animation-name', 'none');
+  await page.clock.fastForward(11000);
+  await expect(page.locator('.today-date')).toHaveAttribute('datetime', '2026-11-17');
+  await expect(card.getByRole('status')).toHaveText('In progress');
+  await expect(card.getByRole('button', {name:/^Up next/})).toHaveCount(0);
+  await card.getByRole('button', {name:'Resume Upper B'}).click();
+  await expect(page.getByRole('heading', {name:'Upper B', exact:true})).toBeVisible();
 });
 test('inline errors focus the field and never log invalid sets',async({page})=>{
   await startMonday(page);await page.getByRole('button',{name:'Log set 1',exact:true}).click();await expect(page.locator('.app-shell').getByRole('alert')).toContainText('Enter a valid weight');await expect(page.getByLabel('Set 1 weight in kg')).toBeFocused();

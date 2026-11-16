@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronRight, Dumbbell, Plus, Download, Upload, Search, Trash2, Scale, TrendingUp, ArrowUpRight, CalendarDays, Footprints } from './icons';
-import { WORKOUTS, MOBILITY, DAY_NAMES, FIXED_WORKOUT_WEEK, weekEffort, workoutForDay, type Exercise, type Workout } from './data';
+import { WORKOUTS, MOBILITY, DAY_NAMES, FIXED_WORKOUT_WEEK, fixedWorkoutForDay, weekEffort, workoutForDay, type Exercise, type Workout } from './data';
 import { completeSession, sessionLabel, dateLabel, doneSets, fromKg, localDate, monday, number, volume, bodyAverages, bodyGuidance, type Session, type Store, type Settings } from './model';
 import { Empty, LineChart, Modal } from './components';
 import { BodyweightChart } from './body-chart';
@@ -33,20 +33,130 @@ export function WeekPicker({day,onDay}:{day:number;onDay:(day:number)=>void}) {
 function RestDaySuggestions() {
   return <div className="rest-day-suggestions"><ul aria-label="Optional rest-day activities"><li>Mobility</li><li>Running</li><li>Walking</li></ul><details className="guide-section"><summary>Mobility guide</summary><ul className="guide-list">{MOBILITY.map(text=><li key={text}>{text}</li>)}</ul></details></div>;
 }
-export function Today({store,workout,onStart,onPlan,onBody,onProgress,onHistory}:{store:Store;workout?:Workout;onStart:()=>void;onPlan:()=>void;onBody:()=>void;onProgress:()=>void;onHistory:()=>void}) {
-  const active=store.active,w=active?.workout??workout;
-  const restDay=!w||w.category==='recovery'||!w.exercises.length;
-  const Icon=restDay?Footprints:Dumbbell;
-  const totalSets=active?.exercises.reduce((n,e)=>n+e.sets.length,0)??0;
+function useTodayDate() {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    let timer: number;
+    const refresh = () => {
+      const current = new Date();
+      setNow(current.getTime());
+      const midnight = new Date(current);
+      midnight.setHours(24, 0, 0, 0);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(refresh, midnight.getTime() - current.getTime());
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+  return new Date(now);
+}
+
+const isTrainingDay = (workout?: Workout): workout is Workout & {category: 'strength' | 'optional'} =>
+  !!workout && workout.category !== 'recovery' && workout.exercises.length > 0;
+
+const countLabel = (count: number, label: string) => `${count} ${label}${count === 1 ? '' : 's'}`;
+const prescription = (workout: Workout) =>
+  `${countLabel(workout.exercises.length, 'exercise')} · ${countLabel(workout.exercises.reduce((total, exercise) => total + exercise.sets, 0), 'working set')}`;
+
+function TodayGraphic({done, training, progress}: {done: boolean; training: boolean; progress?: number}) {
+  const Icon = training ? Dumbbell : Footprints;
+  return <span className="today-graphic" aria-hidden="true">
+    <svg viewBox="0 0 96 96" fill="none">
+      <circle className="today-ring-track" cx="48" cy="48" r="43"/>
+      <circle className="today-ring-inner" cx="48" cy="48" r="34"/>
+      {(done || progress !== undefined) && <circle className="today-ring-progress" cx="48" cy="48" r="43" pathLength="100" strokeDasharray="100 100" strokeDashoffset={done ? 0 : 100 - (progress ?? 0)}/>}
+      {done && <path className="today-check" d="M34 48l9 9 19-19" pathLength="1"/>}
+    </svg>
+    {!done && <Icon className="today-graphic-icon" size={34} strokeWidth={1.5}/>}
+  </span>;
+}
+
+function UpcomingDay({date, workout, onOpen}: {date: Date; workout?: Workout; onOpen: () => void}) {
+  const dateValue = localDate(date);
+  const training = isTrainingDay(workout);
+  const Icon = training ? Dumbbell : Footprints;
+  const summary = training ? workout.focus : workout?.category === 'recovery'
+    ? 'Easy cardio and gentle mobility. Try hip switches or open books.'
+    : 'Rest, or take an easy walk and do some gentle mobility.';
+  return <button className="today-preview" onClick={onOpen}>
+    <span className="today-preview-date"><span>Up next</span><time dateTime={dateValue}>{dateLabel(dateValue, {weekday:'long', day:'numeric', month:'short'})}</time></span>
+    <span className="today-preview-icon" aria-hidden="true"><Icon size={22} strokeWidth={1.65}/></span>
+    <span className="today-preview-copy">
+      <span className="today-preview-title"><strong>{workout?.name ?? 'Rest day'}</strong>{training && workout.optional && <span className="today-preview-optional">Optional</span>}</span>
+      <span>{summary}</span>
+      {training && <span>{prescription(workout)}</span>}
+    </span>
+    <ChevronRight className="today-preview-arrow" size={18} aria-hidden="true"/>
+  </button>;
+}
+
+type TodayProps = {
+  store: Store;
+  onStart: (workout?: Workout) => void;
+  onPlan: (day: number) => void;
+  onDetail: (session: Session) => void;
+  onBody: () => void;
+  onProgress: () => void;
+  onHistory: () => void;
+};
+
+export function Today({store, onStart, onPlan, onDetail, onBody, onProgress, onHistory}: TodayProps) {
+  const today = useTodayDate();
+  const date = localDate(today);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const options = store.programme.options;
+  const saved = store.sessions.reduce<Session | undefined>((latest, session) => {
+    if (session.date !== date || session.endedAt === undefined) return latest;
+    if (!latest || session.endedAt > (latest.endedAt ?? 0) || (session.endedAt === latest.endedAt && session.startedAt > latest.startedAt)) return session;
+    return latest;
+  }, undefined);
+  const active = store.active;
+  const workout = saved?.workout ?? active?.workout ?? fixedWorkoutForDay(today.getDay(), options);
+  const training = isTrainingDay(workout);
+  const totalSets = active?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
+  const activeSets = active ? doneSets(active) : 0;
+  const status = saved ? 'Done' : active ? 'In progress' : training ? 'Scheduled' : 'Recovery';
+  const statusClass = saved ? 'done' : active ? 'active' : training ? 'ready' : 'rest';
+  const loggedExercises = saved?.exercises.filter(exercise => exercise.sets.some(set => set.done)).length ?? 0;
   const latestBody=[...store.body].sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const hour=new Date().getHours(),greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
+  const hour = today.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const firstName = store.settings.name.trim().split(/\s+/)[0];
   return <div className="today-layout">
-    <div className="today-intro"><div><p className="eyebrow">{greeting}{store.settings.name?', '+store.settings.name.trim().split(' ')[0]:''}</p><h2>A little stronger.<br/><span>Every session.</span></h2></div><time className="today-date" dateTime={localDate()}><CalendarDays size={16}/>{dateLabel(localDate(),{weekday:'short',day:'numeric',month:'long'})}</time></div>
-    <section className="today-card" aria-label="Today’s workout">
-      <div className="hero-orbit" aria-hidden="true"><svg viewBox="0 0 260 260"><circle className="orbit-track" cx="130" cy="130" r="106"/>{active&&<circle className="orbit-progress" cx="130" cy="130" r="106" pathLength="100" strokeDasharray={`${doneSets(active)/Math.max(totalSets,1)*100} 100`}/>}<circle className="orbit-inner" cx="130" cy="130" r="82"/><circle className="orbit-core" cx="130" cy="130" r="57"/></svg><Icon size={48} strokeWidth={1.2}/></div>
-      <div className="workout-card-top"><span className="hero-kicker"><span className="live-dot"/>{active?'SESSION IN PROGRESS':restDay?'ROOM TO RECOVER':'UP NEXT TODAY'}</span><span className="badge">{active?'In progress':w?.category==='recovery'?'Recovery':w?.optional?'Optional':w?'Strength':'Rest day'}</span></div>
-      <div className="hero-copy"><h2>{restDay?'Rest day':w?.name}</h2><p className="workout-meta">{active?doneSets(active)+' of '+totalSets+' sets logged':restDay?'Progress has a quieter side. Move a little, recover well.':w?.focus}</p>{!restDay&&!active&&<p className="hero-prescription">{w?.exercises.length} exercises <span>·</span> {w?.exercises.reduce((n,e)=>n+e.sets,0)} working sets</p>}</div>
-      {!active&&restDay?<><RestDaySuggestions/><button className="hero-plan-link" onClick={onPlan}>View your programme<ArrowUpRight size={18}/></button></>:<button className="primary hero-button" onClick={onStart}>{active?'Resume '+active.workout.name:'Start workout'}<ArrowRight size={20}/></button>}
+    <div className="today-intro">
+      <p>{greeting}{firstName && `, ${firstName}`}</p>
+      <time className="today-date" dateTime={date}><CalendarDays size={15} aria-hidden="true"/>{dateLabel(date, {weekday:'short', day:'numeric', month:'long'})}</time>
+    </div>
+    <section className="today-card" data-state={statusClass} aria-label="Today’s workout">
+      <div className="today-card-summary">
+        <div className="today-card-status" role="status" aria-atomic="true">
+          <span className="badge">{status}</span>
+          {!saved && !active && training && workout.optional && <span className="today-optional">Optional</span>}
+        </div>
+        <div className="today-card-copy">
+          <h2>{workout?.name ?? 'Rest day'}</h2>
+          {saved ? <p className="workout-meta">{countLabel(loggedExercises, 'exercise')} · {countLabel(doneSets(saved), 'set')} logged</p>
+            : active ? <p className="workout-meta">{activeSets} of {totalSets} sets logged</p>
+            : <><p className="workout-meta">{workout?.focus ?? 'Optional movement, at your own pace.'}</p>
+              {training && <p className="today-prescription">{prescription(workout)}</p>}</>}
+        </div>
+        <TodayGraphic done={!!saved} training={training} progress={active ? activeSets / Math.max(totalSets, 1) * 100 : undefined}/>
+      </div>
+      {saved ? <>
+        <div className="today-saved-actions">
+          <button className="today-card-link" onClick={() => onDetail(saved)}>View workout<ArrowUpRight size={16} aria-hidden="true"/></button>
+          {active && <button className="today-card-link" onClick={() => onStart()}>Resume {active.workout.name}<ArrowRight size={16} aria-hidden="true"/></button>}
+        </div>
+        <UpcomingDay date={tomorrow} workout={fixedWorkoutForDay(tomorrow.getDay(), options)} onOpen={() => onPlan(tomorrow.getDay())}/>
+      </> : active || training ? <button className="primary hero-button" onClick={() => onStart(workout)}>{active ? `Resume ${active.workout.name}` : 'Start workout'}<ArrowRight size={20} aria-hidden="true"/></button>
+        : <><RestDaySuggestions/><button className="today-card-link" onClick={() => onPlan(today.getDay())}>View your programme<ArrowUpRight size={16} aria-hidden="true"/></button></>}
     </section>
     <div className="today-section-title"><h3>Your daily rhythm</h3><span>Small steps. Lasting change.</span></div>
     <button className="daily-card daily-body" onClick={onBody} aria-label="Log bodyweight"><span className="daily-icon"><Scale size={21}/></span><span className="daily-card-copy"><span className="eyebrow">BODYWEIGHT</span><strong>{latestBody?<>{number(fromKg(latestBody.kg,store.settings.unit))}<small> {store.settings.unit}</small></>:'Find your baseline'}</strong><small>{latestBody?'Last recorded '+dateLabel(latestBody.date):'Start with your first weigh-in'}</small></span><span className="daily-card-action"><Plus size={18}/><span>Log weight</span></span></button>

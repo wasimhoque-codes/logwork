@@ -50,6 +50,7 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
     await expect(pageA.getByText('Synced',{exact:true})).toBeVisible();
     expect((await bootstrap()).store!.settings.name).toBe('After sign-in');
 
+    await pageB.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Today'}).click();
     await a.setOffline(true);
     await pageA.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Programme'}).click();
     await pageA.getByRole('tab',{name:'Sat Upper C'}).click();
@@ -64,8 +65,12 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
     const saved=(await bootstrap()).store!.sessions.find(session=>session.workout.prescriptionMode==='fixed'&&session.workoutId==='optional');
     expect(saved).toBeDefined();
     expect(saved?.feedback).toBeUndefined();
-    await pageB.reload();
+    await pageB.evaluate(()=>window.dispatchEvent(new Event('focus')));
     await expect(pageB.getByText('Synced',{exact:true})).toBeVisible();
+    const today = pageB.getByRole('region',{name:'Today’s workout'});
+    await expect(today.getByRole('status')).toHaveText('Done');
+    await expect(today.getByRole('heading',{name:'Upper C'})).toBeVisible();
+    await expect(today.getByRole('button',{name:'Start workout'})).toHaveCount(0);
     await pageB.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Progress'}).click();
     await pageB.getByRole('tab',{name:/^History/}).click();
     await expect(pageB.getByRole('button',{name:/Upper C Partial/})).toBeVisible();
