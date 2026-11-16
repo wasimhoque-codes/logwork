@@ -15,10 +15,8 @@ export const httpTransport: Transport = async (path, body) => {
   const response = await fetch('/api/' + path, {
     method: body === undefined ? 'GET' : 'POST',
     credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
-    ...(body === undefined ? {} : {
-      headers: {'Content-Type':'application/json', 'X-Gym-Hawk-Sync':SYNC_PROTOCOL},
-      body: JSON.stringify(body),
-    }),
+    headers: {'X-Gym-Hawk-Sync':SYNC_PROTOCOL, ...(body === undefined ? {} : {'Content-Type':'application/json'})},
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (response.type === 'opaqueredirect' || response.status === 401) {
     throw new RequestError(401, {error:'Sign in to sync. Your local changes are retained.'});

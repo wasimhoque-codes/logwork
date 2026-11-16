@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Unit } from './data';
 import { ChevronLeft, ChevronRight, Search, Dumbbell } from './icons';
-import { fromKg, number, progression, localDate, type Store, type Session } from './model';
+import { fromKg, number, type Store } from './model';
 import { exerciseVolume, movementDays, movementSeries, movementSummary, type MovementDay, type MovementSeries } from './progress-data';
 import { fullDate, MovementChart, movementMeasure, recentMovementChange, setLabel, setupLabel } from './progress-charts';
 
@@ -167,8 +167,8 @@ function ExerciseTrend({ series, unit }: { series: MovementSeries; unit: Unit })
   </>;
 }
 
-export function ExerciseProgressDetail({ store, exerciseKey, onBrowse, onFollowup }: {
-  store: Store; exerciseKey?: string; onBrowse: () => void; onFollowup: (session: Session) => void;
+export function ExerciseProgressDetail({ store, exerciseKey, onBrowse }: {
+  store: Store; exerciseKey?: string; onBrowse: () => void;
 }) {
   const series = useMemo(() => movementSeries(store.sessions), [store.sessions]);
   const selected = series.find(s => s.key === exerciseKey)
@@ -178,8 +178,6 @@ export function ExerciseProgressDetail({ store, exerciseKey, onBrowse, onFollowu
     <button className="text-button" onClick={onBrowse}>Browse exercises<ChevronRight size={16}/></button>
   </div>;
 
-  const latest = selected.records.at(-1)!;
-  const suggestion = progression(latest.exercise, latest.log, latest.session);
   return <div className="exercise-detail">
     <div className="exercise-detail-heading">
       <p className="eyebrow">Your lift journey</p>
@@ -188,14 +186,6 @@ export function ExerciseProgressDetail({ store, exerciseKey, onBrowse, onFollowu
       <button className="text-button" onClick={onBrowse}>Browse exercises<ChevronRight size={16}/></button>
     </div>
     <ExerciseTrend key={selected.key} series={selected} unit={store.settings.unit}/>
-    {suggestion && <section className="coaching-card">
-      <span className="badge">Conditional progression</span>
-      <h3>{suggestion.title}</h3>
-      <p>{suggestion.description}</p>
-    </section>}
-    {latest.session.date < localDate() && <button className="summary-link" onClick={() => onFollowup(latest.session)}>
-      <span>Review following-day response</span><ChevronRight size={17}/>
-    </button>}
     <ComparisonHelp/>
   </div>;
 }

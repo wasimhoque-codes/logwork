@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { TestDatabase } from './sqlite';
-import { freshStore, newSession, selectedWorkout, addSessionSet, validateStore } from '../src/model';
+import { fixedWorkoutForDay } from '../src/data';
+import { freshStore, newSession, selectedWorkout, addSessionSet, validateStore, reviewWeek, sessionLabel } from '../src/model';
 import { createStage, stageStore, activateStage, mutate, snapshot, readDataset, stageChunk, initialRecords } from '../src/server/database';
 import { changesBetween, type Snapshot, type Mutation } from '../src/persistence/records';
 
@@ -24,6 +25,32 @@ describe('D1 relational persistence',()=>{
     store.body=[{id:'weight',date:'2026-11-01',kg:72.345}];
     expect((await seed(db,store)).store).toEqual(validateStore(store));
     const counts=db.raw.prepare('SELECT COUNT(*) AS count FROM exercise_sets').get();expect(counts!.count).toBe(store.active.exercises.reduce((n,e)=>n+e.sets.length,0));
+  });
+  it('round-trips fixed workouts alongside archived feedback from a completed block', async () => {
+    const db = database(), original = freshStore();
+    original.programme.week = original.programme.attempts[0].week = 16;
+    const legacy = newSession(selectedWorkout(original, 1)!, original);
+    legacy.exercises[0].sets[0] = { weight: 12, reps: 8, rir: 3, done: true };
+    legacy.feedback!.technique = true;
+    legacy.endedAt = legacy.startedAt + 1;
+    original.sessions.push(legacy);
+
+    const store = reviewWeek(original, 'advance');
+    const active = newSession(fixedWorkoutForDay(6, store.programme.options)!, store);
+    expect(active.feedback).toBeUndefined();
+    expect(sessionLabel(active)).toBe('');
+    expect(sessionLabel(legacy)).toBe('Week 16');
+    active.exercises[0].sets[0].done = true;
+    store.active = active;
+    const base = await seed(db, store);
+    expect(base.store).toEqual(validateStore(JSON.parse(JSON.stringify(store))));
+
+    const next = { ...store, active: null, sessions: [...store.sessions, { ...active, endedAt: active.startedAt + 1 }] };
+    expect((await mutate(db, mutation(base, next))).store).toEqual(next);
+    expect((await snapshot(db)).store).toEqual(next);
+    const invalid = structuredClone(next);
+    invalid.sessions[1].workout.exercises[0].rir = '4+';
+    expect(() => validateStore(invalid)).toThrow(/invalid/);
   });
   it('finishes a workout atomically and replays a lost response only once',async()=>{
     const db=database(),store=freshStore();store.active=newSession(selectedWorkout(store,1)!,store);store.active.exercises[0].sets[0]={weight:10,reps:8,rir:3,done:true};

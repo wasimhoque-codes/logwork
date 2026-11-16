@@ -12,7 +12,7 @@ export type Edit = EditClock & {
 };
 export type Snapshot = { datasetId: string | null; revision: number; versions: Versions; clocks?: Record<string, EditClock>; store: Store | null };
 export type Mutation = Edit & { datasetId: string };
-export const SYNC_PROTOCOL = '2';
+export const SYNC_PROTOCOL = '3';
 
 export function compareEdits(a: EditClock, b?: EditClock) {
   return !b ? 1 : a.editedAt - b.editedAt || (a.id > b.id ? 1 : a.id < b.id ? -1 : 0);

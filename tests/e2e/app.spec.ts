@@ -1,5 +1,5 @@
 import { test, expect, type Page } from './fixture';
-import { freshStore, selectedWorkout, newSession, currentAttempt, localDate, validateStore, emptyFeedback, type Store } from '../../src/model';
+import { freshStore, selectedWorkout, newSession, currentAttempt, localDate, validateStore, reviewWeek, type Store } from '../../src/model';
 import fs from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
@@ -15,7 +15,7 @@ async function discard(page:Page){await page.getByRole('button',{name:'More exer
 function savedWorkout(store:Store,day=1){const s=newSession(selectedWorkout(store,day)!,store);s.endedAt=s.startedAt+60000;s.exercises.forEach(e=>e.sets.forEach(set=>Object.assign(set,{weight:e.mode==='bodyweight'?0:12,done:true})));return s;}
 
 test('three-tab navigation, old links and returning from settings',async({page})=>{
-  await go(page,'today');await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button')).toHaveCount(3);await expect(page.getByRole('tablist',{name:'Weekly programme'})).toHaveCount(0);
+  await go(page,'today');await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:/^(Today|Programme|Progress)$/})).toHaveCount(3);await expect(page.getByRole('tablist',{name:'Weekly programme'})).toHaveCount(0);
   for(const [alias,title,url] of [['plan','Programme','programme'],['insights','Progress','progress'],['history','Progress','progress/history']]){await go(page,alias);await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();await expect(page).toHaveURL(new RegExp('#'+url+'$'));}
   await page.getByRole('button',{name:'Open settings'}).click();await page.getByRole('button',{name:'Go back',exact:true}).click();await expect(page.getByRole('tab',{name:/^History/})).toHaveAttribute('aria-selected','true');
 });
@@ -151,10 +151,10 @@ test('add-set controls and focus remain usable above the dock on narrow phones',
 });
 
 test('finish review keeps cool-down inline and saves once to confirmation',async({page})=>{
-  await startMonday(page);await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Review and finish workout'}).click();await expect(page.getByText(/This will be saved as a partial workout/)).toBeVisible();await page.getByText('Cool-down checklist',{exact:false}).click();await page.getByRole('checkbox',{name:/Slow relaxed breathing/}).check();await page.reload();await expect(page.getByRole('heading',{name:'Review workout',exact:true})).toBeVisible();await page.getByText('Cool-down checklist',{exact:false}).click();await expect(page.getByRole('checkbox',{name:/Slow relaxed breathing/})).toBeChecked();await page.getByRole('button',{name:'Save workout',exact:true}).click();await expect(page.getByRole('heading',{name:'Workout saved',exact:true})).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);await page.getByRole('button',{name:'Back to Today',exact:true}).click();await expect(page.locator('.weekly-count')).toContainText('0');const data=await backup(page);expect(data.sessions).toHaveLength(1);expect(data.sessions[0].cooldown![2]).toBe(true);expect(data.active).toBeNull();
+  await startMonday(page);await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Review and finish workout'}).click();await expect(page.getByText(/This will be saved as a partial workout/)).toBeVisible();await page.getByText('Cool-down checklist',{exact:false}).click();await page.getByRole('checkbox',{name:/Slow relaxed breathing/}).check();await page.reload();await expect(page.getByRole('heading',{name:'Review workout',exact:true})).toBeVisible();await page.getByText('Cool-down checklist',{exact:false}).click();await expect(page.getByRole('checkbox',{name:/Slow relaxed breathing/})).toBeChecked();await page.getByRole('button',{name:'Save workout',exact:true}).click();await expect(page.getByRole('heading',{name:'Workout saved',exact:true})).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);await page.getByRole('button',{name:'Back to Today',exact:true}).click();await expect(page.locator('.daily-progress')).toContainText('1 workout logged');const data=await backup(page);expect(data.sessions).toHaveLength(1);expect(data.sessions[0].cooldown![2]).toBe(true);expect(data.active).toBeNull();
 });
 test('the final logged set offers review instead of a disabled next action',async({page})=>{
-  const s=atWeek(1),log=savedWorkout(s);delete log.endedAt;log.exercises.at(-1)!.sets.at(-1)!.done=false;log.resume={exerciseIndex:6,restEnd:null,restPaused:null};s.active=log;await seed(page,s);await go(page,'workout');await page.getByRole('button',{name:'Log set 2',exact:true}).click();await expect(page.getByRole('group',{name:'Rest timer'})).toHaveCount(0);await page.getByRole('button',{name:'Review & finish',exact:true}).click();await expect(page.getByRole('heading',{name:'Ready to save',exact:true})).toBeVisible();await page.getByRole('button',{name:'Save workout',exact:true}).click();await page.getByRole('button',{name:'Back to Today',exact:true}).click();await expect(page.locator('.weekly-count')).toContainText('1 of 4 main sessions');
+  const s=atWeek(1),log=savedWorkout(s);delete log.endedAt;log.exercises.at(-1)!.sets.at(-1)!.done=false;log.resume={exerciseIndex:6,restEnd:null,restPaused:null};s.active=log;await seed(page,s);await go(page,'workout');await page.getByRole('button',{name:'Log set 2',exact:true}).click();await expect(page.getByRole('group',{name:'Rest timer'})).toHaveCount(0);await page.getByRole('button',{name:'Review & finish',exact:true}).click();await expect(page.getByRole('heading',{name:'Ready to save',exact:true})).toBeVisible();await page.getByRole('button',{name:'Save workout',exact:true}).click();await expect(page.locator('.saved-summary').getByText('Week 1 · Complete',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Back to Today',exact:true}).click();await expect(page.locator('.daily-progress')).toContainText('1 workout logged');
 });
 test('another day’s programme never silently resumes the active session',async({page})=>{
   await startMonday(page);await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('tab',{name:'Tue Lower A',exact:true}).click();await expect(page.getByRole('button',{name:'Train this session today',exact:true})).toBeDisabled();await expect(page.locator('.active-banner')).toContainText('Upper A is in progress');await page.getByRole('button',{name:'Resume Upper A',exact:true}).click();await expect(page.getByRole('heading',{name:'Incline Dumbbell Press, Neutral Grip',exact:true})).toBeVisible();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:'Today',exact:true}).click();await expect(page.getByRole('tablist',{name:'Weekly programme'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Resume Upper A',exact:true})).toBeVisible();
@@ -162,11 +162,44 @@ test('another day’s programme never silently resumes the active session',async
 test('saved alternatives keep active and historical prescriptions intact',async({page})=>{
   await seed(page,atWeek(5));await go(page,'programme');await page.getByRole('tab',{name:'Tue Lower A',exact:true}).click();await page.getByRole('button',{name:/Leg Press/}).click();await page.getByLabel('Exercise variation').selectOption('p16-belt-squat');await page.getByLabel('Equipment / setup').fill('Station A');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Train this session today'}).click();await page.getByLabel('Set 1 weight in kg').fill('20');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:/Belt Squat/}).click();await page.getByLabel('Exercise variation').selectOption('p16-leg-press');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Resume Lower A',exact:true}).click();await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();await save(page);await page.getByRole('button',{name:'View workout',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Station A');await page.getByRole('button',{name:'Edit workout',exact:true}).click();await page.getByLabel('Belt Squat set 1 weight',{exact:true}).fill('22');await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(22);validateStore(data);
 });
-test('week reviews are explicit and appear when four main sessions are complete',async({page})=>{
-  const s=atWeek(1);s.sessions=[1,2,4,5].map(day=>savedWorkout(s,day));await seed(page,s);await go(page,'today');await page.getByRole('button',{name:/Four sessions complete/}).click();await expect(page.getByRole('button',{name:'Advance to Week 2'})).toBeDisabled();await page.getByRole('checkbox',{name:/I have reviewed/}).check();await page.getByRole('button',{name:'Advance to Week 2'}).click();await expect(page.locator('.programme-strip')).toContainText('Week 2 of 16');await page.locator('.programme-strip').click();await page.getByRole('button',{name:'Repeat Week 2'}).click();const data=await backup(page);expect(data.programme.week).toBe(2);expect(data.programme.attempts).toHaveLength(3);expect(data.sessions).toHaveLength(4);
+for (const week of [1, 2, 16]) test(`Week ${week} data can train the fixed schedule`, async ({ page }) => {
+  const previous = atWeek(week);
+  previous.sessions = [1, 2, 4, 5].map(day => savedWorkout(previous, day));
+  const store = week === 16 ? reviewWeek(previous, 'advance') : previous;
+  await seed(page, store);
+  await go(page, 'today');
+  await expect(page.locator('.weekly-card, .nav-programme, .review-ready')).toHaveCount(0);
+  await go(page, 'programme');
+  await expect(page.locator('.programme-heading')).toHaveText('Week 2');
+  await expect(page.getByRole('tablist', { name: 'Weekly programme' }).getByRole('tab')).toHaveCount(7);
+  await expect(page.getByText('16-week roadmap')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Sat Upper C' }).click();
+  await page.getByRole('button', { name: 'Train this session today' }).click();
+  await expect(page.getByRole('heading', { name: 'Upper C', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Current working set' })).toContainText('Set 1 of 1');
+  await discard(page);
+  await startMonday(page);
+  await expect(page.getByRole('group', { name: 'Current working set' })).toContainText('Set 1 of 2');
+  const data = await backup(page);
+  expect(data.programme).toEqual(store.programme);
+  expect(data.sessions).toEqual(store.sessions);
+  expect(data.active?.workout.prescriptionMode).toBe('fixed');
+  expect(data.active?.workout.exercises[0].rir).toBe('3–4');
+  expect(data.active?.feedback).toBeUndefined();
+  await expect(page.getByRole('button', { name: 'Programme week & review' })).toHaveCount(0);
 });
-for(const week of [4,5,6,9,16])test('Saturday availability matches Week '+week,async({page})=>{
-  const s=atWeek(week);s.programme.options.saturdayTwoSets=true;await seed(page,s);await go(page,'programme');await page.getByRole('tab',{name:week<5||week===16?'Sat Mobility':'Sat Upper C',exact:true}).click();if(week<5||week===16){await expect(page.getByRole('list',{name:'Optional rest-day activities'})).toHaveText('MobilityRunningWalking');await expect(page.getByRole('button',{name:'Log recovery',exact:true})).toHaveCount(0);await expect(page.getByRole('region',{name:'Planned exercises'})).toHaveCount(0);}else{await page.getByRole('button',{name:'Train this session today'}).click();await expect(page.getByRole('group',{name:'Current working set'})).toContainText('of '+(week===5?'1':'2'));await discard(page);}
+
+test('Upper C options apply without advancing the week', async ({ page }) => {
+  await go(page, 'programme');
+  await page.getByRole('tab', { name: 'Sat Upper C' }).click();
+  await page.getByRole('button', { name: 'Upper C settings' }).click();
+  await page.getByRole('checkbox', { name: 'Use two sets per exercise' }).check();
+  await page.getByRole('combobox', { name: 'Saturday core skill' }).selectOption('dead-bug');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Train this session today' }).click();
+  await expect(page.getByRole('group', { name: 'Current working set' })).toContainText('Set 1 of 2');
+  await jump(page, 'Dead Bug');
+  await expect(page.getByRole('heading', { name: 'Dead Bug', exact: true })).toBeVisible();
 });
 test('optional knee raises require current-session confirmation and support dead bugs',async({page})=>{
   const s=atWeek(9);s.programme.options.saturdayCore='knee-raise';await seed(page,s);await go(page,'programme');await page.getByRole('tab',{name:'Sat Upper C'}).click();await page.getByRole('button',{name:'Train this session today'}).click();await expect(page.getByRole('button',{name:'Start with knee raises'})).toBeDisabled();await page.getByRole('button',{name:'Use dead bugs this session'}).click();await jump(page,'Dead Bug');await expect(page.getByText('Complete both sides, then log one set.',{exact:true})).toBeVisible();await expect(page.locator('.bodyweight-load')).toContainText('Bodyweight');
@@ -179,7 +212,7 @@ test('bodyweight remains available with replacement and no daily tracking',async
   for(const value of ['61','62']){await page.getByRole('button',{name:/Log bodyweight/}).click();await page.getByLabel('Bodyweight (kg)',{exact:true}).fill(value);await page.getByRole('button',{name:'Save bodyweight'}).click();await page.reload();}
   const data=await backup(page);expect(data.daily).toEqual([]);expect(data.body).toHaveLength(1);expect(data.body[0].kg).toBe(62);
   await go(page,'progress/bodyweight');await expect(page.locator('.body-entries')).toContainText('62');await expect(page.getByRole('img',{name:/^Bodyweight trend/})).toBeVisible();await page.getByRole('button',{name:'Nutrition reference',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Maintenance +200–300 kcal/day');await close(page);await page.getByRole('button',{name:/Delete bodyweight for/}).click();await page.getByRole('button',{name:'Delete entry',exact:true}).click();await expect(page.locator('.body-entries')).toHaveCount(0);
-  await go(page,'progress/recovery');await expect(page.getByRole('heading',{name:'Habit consistency'})).toHaveCount(0);await expect(page.getByRole('button',{name:/Daily check-in/})).toHaveCount(0);await expect(page.getByRole('heading',{name:'Session symptom responses'})).toBeVisible();
+  await go(page,'progress/recovery');await expect(page.getByRole('heading',{name:'Habit consistency'})).toHaveCount(0);await expect(page.getByRole('button',{name:/Daily check-in/})).toHaveCount(0);await expect(page).toHaveURL(/#progress$/);
 });
 test('loading and importing old version-4 check-ins removes only retired records',async({page})=>{
   const s=atWeek(9);s.settings={name:'Kept',unit:'lb',autoRest:false};s.sessions=[savedWorkout(s)];s.sessions[0].feedback!.before='stable';s.active=newSession(selectedWorkout(s,2)!,s);s.active.feedback!.before='none';s.body=[{id:'weight',date:localDate(),kg:61}];s.recovery=[{id:'recovery',date:localDate(),activity:'walking',cardio:20,mobility:10,note:'Keep',week:9,attemptId:currentAttempt(s).id}];
@@ -187,7 +220,7 @@ test('loading and importing old version-4 check-ins removes only retired records
   await page.getByLabel('Import backup file').setInputFiles({name:'older-v4.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});await expect(page.getByRole('dialog')).not.toContainText('check-ins');await page.getByRole('button',{name:'Replace data and restore'}).click();await expect(page.getByRole('dialog')).toHaveCount(0);await page.reload();expect(await backup(page)).toEqual(s);
   await page.evaluate(raw=>window.dispatchEvent(new StorageEvent('storage',{key:'gym-hawk-v4',newValue:raw})),JSON.stringify(legacy));expect(await backup(page)).toEqual(s);
 });
-for(const [date,day,week] of [['2026-11-04','Wed Active recovery',1],['2026-11-08','Sun Rest',1],['2026-11-07','Sat Mobility',1],['2026-11-07','Sat Mobility',16]]) {
+for(const [date,day,week] of [['2026-11-04','Wed Active recovery',1],['2026-11-08','Sun Rest',1]]) {
   test(`rest-day suggestions are static on ${day} in week ${week}`,async({page})=>{
     await page.clock.setFixedTime(new Date(date+'T10:00:00Z'));await seed(page,atWeek(Number(week)));await go(page,'today');
     const activities=page.getByRole('list',{name:'Optional rest-day activities'});
@@ -199,32 +232,64 @@ for(const [date,day,week] of [['2026-11-04','Wed Active recovery',1],['2026-11-0
     expect((await backup(page)).recovery).toEqual([]);
   });
 }
-test('historical recovery is hidden while backups and workout feedback are preserved',async({page})=>{
-  const s=atWeek(5);s.sessions=[savedWorkout(s)];s.sessions[0].date=localDate(new Date(Date.now()-86400000));
-  s.recovery=[{id:'legacy-recovery',date:localDate(),activity:'cycling',cardio:25,mobility:15,note:'Archived activity',week:5,attemptId:currentAttempt(s).id}];
-  await seed(page,s);await go(page,'progress/history');await expect(page.locator('.history-row')).toHaveCount(1);
-  await expect(page.getByRole('tab',{name:'History 1 logs'})).toBeVisible();await expect(page.getByLabel('Filter workout history').locator('option[value="recovery"]')).toHaveCount(0);
+test('retired feedback stays in backups and disappears from workout screens', async ({ page }) => {
+  const store = atWeek(2);
+  const existing = savedWorkout(store);
+  existing.date = localDate(new Date(Date.now() - 86400000));
+  existing.feedback = { ...existing.feedback!, before: 'stable', technique: true };
+  store.sessions = [existing];
+  store.recovery = [{ id: 'legacy-recovery', date: localDate(), activity: 'cycling', cardio: 25, mobility: 15, note: 'Archived activity', week: 2, attemptId: currentAttempt(store).id }];
+  const active = newSession(selectedWorkout(store, 2)!, store);
+  Object.assign(active.exercises[0].sets[0], { weight: 12, done: true });
+  store.active = active;
+  await seed(page, store);
+  await go(page, 'today');
+  await expect(page.getByText('How did you recover?')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Resume Lower A' }).click();
+  await page.getByRole('button', { name: 'More exercise options' }).click();
+  await expect(page.getByRole('dialog').getByText('Session symptoms & technique')).toHaveCount(0);
+  await close(page);
+  await page.getByRole('button', { name: 'Review and finish workout' }).click();
+  await expect(page.getByText('How did it feel?')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save workout' }).click();
+  await expect(page.getByRole('heading', { name: 'Workout saved' })).toBeVisible();
+  await go(page, 'progress/history');
+  await expect(page.locator('.history-row')).toHaveCount(2);
   await expect(page.locator('main')).not.toContainText('Archived activity');
-  await go(page,'progress');await expect(page.getByRole('heading',{name:'Workout feedback',exact:true})).toBeVisible();
-  await expect(page.locator('main')).not.toContainText('min cardio');await expect(page.locator('main')).not.toContainText('min mobility');await expect(page.locator('main')).not.toContainText('recovery logs');
-  await page.getByRole('button',{name:'Workout feedback',exact:true}).click();await expect(page).toHaveURL(/#progress\/recovery$/);
-  await expect(page.getByRole('heading',{name:'Workout feedback',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Session symptom responses'})).toBeVisible();
-  await page.getByRole('button',{name:/Recovery response pending/}).click();await page.getByLabel('Following-day symptoms').selectOption('none');await page.getByRole('button',{name:'Save recovery response'}).click();
-  const exported=await backup(page);expect(exported.recovery).toEqual(s.recovery);expect(exported.sessions[0].feedback!.nextDay).toBe('none');
-  await page.getByLabel('Import backup file').setInputFiles({name:'legacy-recovery.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exported))});await page.getByRole('button',{name:'Replace data and restore'}).click();await expect(page.getByRole('dialog')).toHaveCount(0);await page.reload();expect(await backup(page)).toEqual(exported);
+  await page.getByRole('button', { name: /Upper A ·? ?Week 2/ }).click();
+  const detail = page.getByRole('dialog');
+  await expect(detail.getByText('Week 2 · Complete')).toBeVisible();
+  await expect(detail.getByText(/Technique:|Review next-day recovery/)).toHaveCount(0);
+  await detail.getByRole('button', { name: 'Edit workout' }).click();
+  await detail.getByLabel('Session notes').fill('Kept my workout notes');
+  await expect(detail.getByLabel('Controlled technique')).toHaveCount(0);
+  await detail.getByRole('button', { name: 'Save changes' }).click();
+  await close(page);
+  await go(page, 'progress/recovery');
+  await expect(page).toHaveURL(/#progress$/);
+  await expect(page.getByRole('heading', { name: 'Volume & load' })).toBeVisible();
+  await expect(page.getByText('Workout feedback', { exact: true })).toHaveCount(0);
+  await go(page, 'progress/movement');
+  await expect(page.getByText(/Conditional progression|Review following-day response/)).toHaveCount(0);
+  const exported = await backup(page);
+  expect(exported.recovery).toEqual(store.recovery);
+  expect(exported.sessions.find(session => session.id === existing.id)).toEqual({ ...existing, note: 'Kept my workout notes' });
+  expect(exported.sessions.find(session => session.id === active.id)?.feedback).toEqual(active.feedback);
+  await page.getByLabel('Import backup file').setInputFiles({ name: 'legacy-recovery.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });
+  await page.getByRole('button', { name: 'Replace data and restore' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.reload();
+  expect(await backup(page)).toEqual(exported);
 });
 test('an active strength workout can resume on a rest day',async({page})=>{
   const s=atWeek(1);s.active=newSession(selectedWorkout(s,1)!,s);await seed(page,s);await page.clock.setFixedTime(new Date('2026-11-08T10:00:00Z'));await go(page,'today');
   await expect(page.getByRole('list',{name:'Optional rest-day activities'})).toHaveCount(0);await page.getByRole('button',{name:/Resume Upper A/}).click();await expect(page.getByRole('group',{name:'Current working set'})).toBeVisible();
 });
 test('Progress empty states lead to recorded exercises without inventing charts',async({page})=>{
-  await go(page,'progress');await expect(page.getByRole('heading',{name:'Start with one session'})).toBeVisible();await page.getByRole('button',{name:'Explore exercises'}).click();await expect(page.getByRole('heading',{name:'Your exercise progress starts here'})).toBeVisible();await expect(page.locator('.exercise-tile')).toHaveCount(0);await go(page,'progress/recovery');await expect(page.getByRole('heading',{name:'Programme adherence'})).toBeVisible();await expect(page.locator('main')).not.toContainText('0 / 0');
+  await go(page,'progress');await expect(page.getByRole('heading',{name:'Start with one session'})).toBeVisible();await page.getByRole('button',{name:'Explore exercises'}).click();await expect(page.getByRole('heading',{name:'Your exercise progress starts here'})).toBeVisible();await expect(page.locator('.exercise-tile')).toHaveCount(0);await go(page,'progress/recovery');await expect(page).toHaveURL(/#progress$/);await expect(page.locator('main')).not.toContainText('0 / 0');
 });
 test('Progress shows only recorded exercises and keeps volume units explicit',async({page})=>{
-  const s=atWeek(5),session=savedWorkout(s);session.exercises.forEach((ex,i)=>{if(i)ex.sets.forEach(set=>set.done=false);});s.sessions=[session];await seed(page,s);await go(page,'progress/exercises');await expect(page.locator('.exercise-tile')).toHaveCount(1);await page.getByRole('button',{name:/View details for/}).click();await expect(page.getByRole('region',{name:'Movement records'})).toBeVisible();await expect(page.getByLabel('Select exercise for strength chart')).toHaveCount(0);await go(page,'progress/volume');await expect(page.getByRole('heading',{name:'Volume · kg × reps'})).toBeVisible();
-});
-test('progression waits for technique and next-day response and is suppressed by worsening symptoms',async({page})=>{
-  const s=atWeek(5),session=savedWorkout(s),yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);session.date=localDate(yesterday);session.feedback={...emptyFeedback(),after:'none',technique:true};session.exercises.forEach((e,i)=>e.sets.forEach(set=>set.reps=session.workout.exercises[i].max));s.sessions=[session];await seed(page,s);await go(page,'progress/movement');await expect(page.getByRole('heading',{name:'Consider the smallest load increase'})).toHaveCount(0);await go(page,'today');await page.getByRole('button',{name:/How did you recover/}).click();await page.getByLabel('Following-day symptoms').selectOption('none');await page.getByRole('button',{name:'Save recovery response'}).click();await go(page,'progress/movement');await expect(page.getByRole('heading',{name:'Consider the smallest load increase'})).toBeVisible();await page.getByRole('button',{name:'Review following-day response'}).click();await page.getByLabel('Following-day symptoms').selectOption('worse');await page.getByRole('button',{name:'Save recovery response'}).click();await expect(page.getByRole('heading',{name:'Consider the smallest load increase'})).toHaveCount(0);
+  const s=atWeek(5),session=savedWorkout(s);session.exercises.forEach((ex,i)=>{if(i)ex.sets.forEach(set=>set.done=false);});s.sessions=[session];await seed(page,s);await go(page,'progress/exercises');await expect(page.locator('.exercise-tile')).toHaveCount(1);await page.getByRole('button',{name:/View details for/}).click();await expect(page.getByRole('region',{name:'Selected training date'})).toBeVisible();await expect(page.getByLabel('Select exercise for strength chart')).toHaveCount(0);await go(page,'progress/volume');await expect(page.getByRole('heading',{name:'Volume · kg × reps'})).toBeVisible();
 });
 test('bodyweight units and new backup metadata round trip without altering v4 history',async({page})=>{
   const s=atWeek(9);s.active=newSession(selectedWorkout(s,4)!,s);s.active.resume={exerciseIndex:3,restEnd:null,restPaused:80};s.sessions=[savedWorkout(s)];s.body=[{id:'body',date:localDate(),kg:61}];await seed(page,s);const before=await backup(page);await page.getByRole('button',{name:'lb',exact:true}).click();await go(page,'progress/bodyweight');await page.getByRole('button',{name:'Log bodyweight',exact:true}).click();await page.getByLabel('Bodyweight (lb)',{exact:true}).fill('134.482');await page.getByRole('button',{name:'Save bodyweight'}).click();const exported=await backup(page);expect(exported.body[0].kg).toBeCloseTo(61,2);await page.getByLabel('Import backup file').setInputFiles({name:'v4.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(before))});await page.getByRole('button',{name:'Replace data and restore'}).click();await expect(page.getByRole('dialog')).toHaveCount(0);await page.reload();expect(await backup(page)).toEqual(before);
@@ -253,7 +318,7 @@ test('mobile visual review, primary actions, keyboard clearance and focus',async
   test.setTimeout(90000);await page.clock.setFixedTime(new Date('2026-11-02T10:00:00Z'));await page.emulateMedia({reducedMotion:'reduce'});
   for(const [width,height] of [[320,568],[390,844],[768,1000],[1440,1000]]){
     await page.setViewportSize({width,height});const capture=async(name:string)=>{await expect(page.locator('.app-header h1')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),name+' '+width).toBe(false);if(testInfo.project.name==='desktop'){await fs.mkdir('artifacts/checkin-removal',{recursive:true});await page.screenshot({path:'artifacts/checkin-removal/'+name+'-'+width+'.png'});}};
-    await go(page,'today');await capture('today');if(width===320){const cta=await page.locator('.hero-button').boundingBox(),nav=await page.getByRole('navigation',{name:'Main navigation'}).boundingBox(),weekly=await page.locator('.weekly-count').boundingBox();expect(cta!.y+cta!.height).toBeLessThanOrEqual(nav!.y);expect(weekly!.y+weekly!.height).toBeLessThanOrEqual(nav!.y);}
+    await go(page,'today');await capture('today');if(width===320){const cta=await page.locator('.hero-button').boundingBox(),nav=await page.getByRole('navigation',{name:'Main navigation'}).boundingBox();expect(cta!.y+cta!.height).toBeLessThanOrEqual(nav!.y);}
     await page.getByRole('button',{name:/Log bodyweight/}).click();await capture('bodyweight-entry');await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:/Log bodyweight/})).toBeFocused();
     for(const route of ['programme','progress','progress/history','progress/bodyweight','progress/recovery','settings']){await go(page,route);await capture(route.replace('/','-'));}
     await startMonday(page);await capture('logger');const log=await page.getByRole('button',{name:'Log set 1',exact:true}).boundingBox();expect(log!.y+log!.height).toBeLessThanOrEqual(height);
@@ -263,7 +328,7 @@ test('mobile visual review, primary actions, keyboard clearance and focus',async
   await page.addStyleTag({content:'main p, main label, main button, .summary-link small {font-size:20px !important}'});await go(page,'today');expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
 });
 
-test('rest suggestions and workout feedback fit phone, tablet and desktop layouts',async({page},testInfo)=>{
+test('rest suggestions and Progress fit phone, tablet and desktop layouts',async({page},testInfo)=>{
   test.skip(testInfo.project.name!=='desktop','One responsive capture matrix.');
   await page.clock.setFixedTime(new Date('2026-11-04T10:00:00Z'));await seed(page,atWeek(1));
   await fs.mkdir('artifacts/recovery-removal',{recursive:true});
@@ -271,7 +336,7 @@ test('rest suggestions and workout feedback fit phone, tablet and desktop layout
     await page.setViewportSize({width,height});
     for(const route of ['today','programme','progress']) {
       await go(page,route);if(route==='programme')await page.getByRole('tab',{name:'Wed Active recovery',exact:true}).click();
-      if(route==='progress')await expect(page.getByRole('heading',{name:'Workout feedback',exact:true})).toBeVisible();
+      if(route==='progress')await expect(page.getByRole('heading',{name:'Volume & load',exact:true})).toBeVisible();
       else await expect(page.getByRole('list',{name:'Optional rest-day activities'})).toHaveText('MobilityRunningWalking');
       expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
       await page.screenshot({path:`artifacts/recovery-removal/${route}-${width}.png`,fullPage:true});

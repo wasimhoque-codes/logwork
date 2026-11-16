@@ -24,8 +24,18 @@ function isHttpsOrigin(value: string | undefined) {
 
 export function configuredPath(preview: boolean, mode: 'database' | 'deploy'): string {
   const local = resolve('cloudflare-deploy.local.json');
-  if (!existsSync(local)) throw new Error('Create cloudflare-deploy.local.json using docs/cloudflare.md.');
-  const settings = JSON.parse(readFileSync(local, 'utf8')) as DeploymentSettings;
+  const buildSettings = process.env.GYM_HAWK_DEPLOY_CONFIG;
+  if (buildSettings === undefined && !existsSync(local)) {
+    throw new Error('Set GYM_HAWK_DEPLOY_CONFIG for CI or create cloudflare-deploy.local.json using docs/cloudflare.md.');
+  }
+  let settings: DeploymentSettings;
+  try {
+    const parsed: unknown = JSON.parse(buildSettings ?? readFileSync(local, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
+    settings = parsed as DeploymentSettings;
+  } catch {
+    throw new Error('Deployment settings must be a JSON object. See docs/cloudflare.md.');
+  }
   const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
   const selected = preview ? { ...config, ...config.env.preview } : config;
   delete selected.env;

@@ -1,7 +1,7 @@
 import { replaceLocal } from './fixture';
 import { test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, reviewWeek, currentAttempt, localDate, exerciseKey, validateStore, type Store } from '../../src/model';
-import { movementSeries } from '../../src/progress-data';
+import { movementSeries, volumeDistribution } from '../../src/progress-data';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -77,12 +77,19 @@ test('interactive details preserve exact identity on reload and support keyboard
   await expect(page.locator('.selected-workout')).toContainText('26 Oct 2026'); await page.keyboard.press('End'); await expect(page.locator('.selected-workout')).toContainText('2 Nov 2026');
   await page.getByRole('button', { name: 'Browse exercises', exact: true }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
 });
-test('inline bodyweight, attempt volume and feedback remain available from Overview', async ({ page }) => {
-  await seed(page, fixture()); await expect(page.locator('.bodyweight-chart .body-weigh-in')).toHaveCount(15);
+test('Overview includes inline bodyweight and all-time volume across attempts', async ({ page }) => {
+  const store = fixture();
+  await seed(page, store); await expect(page.locator('.bodyweight-chart .body-weigh-in')).toHaveCount(15);
   await page.getByRole('button', { name: 'Log bodyweight', exact: true }).click(); await page.getByLabel('Bodyweight (kg)', { exact: true }).fill('62'); await page.getByRole('button', { name: 'Save bodyweight' }).click();
   await expect(page.locator('.body-chart-latest')).toContainText('62.0 kg');
-  await page.locator('.pending-feedback').click(); await page.getByLabel('Following-day symptoms').selectOption('none'); await page.getByRole('button', { name: 'Save recovery response' }).click(); await expect(page.locator('.pending-feedback')).toHaveCount(0);
-  await page.getByRole('button', { name: 'By muscle', exact: true }).click(); await expect(page.locator('.muscle-breakdown')).toContainText('attempt started 31 Oct');
+  await expect(page.getByText('Workout feedback', { exact: true })).toHaveCount(0);
+  const distribution = volumeDistribution(store.sessions);
+  await expect(page.locator('.volume-overview .distribution-row').filter({ hasText: 'Upper body' })).toContainText('2 sessions');
+  await page.getByRole('button', { name: 'By muscle', exact: true }).click();
+  const muscles = page.locator('.muscle-breakdown');
+  await expect(muscles).toContainText('All time');
+  const chest = distribution.muscles.find(muscle => muscle.label === 'Chest')!;
+  await expect(muscles.locator('.distribution-row').filter({ hasText: 'Chest' })).toContainText(chest.volume.toLocaleString('en-GB', { maximumFractionDigits: 2 }) + ' kg × reps');
 });
 test('old setups and latest-five comparisons survive new attempts and mixed workouts', async ({ page, isMobile }) => {
   const store = fixture(), first = structuredClone(store.sessions[0]), lower = structuredClone(store.sessions[1]); store.sessions = [];

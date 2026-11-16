@@ -6,8 +6,11 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
   test.skip(info.project.name!=='desktop','One isolated runtime exercise.');test.skip(!['127.0.0.1','localhost'].includes(new URL(baseURL!).hostname),'Runtime mutations use local D1 only.');test.setTimeout(30000);
   const a=await browser.newContext(),b=await browser.newContext(),pageA=await a.newPage(),pageB=await b.newPage();
   const url=baseURL!;
-  let initial=await (await a.request.get(url+'/api/bootstrap')).json() as Snapshot;
-  if(!initial.store){const boot=await a.newPage();await boot.goto(url);await expect(boot.getByText('Synced',{exact:true})).toBeVisible();await boot.close();initial=await(await a.request.get(url+'/api/bootstrap')).json() as Snapshot;}
+  const headers={origin:url,'X-Gym-Hawk-Sync':SYNC_PROTOCOL};
+  const bootstrap=async()=>await(await a.request.get(url+'/api/bootstrap',{headers})).json() as Snapshot;
+  expect((await a.request.get(url+'/api/bootstrap',{headers:{'X-Gym-Hawk-Sync':'2'}})).status()).toBe(426);
+  let initial=await bootstrap();
+  if(!initial.store){const boot=await a.newPage();await boot.goto(url);await expect(boot.getByText('Synced',{exact:true})).toBeVisible();await boot.close();initial=await bootstrap();}
   expect(initial.store).not.toBeNull();
   try {
     await pageA.goto(url+'/#settings');await pageB.goto(url+'/#settings');
@@ -19,7 +22,7 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
     await a.setOffline(false);await pageA.bringToFront();
     await expect(pageA.getByRole('textbox',{name:'What should we call you?'})).toHaveValue('Cloud choice');
     await expect(pageA.getByText('Synced',{exact:true})).toBeVisible();
-    expect((await (await a.request.get(url+'/api/bootstrap')).json() as Snapshot).store!.settings.name).toBe('Cloud choice');
+    expect((await bootstrap()).store!.settings.name).toBe('Cloud choice');
     const dataRoutes='**/api/{bootstrap,mutations,imports,backup}';
     const unauthorized=(route:import('@playwright/test').Route)=>route.fulfill({status:401,contentType:'application/json',body:'{"error":"Sign in"}'});
     let signedIn=true;
@@ -45,11 +48,30 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
     await expect(pageA.getByRole('textbox',{name:'What should we call you?'})).toHaveValue('After sign-in');
     await signIn.click();
     await expect(pageA.getByText('Synced',{exact:true})).toBeVisible();
-    expect((await (await a.request.get(url+'/api/bootstrap')).json() as Snapshot).store!.settings.name).toBe('After sign-in');
+    expect((await bootstrap()).store!.settings.name).toBe('After sign-in');
+
+    await a.setOffline(true);
+    await pageA.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Programme'}).click();
+    await pageA.getByRole('tab',{name:'Sat Upper C'}).click();
+    await pageA.getByRole('button',{name:'Train this session today'}).click();
+    await pageA.getByRole('button',{name:'Log set 1',exact:true}).click();
+    await pageA.getByRole('button',{name:'Review and finish workout'}).click();
+    await pageA.getByRole('button',{name:'Save workout'}).click();
+    await expect(pageA.getByRole('heading',{name:'Workout saved'})).toBeVisible();
+    await a.setOffline(false);
+    await pageA.evaluate(()=>window.dispatchEvent(new Event('focus')));
+    await expect(pageA.getByText('Synced',{exact:true})).toBeVisible();
+    const saved=(await bootstrap()).store!.sessions.find(session=>session.workout.prescriptionMode==='fixed'&&session.workoutId==='optional');
+    expect(saved).toBeDefined();
+    expect(saved?.feedback).toBeUndefined();
+    await pageB.reload();
+    await expect(pageB.getByText('Synced',{exact:true})).toBeVisible();
+    await pageB.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Progress'}).click();
+    await pageB.getByRole('tab',{name:/^History/}).click();
+    await expect(pageB.getByRole('button',{name:/Upper C Partial/})).toBeVisible();
   } finally {
     await a.setOffline(false);await pageA.unroute('**/api/{bootstrap,mutations,imports,backup}');
-    const current=await (await a.request.get(url+'/api/bootstrap')).json() as Snapshot;
-    const headers={origin:url,'X-Gym-Hawk-Sync':SYNC_PROTOCOL};
+    const current=await bootstrap();
     const create=await a.request.post(url+'/api/imports',{headers,data:{action:'create',expectedDatasetId:current.datasetId,expectedRevision:current.revision}});expect(create.ok()).toBe(true);
     const {id}=await create.json();
     const changes=Object.entries(records(initial.store!)).map(([key,value])=>({key,value,expected:0,...(key.startsWith('session:')?{position:initial.store!.sessions.findIndex(s=>'session:'+s.id===key)}:key.startsWith('body:')?{position:initial.store!.body.findIndex(s=>'body:'+s.date===key)}:key.startsWith('recovery:')?{position:initial.store!.recovery.findIndex(s=>'recovery:'+s.id===key)}:{})}));

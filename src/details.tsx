@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Check, CheckCheck, Layers, Clock3, NotebookPen, Trash2, Plus } from './icons';
 import { Modal } from './components';
 import { sessionWorkout, doneSets, volume, number, dateLabel, fromKg, toKg, localDate, sessionLabel, completeSession, addSessionSet, removeLastSessionSet, MAX_SETS_PER_EXERCISE, type Session, type SetLog } from './model';
-import { FeedbackFields } from './programme-ui';
 import type { Unit } from './data';
 export function BodyModal({ unit, onClose, onSave }: {
     unit: Unit;
@@ -16,17 +15,16 @@ export function BodyModal({ unit, onClose, onSave }: {
     } onSave(date, kg); }
     return <Modal variant="sheet" title="Log bodyweight" onClose={onClose}><form onSubmit={submit}><label className="field-label" htmlFor="body-date">Date</label><input className="text-input" id="body-date" type="date" required min="1900-01-01" max={localDate()} value={date} onChange={e => setDate(e.target.value)}/><label className="field-label" htmlFor="body-weight">Bodyweight ({unit})</label><input className="text-input large-input" id="body-weight" type="number" inputMode="decimal" step="any" required autoFocus placeholder={unit === 'kg' ? 'e.g. 70.5' : 'e.g. 155.4'} value={weight} onChange={e => { setWeight(e.target.value); setError(''); }}/>{error && <p role="alert" className="form-error">{error}</p>}<p className="input-hint">If you’ve already logged this date, this updates that entry.</p><button className="primary full-width" type="submit">Save bodyweight<Check size={17}/></button></form></Modal>;
 }
-export function SessionDetail({ session, unit, onClose, onSave, onDelete, onFollowup }: {
+export function SessionDetail({ session, unit, onClose, onSave, onDelete }: {
     session: Session;
     unit: Unit;
     onClose: () => void;
     onSave: (s: Session) => void;
     onDelete: () => void;
-    onFollowup: () => void;
 }) {
     const [editing, setEditing] = useState(false), [draft, setDraft] = useState(session), [confirmDelete, setConfirmDelete] = useState(false), [error, setError] = useState('');
     const listRef = useRef<HTMLDivElement>(null), pendingFocus = useRef<{ exercise: number; set: number | null } | null>(null);
-    const id = useId(), w = sessionWorkout(session);
+    const id = useId(), w = sessionWorkout(session), label = sessionLabel(session);
     useEffect(() => {
         const target = pendingFocus.current;
         if (!target) return;
@@ -65,7 +63,7 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, onFoll
         setError('');
     }
     return <Modal variant="page" title={w.name} onClose={onClose} wide>
-        <div className="detail-subtitle"><span>{dateLabel(session.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span><span className="unit-badge">{sessionLabel(session)} · {completeSession(draft) ? 'Complete' : 'Partial'}</span></div>
+        <div className="detail-subtitle"><span>{dateLabel(session.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span><span className="unit-badge">{label && label + ' · '}{completeSession(draft) ? 'Complete' : 'Partial'}</span></div>
         <div className="summary-pills"><span><CheckCheck size={15}/>{doneSets(draft)} sets</span><span><Layers size={15}/>{number(fromKg(volume(draft), unit), 0)} {unit} × reps volume</span><span><Clock3 size={15}/>{Math.round(((session.endedAt ?? session.startedAt) - session.startedAt) / 60000)} min</span></div>
         <div className="session-detail-list" ref={listRef}>{draft.exercises.map((e, ei) => {
             if (!editing && !e.sets.some(s => s.done) && !e.note) return null;
@@ -97,8 +95,6 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, onFoll
             </div>;
         })}</div>
         {editing ? <><label className="field-label" htmlFor="edit-session-note">Session notes</label><textarea id="edit-session-note" maxLength={2000} value={draft.note} onChange={e => setDraft(s => ({ ...s, note: e.target.value }))}/></> : draft.note && <p className="session-detail-note"><NotebookPen size={16}/>{draft.note}</p>}
-        {draft.feedback && (editing ? <FeedbackFields includeBefore feedback={draft.feedback} onChange={feedback => setDraft(s => ({ ...s, feedback }))}/> : <p className="input-hint">Technique: {draft.feedback.technique === null ? 'unrecorded' : draft.feedback.technique ? 'controlled' : 'needs improvement'} · After: {draft.feedback.after ?? 'unrecorded'} · Next day: {draft.feedback.nextDay ?? 'unrecorded'}</p>)}
-        {session.programId === 'programme-16' && session.date < localDate() && !editing && <button className="summary-link" onClick={onFollowup}>Review next-day recovery</button>}
         {error && <p className="form-error" role="alert">{error}</p>}
         {confirmDelete ? <div className="delete-confirm"><p>Delete this workout and all of its logged sets?</p><button className="danger" onClick={onDelete}>Delete workout</button><button className="secondary" onClick={() => setConfirmDelete(false)}>Keep it</button></div> : <div className="detail-actions">
             {editing ? <><button className="primary" onClick={save}>Save changes<Check size={16}/></button><button className="secondary" onClick={() => { setDraft(session); setEditing(false); setError(''); }}>Cancel</button></> : <button className="secondary" onClick={() => setEditing(true)}><NotebookPen size={16}/>Edit workout</button>}
