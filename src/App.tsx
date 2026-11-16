@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, Layers, ChartNoAxesCombined, Settings2, ChevronLeft, Clock3, Pause, Play, X } from './icons';
 import { SATURDAY_CORE, type Exercise, type Workout } from './data';
 import { savedRaw, selectedWorkout as resolveSelected, newSession, localDate, doneSets, validateStore, previousExercise, exerciseHistory, reviewWeek, sessionResume, restSeconds, type Store, type Session, type SetLog, type ResumeState } from './model';
-import { Hawk, Modal } from './components';
+import { Hawk, Modal, ModalTriggerContext } from './components';
 import { Today, Plan, History, ProgressDetail, SettingsScreen, type ProgressMetric } from './screens';
 import { ProgressOverview } from './progress';
 import { ExerciseGrid, ExerciseProgressDetail, emptyExerciseGrid, type ExerciseGridState } from './exercise-progress';
@@ -10,7 +10,7 @@ import { FollowupModal, ReviewModal, ExerciseDetails, OptionsModal, PreparationM
 import { WorkoutScreen } from './workout';
 import { ReviewWorkout, WorkoutSaved } from './flow';
 import { BodyModal, SessionDetail } from './details';
-import { useContentFade } from './motion';
+import { useContentFade, useTabHighlight } from './motion';
 import { useTrainingStore } from './persistence/use-training-store';
 import { SyncPanel } from './persistence/sync-panel';
 import { resolvePage, pageTitles, type Page } from './routes';
@@ -30,7 +30,10 @@ export default function App() {
   const [exerciseGrid,setExerciseGrid]=useState<ExerciseGridState>({...emptyExerciseGrid});
   const [pendingWorkout,setPendingWorkout]=useState<Workout|null>(null),[kneeReady,setKneeReady]=useState(false),[savedId,setSavedId]=useState<string|null>(null),[now,setNow]=useState(Date.now());
   const uploadRef=useRef<HTMLInputElement>(null),settingsOrigin=useRef<Page>('today'),headingRef=useRef<HTMLHeadingElement>(null),mainRef=useRef<HTMLElement>(null),progressTabsRef=useRef<HTMLDivElement>(null),focusProgressTab=useRef(false);
-  useContentFade(mainRef,page,true);
+  const modalTriggerRef=useRef<HTMLElement>(null);
+  const progressTab=progressTabs.some(([id])=>id===page);
+  useContentFade(mainRef,page,'page');
+  useTabHighlight(progressTabsRef,page,progressTab&&persistence.ready);
   const alert=useCallback((message:string)=>setToast(message),[]),closeDialog=useCallback(()=>setDialog(null),[]),closeDetail=useCallback(()=>setDetail(null),[]),closeExercise=useCallback(()=>setPreviewExercise(null),[]);
   const go=useCallback((next:Page,exerciseKey?:string)=>{const gridScroll=window.scrollY;if(navigationPage.current==='progress/exercises'&&next!=='progress/exercises')setExerciseGrid(s=>({...s,scroll:gridScroll}));navigationPage.current=next;setProgressSelection({exerciseKey});setPage(next);window.location.hash=next+(exerciseKey?'?exercise='+encodeURIComponent(exerciseKey):'');if(next!=='progress/exercises')window.scrollTo({top:0,behavior:'instant'});},[]);
   const updateSession=useCallback((fn:(s:Session)=>Session)=>setStore(s=>s.active?{...s,active:fn(s.active)}:s),[]);
@@ -46,7 +49,7 @@ export default function App() {
   useEffect(()=>{const viewport=window.visualViewport;if(!viewport)return;const adapt=()=>document.documentElement.style.setProperty('--keyboard-offset',Math.max(0,window.innerHeight-viewport.height-viewport.offsetTop)+'px');viewport.addEventListener('resize',adapt);viewport.addEventListener('scroll',adapt);adapt();return()=>{viewport.removeEventListener('resize',adapt);viewport.removeEventListener('scroll',adapt);document.documentElement.style.removeProperty('--keyboard-offset');};},[]);
   const todayWorkout=resolveSelected(store,new Date().getDay()),selectedWorkout=resolveSelected(store,selectedDay===6?0:selectedDay+1),unit=store.settings.unit;
   const currentIndex=resume.exerciseIndex,totalSets=active?.exercises.reduce((n,e)=>n+e.sets.length,0)??0,completedSets=active?doneSets(active):0;
-  const focused=page.startsWith('workout'),metric=progressMetrics[page],progressTab=progressTabs.some(([id])=>id===page);
+  const focused=page.startsWith('workout'),metric=progressMetrics[page];
   function openWorkout(){updateResume({origin:page==='programme'?'programme':'today'});go('workout');}
   function start(w?:Workout) {
     if(readBlocked){alert('Restore a valid backup to enable saving.');settingsOrigin.current=page;go('settings');return;}
@@ -76,7 +79,11 @@ export default function App() {
   const backVisible=page==='settings'||!!metric||page==='workout'||page==='workout/review';
   const rest=(resume.restEnd!==null||resume.restPaused!==null)?<div className="rest-timer" role="group" aria-label="Rest timer"><Clock3 size={20}/><div><span>{resume.restPaused!==null?'Paused':'Rest'}</span><strong aria-live="off">{Math.floor(remaining/60)}:{String(remaining%60).padStart(2,'0')}</strong></div><button className="icon-button" aria-label={resume.restPaused!==null?'Resume rest timer':'Pause rest timer'} onClick={()=>{if(resume.restPaused!==null){updateResume({restEnd:Date.now()+resume.restPaused*1000,restPaused:null});setNow(Date.now());}else updateResume({restPaused:remaining,restEnd:null});}}>{resume.restPaused!==null?<Play size={18}/>:<Pause size={18}/>}</button><button className="small-button" aria-label="Add 30 seconds rest" onClick={()=>resume.restPaused!==null?updateResume({restPaused:Math.min(86400,resume.restPaused+30)}):updateResume({restEnd:Math.min(Date.now()+86400000,(resume.restEnd??Date.now())+30000)})}>+30s</button><button className="icon-button" aria-label="Skip rest timer" onClick={()=>updateResume({restEnd:null,restPaused:null})}><X size={20}/></button></div>:undefined;
   if(!persistence.ready)return <main className="app-loading" role="status">Opening Gym Hawk…</main>;
-  return <div data-page={page} className={'app-shell '+(focused?'workout-shell':'')+' '+(page==='workout/review'?'review-shell':'')}><header className="app-header">{backVisible?<button className="icon-button" aria-label={page==='workout/review'?'Back to workout':page==='workout'?'Leave workout':'Go back'} onClick={back}><ChevronLeft size={23}/></button>:<span className="brand-mark"><Hawk size={24}/></span>}<div className="header-heading"><h1 ref={headingRef} tabIndex={-1}>{page==='workout'?active?.workout.name??'Workout':pageTitles[page]}</h1>{page==='workout'&&<p className="session-meta">{completedSets} of {totalSets} sets · {Math.max(0,Math.floor((now-(active?.startedAt??now))/60000))} min</p>}<SyncPanel persistence={persistence} onExport={downloadBackup} actions={page==='settings'}/></div>{progressTab&&<label className="progress-unit"><span className="sr-only">Progress weight unit</span><select value={unit} onChange={event=>setStore(s=>({...s,settings:{...s.settings,unit:event.target.value as 'kg'|'lb'}}))}><option value="kg">kg</option><option value="lb">lb</option></select></label>}{page==='workout'?<button className="small-button" aria-label="Review and finish workout" onClick={()=>go('workout/review')}>Finish</button>:!focused&&page!=='settings'?<button className="icon-button" aria-label="Open settings" onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/></button>:null}</header>
+  return <ModalTriggerContext.Provider value={modalTriggerRef}><div data-page={page} onClickCapture={event=>{
+    // Safari can activate a button without moving focus to it.
+    const trigger=event.target instanceof Element?event.target.closest<HTMLElement>('button, a[href]'):null;
+    if(trigger&&!trigger.closest('.modal-overlay'))modalTriggerRef.current=trigger;
+  }} className={'app-shell '+(focused?'workout-shell':'')+' '+(page==='workout/review'?'review-shell':'')}><header className="app-header">{backVisible?<button className="icon-button" aria-label={page==='workout/review'?'Back to workout':page==='workout'?'Leave workout':'Go back'} onClick={back}><ChevronLeft size={23}/></button>:<span className="brand-mark"><Hawk size={24}/></span>}<div className="header-heading"><h1 ref={headingRef} tabIndex={-1}>{page==='workout'?active?.workout.name??'Workout':pageTitles[page]}</h1>{page==='workout'&&<p className="session-meta">{completedSets} of {totalSets} sets · {Math.max(0,Math.floor((now-(active?.startedAt??now))/60000))} min</p>}<SyncPanel persistence={persistence} actions={page==='settings'}/></div>{progressTab&&<label className="progress-unit"><span className="sr-only">Progress weight unit</span><select value={unit} onChange={event=>setStore(s=>({...s,settings:{...s.settings,unit:event.target.value as 'kg'|'lb'}}))}><option value="kg">kg</option><option value="lb">lb</option></select></label>}{page==='workout'?<button className="small-button" aria-label="Review and finish workout" onClick={()=>go('workout/review')}>Finish</button>:!focused&&page!=='settings'?<button className="icon-button" aria-label="Open settings" onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/></button>:null}</header>
     {(storageError||persistence.error)&&<div className="storage-error" role="alert">{storageError||persistence.error}<button onClick={downloadBackup}>Export data</button></div>}<main ref={mainRef}>
       {page==='today'&&<Today onProgress={()=>go('progress')} onHistory={()=>go('progress/history')} store={store} workout={todayWorkout} onStart={()=>active?openWorkout():start(todayWorkout)} onPlan={()=>go('programme')} onReview={()=>setDialog('review')} onBody={()=>setDialog('body')} onFollowup={openFollowup}/>}
       {page==='programme'&&<Plan store={store} day={selectedDay} onDay={setSelectedDay} workout={selectedWorkout} onStart={()=>start(selectedWorkout)} onResume={openWorkout} onOptions={()=>setDialog('options')} onWarmup={()=>setDialog('warmup')} onGuide={()=>setDialog('guide')} onUrgent={()=>setDialog('urgent')} onReview={()=>setDialog('review')} onExercise={setPreviewExercise}/>}
@@ -102,5 +109,5 @@ export default function App() {
     {previewExercise&&<ExerciseDetails exercise={previewExercise} choice={store.programme.options.choices[previewExercise.slot!]} onClose={closeExercise} onSave={choice=>{const key=previewExercise.slot!;setStore(s=>({...s,programme:{...s.programme,options:{...s.programme.options,choices:{...s.programme.options.choices,[key]:choice},...(key==='optional:core'?{saturdayCore:choice.variantId==='p16-dead-bug'?'dead-bug' as const:'knee-raise' as const}:{})}}}));closeExercise();alert('Exercise choice saved for future workouts.');}}/>}
     {followup&&<FollowupModal session={followup} onClose={()=>setFollowup(null)} onSave={session=>{saveHistory(session);setFollowup(null);alert('Recovery response saved.');}}/>}
     {detail&&<SessionDetail key={detail.id} session={detail} unit={unit} onClose={closeDetail} onSave={session=>{saveHistory(session);setDetail(session);alert('Workout updated.');}} onDelete={()=>{setStore(s=>({...s,sessions:s.sessions.filter(x=>x.id!==detail.id)}));closeDetail();alert('Workout deleted.');}} onFollowup={()=>openFollowup(detail)}/>}
-  </div>;
+  </div></ModalTriggerContext.Provider>;
 }

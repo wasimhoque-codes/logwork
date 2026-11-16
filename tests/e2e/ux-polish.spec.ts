@@ -78,7 +78,7 @@ test('Progress tabs have one tab stop, arrow keys, wrapping and labelled panels'
 
 test('sheet dismissal keeps focus trapped through exit and restores its trigger', async ({ page }) => {
   await page.goto('/#today');
-  const trigger = page.getByRole('button', { name: 'Log bodyweight See your weight trend' });
+  const trigger = page.getByRole('button', { name: 'Log bodyweight', exact: true });
   await trigger.click();
   await expect(dialog(page)).toBeVisible();
   await dialog(page).getByRole('button', { name: 'Close dialog', exact: true }).focus();
@@ -92,6 +92,37 @@ test('sheet dismissal keeps focus trapped through exit and restores its trigger'
   await expect(dialog(page)).toHaveCount(0); await expect(trigger).toBeFocused();
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
   await trigger.click(); await dismiss(page); await expect(trigger).toBeFocused();
+});
+
+test('a sheet can dismiss mid-entrance and Reduce Motion finishes the exit', async ({ page }) => {
+  await page.goto('/#today');
+  await page.addStyleTag({ content: ':root { --motion-sheet: 2s; --motion-dismiss: 2s; }' });
+  const trigger = page.getByRole('button', { name: 'Log bodyweight', exact: true });
+  await trigger.click();
+  const overlay = page.locator('.modal-overlay');
+  const backdrop = overlay.locator('.modal-backdrop');
+  const entrance = await overlay.evaluate(element => {
+    const panel = element.querySelector<HTMLElement>('[role=dialog]')!;
+    const backdrop = element.querySelector<HTMLElement>('.modal-backdrop')!;
+    for (const animation of element.getAnimations({ subtree: true })) {
+      animation.pause();
+      animation.currentTime = 200;
+    }
+    const frame = { opacity: getComputedStyle(backdrop).opacity, transform: getComputedStyle(panel).transform };
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    return frame;
+  });
+  expect(Number(entrance.opacity)).toBeLessThan(1);
+  expect(entrance.transform).not.toBe('none');
+  await expect(overlay).toHaveAttribute('data-state', 'closing');
+  expect(await backdrop.evaluate(element => (element as HTMLElement).style.getPropertyValue('--dismiss-opacity'))).toBe(entrance.opacity);
+  expect(await dialog(page).evaluate(element => (element as HTMLElement).style.getPropertyValue('--dismiss-transform'))).toBe(entrance.transform);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(overlay).toHaveCount(0, { timeout: 1000 });
+  await expect(trigger).toBeFocused();
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
 });
 
 test('motion preserves workout inputs, edit drafts, rest and fixed dock position', async ({ page }) => {
@@ -109,10 +140,10 @@ test('motion preserves workout inputs, edit drafts, rest and fixed dock position
   await page.getByRole('button', { name: 'More exercise options', exact: true }).click(); await dismiss(page);
   await expect(input).toHaveValue('22'); await expect(page.getByRole('button', { name: 'Save set 1', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Rest timer' })).toBeVisible();
-  await expect.poll(async () => {
-    const box = await page.locator('.workout-dock').boundingBox();
-    return Math.abs((box?.y ?? 0) + (box?.height ?? 0) - page.viewportSize()!.height);
-  }).toBeLessThanOrEqual(1);
+  await expect.poll(() => page.locator('.workout-dock').evaluate(element => {
+    const inset = parseFloat(getComputedStyle(element).bottom);
+    return Math.abs(window.innerHeight - element.getBoundingClientRect().bottom - inset);
+  })).toBeLessThanOrEqual(1);
   expect(await page.locator('main').evaluate(element => getComputedStyle(element).transform)).toBe('none');
 });
 
@@ -121,7 +152,7 @@ test('reduced motion disables CSS and content animations and dismisses immediate
   await seed(page, fixture(true)); await page.goto('/#workout');
   await page.getByRole('button', { name: /^History for / }).click();
   expect(await dialog(page).evaluate(element => getComputedStyle(element).animationName)).toBe('none');
-  expect(await page.locator('.modal-overlay').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
+  expect(await page.locator('.modal-backdrop').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
   await dismiss(page);
   await page.getByLabel('Set 1 weight in kg').fill('12');
   await page.getByRole('button', { name: 'Log set 1', exact: true }).click();
@@ -140,6 +171,40 @@ test('rapid navigation settles on the final page with no stale overlays or anima
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
   await expect(page.getByRole('tabpanel', { name: 'Overview' })).toBeVisible();
   await expect(dialog(page)).toHaveCount(0); await noOverflow(page);
+});
+
+test('the Progress highlight follows rapid tab changes, Back, resize and Reduce Motion', async ({ page }) => {
+  await page.goto('/#progress');
+  await page.addStyleTag({ content: ':root { --motion-content: 3s; }' });
+  const tabs = page.getByRole('tablist', { name: 'Progress views' });
+  const overview = tabs.getByRole('tab', { name: 'Overview' });
+  const exercises = tabs.getByRole('tab', { name: 'Exercises' });
+  const history = tabs.getByRole('tab', { name: /^History/ });
+  const highlightAligned = () => tabs.evaluate(element => {
+    const selected = element.querySelector<HTMLButtonElement>('[aria-selected=true]')!;
+    const highlight = getComputedStyle(element, '::before');
+    return Math.abs(new DOMMatrixReadOnly(highlight.transform).m41 - selected.offsetLeft) < 1
+      && Math.abs(parseFloat(highlight.width) - selected.offsetWidth) < 1;
+  });
+  await expect(tabs).toHaveAttribute('data-highlight-ready', '');
+  expect(await highlightAligned()).toBe(true);
+  await overview.focus();
+  await page.keyboard.press('ArrowRight'); await expect(exercises).toBeFocused();
+  await expect.poll(highlightAligned).toBe(false);
+  await page.keyboard.press('End'); await expect(history).toBeFocused();
+  await page.keyboard.press('Home'); await expect(overview).toBeFocused();
+  await page.keyboard.press('End'); await expect(history).toBeFocused();
+  const panel = page.getByRole('tabpanel', { name: /^History/ });
+  await expect.poll(() => panel.evaluate(element => element.getAnimations().some(animation => animation.playState === 'running'))).toBe(true);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(highlightAligned).toBe(true);
+  await expect.poll(() => panel.evaluate(element => element.getAnimations().length)).toBe(0);
+  await page.goBack();
+  await expect(overview).toHaveAttribute('aria-selected', 'true');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await expect.poll(highlightAligned).toBe(true);
+  await noOverflow(page);
 });
 
 for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]]) {
@@ -169,7 +234,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     await page.goto('/#progress/bodyweight'); await shot('chart');
     await page.getByRole('button', { name: 'Go back', exact: true }).click();
     await page.getByRole('button', { name: 'Open settings' }).click(); await shot('settings');
-    await page.goto('/#today'); await page.getByRole('button', { name: 'Log bodyweight See your weight trend' }).click(); await shot('sheet'); await dismiss(page);
+    await page.goto('/#today'); await page.getByRole('button', { name: 'Log bodyweight', exact: true }).click(); await shot('sheet'); await dismiss(page);
     await page.getByRole('button', { name: 'Resume Upper A', exact: true }).click(); await shot('logger');
     const current = page.getByRole('group', { name: 'Current working set' });
     await current.scrollIntoViewIfNeeded();

@@ -12,7 +12,7 @@ export function WorkoutScreen({session,exerciseIndex,unit,previous,history,onInd
   const weightRef=useRef<HTMLInputElement>(null),repsRef=useRef<HTMLInputElement>(null),setRef=useRef<HTMLElement>(null),exerciseRef=useRef<HTMLElement>(null),justLogged=useRef(false),focusAfterSetChange=useRef(false);
   const exercise=session.workout.exercises[exerciseIndex],log=session.exercises[exerciseIndex],done=log.sets.filter(s=>s.done).length;
   const first=log.sets.findIndex(set=>!set.done),setIndex=editing??first,set=setIndex>=0?(editing!==null?editDraft??log.sets[setIndex]:log.sets[setIndex]):undefined,lastExercise=exerciseIndex===session.exercises.length-1;
-  useContentFade(exerciseRef,exerciseIndex);useContentFade(setRef,exerciseIndex);useSetFeedback(setRef,done,exerciseIndex);
+  useContentFade(exerciseRef,exerciseIndex,'exercise');useContentFade(setRef,exerciseIndex);useSetFeedback(setRef,done,exerciseIndex);
   useEffect(()=>{setEditing(null);setEditDraft(null);setError(null);setShowSets(false);setShowHistory(false);},[exerciseIndex]);
   useEffect(()=>{if(justLogged.current){justLogged.current=false;setRef.current?.focus({preventScroll:true});}},[first,done]);
   useEffect(()=>{if(focusAfterSetChange.current){focusAfterSetChange.current=false;setRef.current?.focus({preventScroll:true});setRef.current?.scrollIntoView({block:'nearest'});}},[log.sets.length]);

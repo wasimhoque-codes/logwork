@@ -32,9 +32,6 @@
   --shadow:0 4px 20px var(--shadow-color);
   --radius:24px;
   --radius-small:14px;
-  --motion-content:240ms;
-  --motion-sheet:280ms;
-  --ease-out:cubic-bezier(.22,.8,.25,1);
 }
 
 body {
@@ -62,14 +59,6 @@ h2 {
 
 h3 {
   letter-spacing:-.35px
-}
-
-button {
-  transition:background 160ms ease,box-shadow 160ms ease,transform 160ms ease
-}
-
-button:active:not(:disabled) {
-  transform:scale(.985)
 }
 
 button:disabled {
@@ -1085,6 +1074,7 @@ input:focus,select:focus,textarea:focus {
 
 /* Analytics share one restrained chart language. */
 .progress-switch {
+  position:relative;
   display:flex;
   gap:4px;
   padding:4px;
@@ -1096,6 +1086,7 @@ input:focus,select:focus,textarea:focus {
 }
 
 .progress-switch button {
+  position:relative;
   font-size:12px;
   padding:9px 14px;
   min-height:40px;
@@ -1112,6 +1103,27 @@ input:focus,select:focus,textarea:focus {
   color:var(--text);
   font-weight:600;
   border:0
+}
+
+.progress-switch[data-highlight-ready]::before {
+  content:'';
+  position:absolute;
+  inset:4px auto 4px 0;
+  width:var(--tab-width);
+  transform:translateX(var(--tab-x));
+  border-radius:9px;
+  background:var(--surface);
+  box-shadow:0 2px 5px rgb(35 45 28 / 6%);
+  pointer-events:none
+}
+
+.progress-switch[data-highlight-moving]::before {
+  transition:transform var(--motion-content) var(--ease-out),width var(--motion-content) var(--ease-out)
+}
+
+.progress-switch[data-highlight-ready] button[aria-selected=true] {
+  background:transparent;
+  box-shadow:none
 }
 
 .progress-unit select {
@@ -1880,6 +1892,11 @@ input:focus,select:focus,textarea:focus {
 }
 
 .modal-overlay {
+  background:transparent;
+  backdrop-filter:none
+}
+
+.modal-backdrop {
   background:var(--overlay);
   backdrop-filter:blur(7px)
 }
@@ -2754,7 +2771,7 @@ input:focus,select:focus,textarea:focus {
     padding:24px
   }
 
-  .modal-overlay.sheet-overlay {
+  .sheet-overlay>.modal-backdrop {
     backdrop-filter:blur(5px)
   }
 

@@ -7,21 +7,25 @@ import { BodyweightChart } from './body-chart';
 import { movementSeries, recordedSessions, volumeDistribution } from './progress-data';
 import { movementValue } from './progress-charts';
 import { attemptSummary } from './progress-data';
-import { reducedMotion, useContentFade } from './motion';
+import { motionPreference, useContentFade } from './motion';
 export { ExerciseDetails } from './programme-ui';
 export function WeekPicker({day,onDay,week=1}:{day:number;onDay:(day:number)=>void;week?:number}) {
   const stripRef=useRef<HTMLDivElement>(null),firstReveal=useRef(true);
   useLayoutEffect(()=>{
     const strip=stripRef.current;if(!strip)return;
+    const preference=motionPreference();
+    const stop=()=>strip.scrollTo({left:strip.scrollLeft,behavior:'instant'});
     const reveal=(smooth=false)=>{
       const selected=strip.querySelector<HTMLElement>('[aria-selected=true]');if(!selected)return;
       const bounds=strip.getBoundingClientRect(),button=selected.getBoundingClientRect();
       const delta=button.left<bounds.left+4||button.right>bounds.right-4?button.left-bounds.left-(bounds.width-button.width)/2:0;
-      if(delta)strip.scrollTo({left:strip.scrollLeft+delta,behavior:smooth&&!reducedMotion()?'smooth':'instant'});
+      if(delta)strip.scrollTo({left:strip.scrollLeft+delta,behavior:smooth&&!preference.matches?'smooth':'instant'});
     };
+    const onPreference=()=>{if(preference.matches){stop();reveal();}};
     reveal(!firstReveal.current);firstReveal.current=false;
     let initialSize=true;const observer=new ResizeObserver(()=>{if(initialSize){initialSize=false;return;}reveal();});observer.observe(strip);
-    return()=>observer.disconnect();
+    preference.addEventListener('change',onPreference);
+    return()=>{observer.disconnect();preference.removeEventListener('change',onPreference);stop();};
   },[day]);
   return <div ref={stripRef} className="week-picker" role="tablist" aria-label="Weekly programme">{DAY_NAMES.map((name,i)=>{
     const w=WORKOUTS.find(w=>w.days.includes(i===6?0:i+1)),label=w?.optional&&(week<5||week===16)?'Mobility':w?.name??'Rest';
@@ -57,7 +61,7 @@ export function Today({store,workout,onStart,onPlan,onReview,onBody,onFollowup,o
 }
 export function Plan({store,day,onDay,workout,onStart,onResume,onOptions,onWarmup,onGuide,onUrgent,onReview,onExercise}:{store:Store;day:number;onDay:(day:number)=>void;workout?:Workout;onStart:()=>void;onResume:()=>void;onOptions:()=>void;onWarmup:()=>void;onGuide:()=>void;onUrgent:()=>void;onReview:()=>void;onExercise:(e:Exercise)=>void}) {
   const p=store.programme,restDay=!workout||workout.category==='recovery'||!workout.exercises.length;
-  const dayRef=useRef<HTMLDivElement>(null);useContentFade(dayRef,day,true);
+  const dayRef=useRef<HTMLDivElement>(null);useContentFade(dayRef,day,'panel');
   return <><div className="programme-heading"><p className="eyebrow">Week {p.week} · {programmePhase(p.week)}</p><button className="text-button" onClick={onOptions}>Programme settings</button></div><WeekPicker day={day} onDay={onDay} week={p.week}/>
     {store.active&&<aside className="active-banner"><p><strong>{store.active.workout.name} is in progress</strong><span>Finish or discard it before starting another session.</span></p><button className="secondary full-width" onClick={onResume}>Resume {store.active.workout.name}<ArrowRight size={18}/></button></aside>}
     <div ref={dayRef} id="programme-day-panel" role="tabpanel" aria-labelledby={'programme-day-'+day} tabIndex={0}><section className="plan-card"><p className="overline">{DAY_NAMES[day]}</p><h2>{restDay?'Rest day':workout?.name}</h2><p className="dialog-description">{restDay?'Optional movement, at your own pace.':workout?.focus}</p>{workout?.exercises.length?<p className="plan-effort">{workout.exercises.reduce((n,e)=>n+e.sets,0)} working sets · {weekEffort(p.week)} reps in reserve</p>:null}

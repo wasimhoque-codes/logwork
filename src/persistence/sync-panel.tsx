@@ -1,28 +1,95 @@
 import { useState, useEffect } from 'react';
-import { Modal } from '../components';
-import { type Store, type Session, type BodyEntry, type Programme, type Settings, type RecoveryEntry, number } from '../model';
-import { records, type RecordValue } from './records';
+import { localDate, type Store } from '../model';
 import type { useTrainingStore } from './use-training-store';
 
-function describe(key:string,value:RecordValue|undefined,store?:Store|null):string {
-  if(key==='dataset')return store?`${store.sessions.length} workouts, ${store.body.length} weigh-ins · Week ${store.programme.week}`:'No cloud records';
-  if(value===undefined||value===null)return key==='active'?'No active workout':'Removed';
-  if(key==='programme'){const p=value as Programme;return `Week ${p.week} · ${p.attempts.length} attempts · ${p.status}`;}
-  if(key==='settings'){const s=value as Settings;return `${s.name||'Your profile'} · ${s.unit} · automatic rest ${s.autoRest?'on':'off'}`;}
-  if(key.startsWith('body:')){const b=value as BodyEntry;return `${b.date} · ${number(b.kg,2)} kg`;}
-  if(key.startsWith('recovery:')){const r=value as RecoveryEntry;return `${r.date} · ${r.activity} · ${r.cardio+r.mobility} minutes`;}
-  const s=value as Session;
-  return `${s.workout.name} · ${s.date} · ${s.exercises.reduce((n,e)=>n+e.sets.filter(t=>t.done).length,0)} logged sets${s.note?' · '+s.note:''}`;
+function exportRecovered(store: Store, index: number) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(store, null, 2)], {type:'application/json'}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `gym-hawk-recovered-${localDate()}-${index + 1}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export function SyncPanel({persistence:p,onExport,actions=false}:{persistence:ReturnType<typeof useTrainingStore>;onExport:()=>void;actions?:boolean}) {
-  const [open,setOpen]=useState(false);
-  const labels={opening:'Opening records…',saving:'Saving on this device…',local:'Saved on this device',syncing:'Syncing…',synced:'Synced',signin:'Sign in to sync',conflict:'Choose which changes to keep',error:'Saved on this device · sync unavailable'};
+
+export function SyncPanel({persistence:p,actions=false}:{persistence:ReturnType<typeof useTrainingStore>;actions?:boolean}) {
+  const [cloudSession,setCloudSession]=useState<{signedIn:boolean;localDevelopment:boolean}>();
+  const [signingOut,setSigningOut]=useState(false);
+  const [authMessage,setAuthMessage]=useState('');
+  const needsSignIn=p.status==='signin';
+
+  useEffect(()=>{
+    if(!actions)return;
+    let active=true;
+    let check:AbortController|undefined;
+    const refresh=async()=>{
+      check?.abort();
+      const current=new AbortController();
+      check=current;
+      try {
+        const response=await fetch('/api/auth/session',{cache:'no-store',signal:current.signal});
+        if(response.ok){
+          const value=await response.json();
+          if(active&&!current.signal.aborted)setCloudSession(value);
+        }
+      } catch {/* Local records are still available. */}
+    };
+    void refresh();
+    window.addEventListener('focus',refresh);
+    window.addEventListener('online',refresh);
+    return ()=>{
+      active=false;
+      check?.abort();
+      window.removeEventListener('focus',refresh);
+      window.removeEventListener('online',refresh);
+    };
+  },[actions,needsSignIn]);
+
+  useEffect(()=>{
+    if(!actions)return;
+    const url=new URL(window.location.href);
+    const result=url.searchParams.get('cloud-signin');
+    if(!result)return;
+    url.searchParams.delete('cloud-signin');
+    window.history.replaceState(window.history.state,'',url);
+    setAuthMessage(result==='account'
+      ? 'Use the GitHub account approved for Gym Hawk.'
+      : 'GitHub sign-in could not be completed. Try again.');
+  },[actions]);
+
+  async function signOut(){
+    setSigningOut(true);
+    setAuthMessage('');
+    try {
+      const response=await fetch('/api/auth/logout',{method:'POST',cache:'no-store'});
+      if(!response.ok)throw new Error('Sign-out failed.');
+      setCloudSession({signedIn:false,localDevelopment:false});
+      p.sync();
+    } catch {
+      setAuthMessage('Could not sign out of cloud sync. Try again when online.');
+    } finally {
+      setSigningOut(false);
+    }
+  }
+  const labels={opening:'Opening records…',saving:'Saving on this device…',local:'Waiting to sync',syncing:'Syncing…',synced:'Synced',signin:'Sign in to sync',update:'Reload to update sync',error:'Saved on this device · sync unavailable'};
   useEffect(()=>{
     if(process.env.NODE_ENV!=='production'||!('serviceWorker' in navigator))return;
     void navigator.serviceWorker.register('/sw.js').catch(()=>{});
   },[]);
-  const server=p.remote?.store??p.base?.store;
-  return <><div className="sync-strip"><span aria-live="polite" title={p.syncError}>{p.conflicts.length?'Changes need review':labels[p.status]}</span>{actions&&(p.conflicts.length?<button className="text-button" onClick={()=>setOpen(true)}>Review changes</button>:p.status==='signin'?<a href="/" className="text-button">Sign in</a>:<button className="text-button" onClick={p.sync} disabled={p.status==='syncing'||p.status==='saving'}>Sync now</button>)}</div>
-    {open&&<Modal variant="sheet" title="Review changes" onClose={()=>setOpen(false)}><p>Both versions are kept until you choose. Changes to other records can still sync.</p><button className="secondary full-width" onClick={onExport}>Back up this device first</button>{p.conflicts.map(key=><section className="sync-choice" key={key}><h3>{key==='dataset'?'Different sets of records':key==='active'?'Active workout':key==='programme'?'Programme':key==='settings'?'Preferences':key.startsWith('body:')?'Bodyweight':key.startsWith('recovery:')?'Historical recovery':'Workout'}</h3><p><strong>This device:</strong> {describe(key,records(p.store)[key],p.store)}</p><p><strong>Cloud:</strong> {describe(key,server?records(server)[key]:undefined,server)}</p>{key==='dataset'&&<p>Choosing this device replaces the cloud records. Choosing the cloud replaces this device’s records.</p>}<div className="sync-choice-actions"><button className="secondary" onClick={()=>void p.resolve(key,'local')}>Keep this device</button><button className="secondary" onClick={()=>void p.resolve(key,'server')}>Keep cloud</button></div></section>)}{!p.conflicts.length&&<p role="status">Changes resolved.</p>}</Modal>}
+  const signedOut=needsSignIn||cloudSession?.signedIn===false;
+  return <>
+    <div className="sync-strip">
+      <span aria-live="polite" title={p.syncError}>{signedOut?'Sign in to sync':labels[p.status]}</span>
+      {actions&&signedOut&&<a href="/api/auth/github/start" className="text-button">Sign in with GitHub</a>}
+      {actions&&p.status==='update'&&<button className="text-button" onClick={()=>window.location.reload()}>Reload Gym Hawk</button>}
+      {actions&&cloudSession?.signedIn&&!cloudSession.localDevelopment&&!needsSignIn&&
+        <button className="text-button" onClick={()=>void signOut()} disabled={signingOut}>Sign out of cloud sync</button>}
+    </div>
+    {actions&&authMessage&&<p className="sync-auth-message" role="status">{authMessage}</p>}
+    {actions&&p.recovered.length>0&&<div className="sync-auth-message">
+      <p>Earlier local changes are available as backups.</p>
+      {p.recovered.map((store,index)=><button key={index} className="text-button" onClick={()=>exportRecovered(store,index)}>
+        {p.recovered.length===1?'Download recovered backup':`Download recovered backup ${index + 1}`}
+      </button>)}
+    </div>}
   </>;
 }

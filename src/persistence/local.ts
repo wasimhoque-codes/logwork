@@ -1,14 +1,14 @@
 import type { Store } from '../model';
-import type { Snapshot, Mutation } from './records';
+import type { Edit, Snapshot } from './records';
 
 export type LocalDocument = {
   store: Store;
   base: Snapshot | null;
   blocked: boolean;
-  conflicts: string[];
-  remote?: Snapshot;
-  flight?: { mutation: Mutation; target: Store; baseline?:Snapshot };
-  restore?: { expected: Snapshot; stageId?: string; target:Store };
+  queue?: Edit[];
+  lastEditAt?: number;
+  recovered?: Store[];
+  restore?: { id: string; expected: Snapshot; stageId?: string; uploaded?: boolean; target: Store };
 };
 const NAME='gym-hawk-sync-v1';
 export class LocalDatabase {
