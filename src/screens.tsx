@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronRight, Dumbbell, Plus, Download, Upload, Search, Trash2, Scale, TrendingUp, ArrowUpRight, CalendarDays, Footprints } from './icons';
-import { WORKOUTS, MOBILITY, DAY_NAMES, FIXED_WORKOUT_WEEK, fixedWorkoutForDay, weekEffort, workoutForDay, type Exercise, type Workout } from './data';
+import { WORKOUTS, DAY_NAMES, FIXED_WORKOUT_WEEK, fixedWorkoutForDay, weekEffort, workoutForDay, type Exercise, type Workout } from './data';
 import { completeSession, sessionLabel, dateLabel, doneSets, fromKg, localDate, monday, number, volume, bodyAverages, bodyGuidance, type Session, type Store, type Settings } from './model';
 import { Empty, LineChart, Modal } from './components';
 import { BodyweightChart } from './body-chart';
 import { recordedSessions, volumeDistribution } from './progress-data';
 import { motionPreference, useContentFade } from './motion';
+import { MobilityGuide } from './technique-demo';
+import { MuscleVolume } from './muscle-volume';
 export { ExerciseDetails } from './programme-ui';
 export function WeekPicker({day,onDay}:{day:number;onDay:(day:number)=>void}) {
   const stripRef=useRef<HTMLDivElement>(null),firstReveal=useRef(true);
@@ -31,7 +33,7 @@ export function WeekPicker({day,onDay}:{day:number;onDay:(day:number)=>void}) {
   })}</div>;
 }
 function RestDaySuggestions() {
-  return <div className="rest-day-suggestions"><ul aria-label="Optional rest-day activities"><li>Mobility</li><li>Running</li><li>Walking</li></ul><details className="guide-section"><summary>Mobility guide</summary><ul className="guide-list">{MOBILITY.map(text=><li key={text}>{text}</li>)}</ul></details></div>;
+  return <div className="rest-day-suggestions"><ul aria-label="Optional rest-day activities"><li>Mobility</li><li>Running</li><li>Walking</li></ul><MobilityGuide title="Mobility guide"/></div>;
 }
 function useTodayDate() {
   const [now, setNow] = useState(Date.now);
@@ -98,6 +100,7 @@ function UpcomingDay({date, workout, onOpen}: {date: Date; workout?: Workout; on
 
 type TodayProps = {
   store: Store;
+  handoffId?: string | null;
   onStart: (workout?: Workout) => void;
   onPlan: (day: number) => void;
   onDetail: (session: Session) => void;
@@ -106,7 +109,7 @@ type TodayProps = {
   onHistory: () => void;
 };
 
-export function Today({store, onStart, onPlan, onDetail, onBody, onProgress, onHistory}: TodayProps) {
+export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onProgress, onHistory}: TodayProps) {
   const today = useTodayDate();
   const date = localDate(today);
   const tomorrow = new Date(today);
@@ -134,7 +137,7 @@ export function Today({store, onStart, onPlan, onDetail, onBody, onProgress, onH
       <p>{greeting}{firstName && `, ${firstName}`}</p>
       <time className="today-date" dateTime={date}><CalendarDays size={15} aria-hidden="true"/>{dateLabel(date, {weekday:'short', day:'numeric', month:'long'})}</time>
     </div>
-    <section className="today-card" data-state={statusClass} aria-label="Today’s workout">
+    <section className="today-card" data-state={statusClass} data-handoff={saved && saved.id === handoffId ? completeSession(saved) ? 'complete' : 'partial' : undefined} aria-label="Today’s workout">
       <div className="today-card-summary">
         <div className="today-card-status" role="status" aria-atomic="true">
           <span className="badge">{status}</span>
@@ -192,7 +195,6 @@ export function ProgressDetail({store,segment,initialVolumeView,onBody,onDeleteB
   const [volumeView,setVolumeView]=useState<'trend'|'muscles'>(initialVolumeView??'trend');
   const recorded=segment==='volume'?recordedSessions(store.sessions):[];
   const muscleData=volumeDistribution(volumeView==='muscles'?recorded:[]);
-  const maxMuscleVolume=Math.max(1,...muscleData.muscles.map(m=>m.volume));
   const unit=store.settings.unit,cutoff=new Date();cutoff.setDate(cutoff.getDate()-Number(range));
   const sessions=recorded.filter(s=>range==='all'||s.date>=localDate(cutoff));
   const volumeMap=new Map<string,number>();sessions.forEach(s=>{const date=localDate(monday(new Date(s.date+'T12:00:00')));volumeMap.set(date,(volumeMap.get(date)??0)+volume(s));});
@@ -201,7 +203,7 @@ export function ProgressDetail({store,segment,initialVolumeView,onBody,onDeleteB
   if(segment==='volume'&&!recorded.length&&volumeView==='trend')return <Empty title="No training volume yet" text="Log external resistance to build your load × repetitions trend." action={<button className="primary" onClick={onStart}>Explore programme</button>}/>;
   return <>{segment==='volume'&&volumeView==='trend'&&<div className="progress-toolbar"><select aria-label="Insights date range" value={range} onChange={e=>setRange(e.target.value)}><option value="28">Last 4 weeks</option><option value="112">Last 16 weeks</option><option value="all">All time</option></select></div>}
     {segment==='body'&&<><div className="progress-toolbar"><button className="small-button" onClick={onBody}><Plus size={16}/>Log bodyweight</button></div><section className="chart-panel bodyweight-panel"><h2>Bodyweight trend</h2><BodyweightChart body={body} unit={unit}/></section></>}
-    {segment==='volume'&&<><div className="volume-detail-switch" role="group" aria-label="Volume views"><button className="small-button" aria-pressed={volumeView==='trend'} onClick={()=>setVolumeView('trend')}>Weekly trend</button><button className="small-button" aria-pressed={volumeView==='muscles'} onClick={()=>setVolumeView('muscles')}>By muscle</button></div>{volumeView==='muscles'&&<section className="distribution-card muscle-breakdown"><h2>Volume by muscle</h2><p className="muted">All time · {unit} × reps</p>{muscleData.muscles.length?muscleData.muscles.map(m=><div className="distribution-row" key={m.label}><div><strong>{m.label}</strong><span>{number(fromKg(m.volume,unit),2)} {unit} × reps</span></div><div className="distribution-track" aria-hidden="true"><span style={{width:`${m.volume/maxMuscleVolume*100}%`}}/></div></div>):<p className="muted">No external load logged yet.</p>}<p className="distribution-caption">Recorded external load × reps, grouped by the muscle label saved with each exercise. Assistance, bodyweight and timed work excluded. Per-hand and per-side values are not doubled.</p></section>}</>}
+    {segment==='volume'&&<><div className="volume-detail-switch" role="group" aria-label="Volume views"><button className="small-button" aria-pressed={volumeView==='trend'} onClick={()=>setVolumeView('trend')}>Weekly trend</button><button className="small-button" aria-pressed={volumeView==='muscles'} onClick={()=>setVolumeView('muscles')}>By muscle</button></div>{volumeView==='muscles'&&<MuscleVolume muscles={muscleData.muscles} unit={unit}/>}</>}
     {segment==='volume'&&volumeView==='trend'&&<section className="chart-panel"><h2>Volume · {unit} × reps</h2>{volumes.length>0?<LineChart points={volumes} unit={unit+' × reps'} label="Weekly lifting volume"/>:<p className="empty-chart-copy">No records for this selection yet.</p>}<p className="chart-caption">Recorded external load × reps. Assistance, bodyweight and timed work are excluded. Per-hand and per-side values are shown as logged.</p></section>}
     {segment==='body'&&<><p className="recovery-callout">{bodyGuidance(store.body)}</p>{averages.length>0&&<><h2 className="body-weekly-heading">Weekly summaries</h2><section className="metric-records list-card" aria-label="Weekly bodyweight summaries">{averages.map(a=><div key={a.date}><span>Week of {dateLabel(a.date)}<small>{a.count} weigh-in{a.count===1?'':'s'}</small></span><strong>{number(fromKg(a.kg,unit))} {unit}</strong></div>)}</section></>}{body.length>0&&<section className="body-entries list-card" aria-label="Bodyweight entries">{[...body].reverse().map(b=><div key={b.id}><span>{dateLabel(b.date)}</span><strong>{number(fromKg(b.kg,unit))} {unit}</strong><button className="icon-button" aria-label={'Delete bodyweight for '+b.date} onClick={()=>setDeleteBody(b.id)}><Trash2 size={17}/></button></div>)}</section>}<button className="summary-link" onClick={()=>setNutrition(true)}><span>Nutrition reference</span><ChevronRight size={17}/></button></>}
     {deleteBody&&<Modal variant="sheet" title="Delete this weigh-in?" onClose={()=>setDeleteBody(null)}><button className="danger full-width" onClick={()=>{onDeleteBody(deleteBody);setDeleteBody(null);}}>Delete entry</button><button className="text-button full-width" onClick={()=>setDeleteBody(null)}>Keep entry</button></Modal>}

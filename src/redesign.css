@@ -669,13 +669,16 @@ input:focus,select:focus,textarea:focus {
     transition:stroke-dashoffset var(--motion-content) var(--ease-out)
   }
 
-  .today-check {
+  .today-card[data-handoff] .today-check {
     animation:today-check-in var(--motion-content) var(--ease-out) both
   }
 
   .today-preview {
-    animation:today-preview-in var(--motion-content) var(--ease-out) both;
     transition:background-color var(--motion-control) var(--ease-out),transform var(--motion-control) var(--ease-out)
+  }
+
+  .today-card[data-handoff] .today-preview {
+    animation:today-preview-in var(--motion-content) var(--ease-out) 80ms backwards
   }
 
   .today-preview:active {
@@ -688,7 +691,7 @@ input:focus,select:focus,textarea:focus {
 }
 
 @keyframes today-preview-in {
-  from { opacity:.7; translate:0 4px }
+  from { opacity:.58; transform:perspective(650px) translateY(-5px) translateZ(-18px) rotateX(-5deg) }
 }
 
 .weekly-card {

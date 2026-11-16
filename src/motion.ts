@@ -22,7 +22,7 @@ function animateElements(elements: Element[], frames: Keyframe[], token: string)
 }
 
 // Keep route motion on content surfaces so fixed controls retain their viewport anchor.
-export function useContentFade(ref: RefObject<Element | null>, destination: string | number, mode: 'fade' | 'page' | 'panel' | 'exercise' = 'fade') {
+export function useContentFade(ref: RefObject<Element | null>, destination: string | number, mode: 'fade' | 'page' | 'panel' | 'exercise' | 'selection' = 'fade') {
   const previous = useRef(destination);
   useLayoutEffect(() => {
     const from = previous.current;
@@ -38,7 +38,9 @@ export function useContentFade(ref: RefObject<Element | null>, destination: stri
     const offset = mode === 'exercise' ? `${Number(destination) > Number(from) ? 6 : -6}px 0` : '0 4px';
     // The grid restores a saved scroll position and focuses its tile during entry.
     const fadeOnly = mode === 'fade' || destination === 'progress/exercises';
-    const frames = fadeOnly ? [{ opacity: .72 }, { opacity: 1 }] : [{ opacity: .78, translate: offset }, { opacity: 1, translate: 'none' }];
+    const frames = mode === 'selection'
+      ? [{ opacity: .7, transform: 'perspective(750px) translateY(5px) translateZ(-9px)' }, { opacity: 1, transform: 'none' }]
+      : fadeOnly ? [{ opacity: .72 }, { opacity: 1 }] : [{ opacity: .78, translate: offset }, { opacity: 1, translate: 'none' }];
     return animateElements(targets, frames, '--motion-content');
   }, [ref, destination, mode]);
 }
@@ -65,17 +67,21 @@ export function useTabHighlight(ref: RefObject<HTMLDivElement | null>, selection
   }, [ref, selection, visible]);
 }
 
-export function useSetFeedback(ref: RefObject<HTMLElement | null>, logged: number, exercise: number) {
+export function useSetFeedback(ref: RefObject<HTMLElement | null>, dock: RefObject<HTMLElement | null>, logged: number, exercise: number) {
   const previous = useRef({ logged, exercise });
   useLayoutEffect(() => {
     const increased = exercise === previous.current.exercise && logged > previous.current.logged;
     previous.current = { logged, exercise };
     const panel = ref.current;
     if (!increased || !panel || reducedMotion()) return;
-    const style = getComputedStyle(panel);
-    return animateElements([panel], [
-      { borderColor: 'var(--accent)', backgroundColor: 'var(--selection)' },
-      { borderColor: style.borderColor, backgroundColor: style.backgroundColor },
+    const check = animateElements(Array.from(panel.querySelectorAll('.set-log-check')), [
+      { opacity: 0, transform: 'perspective(120px) translateY(-4px) translateZ(9px) rotateX(-32deg)' },
+      { opacity: 1, transform: 'none' },
     ], '--motion-content');
-  }, [ref, logged, exercise]);
+    const rest = animateElements(Array.from(dock.current?.querySelectorAll('.rest-timer') ?? []), [
+      { opacity: .55, transform: 'perspective(500px) translateY(7px) rotateX(-7deg)' },
+      { opacity: 1, transform: 'none' },
+    ], '--motion-content');
+    return () => { check?.(); rest?.(); };
+  }, [ref, dock, logged, exercise]);
 }

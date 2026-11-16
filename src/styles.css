@@ -280,13 +280,14 @@ details[open]>:not(summary){animation:content-in var(--motion-content) var(--eas
 .modal-backdrop{position:absolute;inset:0;z-index:-1;pointer-events:none;animation:overlay-in var(--motion-sheet) var(--ease-out)}
 .modal-sheet{border-radius:var(--radius)}
 .modal-page{--panel-offset:12px,0;border-radius:0}
-.modal-overlay[data-state=closing]>.modal-backdrop{animation:overlay-out var(--motion-dismiss) var(--ease-in) forwards}
-.modal-overlay[data-state=closing]>.modal{animation:panel-out var(--motion-dismiss) var(--ease-in) forwards}
-.rest-timer{animation:content-in var(--motion-content) var(--ease-out)}
+.modal-overlay[data-state=closing]>.modal-backdrop,
+.modal-overlay[data-state=closing]>.history-modal-surface>.modal-backdrop{animation:overlay-out var(--motion-dismiss) var(--ease-in) forwards}
+.modal-overlay[data-state=closing]>.modal,
+.modal-overlay[data-state=closing]>.history-modal-surface>.modal{animation:panel-out var(--motion-dismiss) var(--ease-in) forwards}
 .toast{animation:toast-in var(--motion-content) var(--ease-out)}
 .exercise-complete{animation:content-in var(--motion-content) var(--ease-out)}
 .completion-mark{display:inline-flex}
-.completion-mark,.saved-mark{animation:check-in var(--motion-sheet) var(--ease-out)}
+.completion-mark{animation:check-in var(--motion-sheet) var(--ease-out)}
 @keyframes content-in{from{opacity:.65}to{opacity:1}}
 @keyframes overlay-in{from{opacity:0}to{opacity:1}}
 @keyframes overlay-out{from{opacity:var(--dismiss-opacity,1)}to{opacity:0}}

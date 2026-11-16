@@ -15,12 +15,13 @@ export function BodyModal({ unit, onClose, onSave }: {
     } onSave(date, kg); }
     return <Modal variant="sheet" title="Log bodyweight" onClose={onClose}><form onSubmit={submit}><label className="field-label" htmlFor="body-date">Date</label><input className="text-input" id="body-date" type="date" required min="1900-01-01" max={localDate()} value={date} onChange={e => setDate(e.target.value)}/><label className="field-label" htmlFor="body-weight">Bodyweight ({unit})</label><input className="text-input large-input" id="body-weight" type="number" inputMode="decimal" step="any" required autoFocus placeholder={unit === 'kg' ? 'e.g. 70.5' : 'e.g. 155.4'} value={weight} onChange={e => { setWeight(e.target.value); setError(''); }}/>{error && <p role="alert" className="form-error">{error}</p>}<p className="input-hint">If you’ve already logged this date, this updates that entry.</p><button className="primary full-width" type="submit">Save bodyweight<Check size={17}/></button></form></Modal>;
 }
-export function SessionDetail({ session, unit, onClose, onSave, onDelete }: {
+export function SessionDetail({ session, unit, onClose, onSave, onDelete, expandFromHistory }: {
     session: Session;
     unit: Unit;
     onClose: () => void;
     onSave: (s: Session) => void;
     onDelete: () => void;
+    expandFromHistory?: boolean;
 }) {
     const [editing, setEditing] = useState(false), [draft, setDraft] = useState(session), [confirmDelete, setConfirmDelete] = useState(false), [error, setError] = useState('');
     const listRef = useRef<HTMLDivElement>(null), pendingFocus = useRef<{ exercise: number; set: number | null } | null>(null);
@@ -62,7 +63,7 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete }: {
         setDraft(next);
         setError('');
     }
-    return <Modal variant="page" title={w.name} onClose={onClose} wide>
+    return <Modal variant="page" title={w.name} onClose={onClose} expandFromHistory={expandFromHistory} wide>
         <div className="detail-subtitle"><span>{dateLabel(session.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span><span className="unit-badge">{label && label + ' · '}{completeSession(draft) ? 'Complete' : 'Partial'}</span></div>
         <div className="summary-pills"><span><CheckCheck size={15}/>{doneSets(draft)} sets</span><span><Layers size={15}/>{number(fromKg(volume(draft), unit), 0)} {unit} × reps volume</span><span><Clock3 size={15}/>{Math.round(((session.endedAt ?? session.startedAt) - session.startedAt) / 60000)} min</span></div>
         <div className="session-detail-list" ref={listRef}>{draft.exercises.map((e, ei) => {

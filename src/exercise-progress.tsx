@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Search, Dumbbell } from './icons';
 import { fromKg, number, type Store } from './model';
 import { exerciseVolume, movementDays, movementSeries, movementSummary, type MovementDay, type MovementSeries } from './progress-data';
 import { fullDate, MovementChart, movementMeasure, recentMovementChange, setLabel, setupLabel } from './progress-charts';
+import { useContentFade } from './motion';
 
 export type ExerciseGridState = { query: string; filter: string; scroll: number; focusKey?: string };
 export const emptyExerciseGrid: ExerciseGridState = { query: '', filter: 'all', scroll: 0 };
@@ -84,6 +85,8 @@ export function ExerciseGrid({ store, state, onState, onOpen, onStart }: { store
 function SelectedWorkout({ day, unit, index, count, onSelect }: {
   day: MovementDay; unit: Unit; index: number; count: number; onSelect: (index: number) => void;
 }) {
+  const setsRef = useRef<HTMLDivElement>(null);
+  useContentFade(setsRef, day.date, 'selection');
   const top = day.best.best;
   const external = day.best.log.mode === 'external' && !day.best.exercise.timed;
   const setCount = day.workouts.reduce((count, record) => count + record.sets.length, 0);
@@ -107,6 +110,7 @@ function SelectedWorkout({ day, unit, index, count, onSelect }: {
           onClick={() => { if (index < count - 1) onSelect(index + 1); }}><ChevronRight size={18} aria-hidden="true"/></button>
       </div>}
     </div>
+    <div className="selected-workout-data" ref={setsRef}>
     {day.workouts.map(record => <section className="selected-workout-session" key={record.session.id}>
       <h4>{record.session.workout.name}</h4>
       <ol className="selected-workout-sets">
@@ -126,6 +130,7 @@ function SelectedWorkout({ day, unit, index, count, onSelect }: {
         {estimate !== null && <div><dt>Top-set estimated 1RM</dt><dd>{number(fromKg(estimate, unit))} {unit}</dd></div>}
       </> : <div><dt>Logged sets</dt><dd>{setCount}</dd></div>}
     </dl>
+    </div>
   </section>;
 }
 

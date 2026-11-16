@@ -127,10 +127,10 @@ export function MovementChart({ series, days, unit, selected, onSelect }: Moveme
           const x = positions[i], cy = y(values[i]), active = i === index;
           const gapToNeighbour = Math.min(x - (positions[i - 1] ?? -Infinity), (positions[i + 1] ?? Infinity) - x);
           const dense = gapToNeighbour < 11;
-          const mark = <>
+          const mark = <g className={onSelect && active ? 'movement-point-depth' : undefined}>
             {active && <circle cx={x} cy={cy} r={9} className="movement-ring"/>}
             <circle cx={x} cy={cy} r={active ? 5 : dense ? 1.7 : 3.5} className={active ? 'movement-dot is-selected' : dense ? 'movement-dot is-dense' : 'movement-dot'}/>
-          </>;
+          </g>;
           if (!onSelect) return <g key={day.date} aria-hidden="true">{mark}</g>;
           const hitStart = i === 0 ? 0 : (positions[i - 1] + x) / 2;
           const hitEnd = i === days.length - 1 ? width : (x + positions[i + 1]) / 2;
