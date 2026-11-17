@@ -2208,28 +2208,6 @@ input:focus,select:focus,textarea:focus {
 }
 
 @media(min-width:1100px) {
-  .journey-dashboard {
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:28px
-  }
-
-  .journey-intro,.exercise-explore,.journey-dashboard>section:last-child {
-    grid-column:1/-1
-  }
-
-  .journey-dashboard>.exercise-explore {
-    margin:0
-  }
-
-  .journey-dashboard>section:nth-of-type(2) {
-    grid-column:1/-1
-  }
-
-  .journey-dashboard>section:nth-of-type(3) {
-    grid-column:1/-1
-  }
-
   .support-grid {
     grid-template-columns:repeat(2,minmax(0,1fr))
   }
@@ -3361,7 +3339,7 @@ input:focus,select:focus,textarea:focus {
 }
 
 @media(min-width:761px) {
-  .app-shell[data-page=settings]>main {
+  .app-shell[data-page=settings] .app-content > main {
     max-width:680px;
   }
 }

@@ -11,7 +11,7 @@ function exportRecovered(store: Store, index: number) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function SyncPanel({persistence:p,actions=false}:{persistence:ReturnType<typeof useTrainingStore>;actions?:boolean}) {
+export function SyncPanel({persistence:p,actions=false,compact=false}:{persistence:ReturnType<typeof useTrainingStore>;actions?:boolean;compact?:boolean}) {
   const [cloudSession,setCloudSession]=useState<{signedIn:boolean;localDevelopment:boolean}>();
   const [signingOut,setSigningOut]=useState(false);
   const [authMessage,setAuthMessage]=useState('');
@@ -76,6 +76,7 @@ export function SyncPanel({persistence:p,actions=false}:{persistence:ReturnType<
     void navigator.serviceWorker.register('/sw.js').catch(()=>{});
   },[]);
   const signedOut=needsSignIn||cloudSession?.signedIn===false;
+  if(compact&&(p.status==='synced'||p.status==='syncing'))return null;
   return <>
     <div className="sync-strip">
       <span aria-live="polite" title={p.syncError}>{labels[p.status]}</span>

@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronRight, Dumbbell, Plus, Download, Upload, Search, Trash2, Scale, TrendingUp, ArrowUpRight, CalendarDays, Footprints } from './icons';
+import { ArrowRight, ChevronRight, Settings2, Dumbbell, Plus, Download, Upload, Search, Trash2, Scale, TrendingUp, ArrowUpRight, CalendarDays, Footprints } from './icons';
 import { WORKOUTS, DAY_NAMES, FIXED_WORKOUT_WEEK, fixedWorkoutForDay, weekEffort, workoutForDay, type Exercise, type Workout } from './data';
 import { completeSession, sessionLabel, dateLabel, doneSets, fromKg, localDate, number, volume, bodyAverages, bodyGuidance, type BodyEntry, type Session, type Store, type Settings } from './model';
 import { Empty, Modal } from './components';
 import { BodyweightChart } from './body-chart';
-import { trainingJourney, volumeDistribution } from './progress-data';
-import { WeeklyChart, type TrainingRange } from './progress-charts';
+import { calendarDay, dateFromDay, mondayOf, trainingJourney, volumeDistribution } from './progress-data';
+import { TrainingRangeSelect, WeeklyChart, fullDate, type TrainingRange } from './progress-charts';
 import { motionPreference, useContentFade } from './motion';
 import { MobilityGuide } from './technique-demo';
 import { MuscleVolume } from './muscle-volume';
@@ -209,35 +209,84 @@ export function Plan({store,day,onDay,workout,onStart,onResume,onOptions,onWarmu
     </div><details className="programme-resources"><summary>Preparation & guidance</summary><div className="guide-actions">{!!workout?.exercises.length&&<button className="secondary" onClick={onWarmup}>Warm-up</button>}<button className="secondary" onClick={onGuide}>Training guide</button></div><button className="text-button full-width" onClick={onUrgent}>Back pain: urgent help</button></details>
   </>;
 }
-export function History({store,onDetail,onStart}:{store:Store;onDetail:(s:Session)=>void;onStart:()=>void}) {
-  const [search,setSearch]=useState(''),[filter,setFilter]=useState('all');
-  const [status,setStatus]=useState('all'),[from,setFrom]=useState(''),[to,setTo]=useState('');
-  const currentYear=localDate().slice(0,4);
-  const sessions=store.sessions.filter(s=>(filter==='all'||filter===s.workoutId)&&
-    (status==='all'||completeSession(s)===(status==='complete'))&&(!from||s.date>=from)&&(!to||s.date<=to)&&[s.workout.name,s.date,s.note,sessionLabel(s),...s.exercises.map(e=>e.name+' '+e.note)].join(' ').toLowerCase().includes(search.trim().toLowerCase()));
-  const dates=[...new Set(sessions.map(s=>s.date))].sort((a,b)=>b.localeCompare(a));
-  return <><div className="filter-bar"><label className="search-field"><Search size={18}/><input aria-label="Search workout history" placeholder="Search workouts" value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Filter workout history" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All workouts</option>{WORKOUTS.filter(w=>w.category!=='recovery').map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-    <div className="history-filters">
-      <label>Status<select value={status} onChange={event=>setStatus(event.target.value)}><option value="all">All statuses</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
-      <label>From<input type="date" value={from} onChange={event=>setFrom(event.target.value)}/></label>
-      <label>To<input type="date" value={to} onChange={event=>setTo(event.target.value)}/></label>
+export const emptyHistory = { query:'', workout:'', status:'', from:'', to:'' };
+export type HistoryFilters = typeof emptyHistory;
+
+export function History({store,filters,onFilters,onDetail,onStart}:{
+  store:Store; filters:HistoryFilters; onFilters:(filters:HistoryFilters)=>void; onDetail:(s:Session)=>void; onStart:()=>void;
+}) {
+  const [draft,setDraft]=useState<HistoryFilters>();
+  const today=localDate();
+  const query=filters.query.trim().toLowerCase();
+  const workouts=new Map(WORKOUTS.filter(workout=>workout.category!=='recovery').map(workout=>[workout.id,workout.name]));
+  const weeks=new Map<string,Session[]>();
+  for(const session of [...store.sessions].sort((a,b)=>b.date.localeCompare(a.date)||b.startedAt-a.startedAt||a.id.localeCompare(b.id))){
+    workouts.set(session.workoutId,session.workout.name);
+    if((filters.workout&&filters.workout!==session.workoutId)||
+      (filters.status&&completeSession(session)!==(filters.status==='complete'))||
+      (filters.from&&session.date<filters.from)||(filters.to&&session.date>filters.to)||
+      ![session.workout.name,session.date,session.note,sessionLabel(session),...session.exercises.map(exercise=>exercise.name+' '+exercise.note)].join(' ').toLowerCase().includes(query))continue;
+    const week=mondayOf(session.date);
+    const rows=weeks.get(week)??[];
+    rows.push(session);
+    weeks.set(week,rows);
+  }
+  const chips=[
+    {label:workouts.get(filters.workout),reset:{workout:''}},
+    {label:filters.status?(filters.status==='complete'?'Complete':'Partial'):'',reset:{status:''}},
+    {label:[filters.from&&fullDate(filters.from),filters.to&&fullDate(filters.to)].filter(Boolean).join(' – '),reset:{from:'',to:''}},
+  ].filter(chip=>chip.label);
+  const count=[...weeks.values()].reduce((total,rows)=>total+rows.length,0);
+  return <div className="progress-history">
+    <div className="directory-controls"><label className="search-field"><Search size={18}/><input type="search" aria-label="Search workout history" placeholder="Search workouts" value={filters.query} onChange={event=>onFilters({...filters,query:event.target.value})}/></label>
+      <button className="secondary" onClick={()=>setDraft(filters)}><Settings2 size={16}/>Filters{chips.length>0&&` (${chips.length})`}</button>
     </div>
-    {!dates.length?<Empty title={store.sessions.length?'No matching workouts':'No workouts yet'} text="Saved workouts appear here." action={<button className="primary" onClick={onStart}>View programme<ArrowRight size={17}/></button>}/>:<div className="history-list">{dates.map(date=>{const rows=sessions.filter(s=>s.date===date).sort((a,b)=>b.startedAt-a.startedAt);return <section key={date}><h2 className="date-heading">{dateLabel(date,{weekday:'short',day:'numeric',month:'short',year:date.startsWith(currentYear)?undefined:'numeric'})}</h2><div className="list-card">{rows.map(s=>{const label=sessionLabel(s);return <button className="history-row" key={s.id} onClick={()=>onDetail(s)}><span className="history-icon"><Dumbbell size={20}/></span><span className="history-main"><strong>{s.workout.name}</strong><small>{label && label+' · '}{completeSession(s)?'Complete':'Partial'}{rows.length>1&&' · '+new Date(s.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}<br/>{doneSets(s)} sets · {number(fromKg(volume(s),store.settings.unit),0)} {store.settings.unit} × reps volume</small></span><ChevronRight size={18}/></button>;})}</div></section>;})}</div>}
-  </>;
+    {chips.length>0&&<div className="history-chips">{chips.map(({label,reset})=><button key={label} className="small-button" aria-label={`Remove filter ${label}`} onClick={()=>onFilters({...filters,...reset})}>{label} ×</button>)}</div>}
+    <p className="exercise-result-count" role="status">{count} {count===1?'workout':'workouts'}</p>
+    {!count?<Empty title={store.sessions.length?'No matching workouts':'No workouts yet'} text={store.sessions.length?'Try a different search or date range.':'Saved workouts appear here.'} action={store.sessions.length?
+      <button className="secondary" onClick={()=>onFilters(emptyHistory)}>Clear filters</button>:<button className="primary" onClick={onStart}>View programme<ArrowRight size={17}/></button>}/>:
+      <div className="history-list">{[...weeks].map(([week,rows])=><section key={week}>
+        <h2 className="date-heading">{dateLabel(week)} – {fullDate(dateFromDay(calendarDay(week)+6))} · {rows.length} {rows.length===1?'workout':'workouts'}</h2>
+        <div className="list-card">{rows.map(session=>{
+          const {workout}=session;
+          const monogram=workout.name.split(/\s+/).slice(0,2).map(part=>part[0]).join('');
+          const date=dateLabel(session.date,{weekday:'short',day:'numeric',month:'short'});
+          const duplicated=rows.filter(row=>row.date===session.date).length>1;
+          const tags=[sessionLabel(session),!completeSession(session)&&'Partial',workout.optional&&'Optional'].filter(Boolean);
+          return <button className="history-row" data-session-id={session.id} key={session.id} onClick={()=>onDetail(session)}>
+            <span className="history-icon" data-split={workout.label} aria-hidden="true">{monogram}</span>
+            <span className="history-main"><strong>{workout.name}</strong><small>{date}{duplicated&&' · '+new Date(session.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}{tags.length>0&&' · '+tags.join(' · ')}</small>
+            <small>{doneSets(session)} sets · {number(fromKg(volume(session),store.settings.unit),0)} {store.settings.unit} × reps</small></span><ChevronRight size={18} aria-hidden="true"/>
+          </button>;
+        })}</div>
+      </section>)}</div>}
+    {draft&&<Modal portal variant="sheet" title="Filter workouts" onClose={()=>setDraft(undefined)}>
+      <form className="history-filter-form" onSubmit={event=>{event.preventDefault();onFilters({...draft,query:filters.query});setDraft(undefined);}}>
+        <label>Workout<select value={draft.workout} onChange={event=>setDraft({...draft,workout:event.target.value})}><option value="">All workouts</option>{[...workouts].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+        <label>Status<select value={draft.status} onChange={event=>setDraft({...draft,status:event.target.value})}><option value="">All statuses</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
+        <div className="history-date-presets" role="group" aria-label="Date presets">{[
+          {label:'Any date',from:'',to:''},
+          {label:'This week',from:mondayOf(today),to:today},
+          {label:'This month',from:today.slice(0,7)+'-01',to:today},
+        ].map(({label,from,to})=><button key={label} type="button" className="small-button" aria-pressed={draft.from===from&&draft.to===to} onClick={()=>setDraft({...draft,from,to})}>{label}</button>)}</div>
+        <div className="history-date-fields"><label>From<input type="date" value={draft.from} max={draft.to||undefined} onChange={event=>setDraft({...draft,from:event.target.value})}/></label>
+        <label>To<input type="date" value={draft.to} min={draft.from||undefined} onChange={event=>setDraft({...draft,to:event.target.value})}/></label></div>
+        <button type="submit" className="primary">Apply filters</button>
+      </form>
+    </Modal>}
+  </div>;
 }
 export type ProgressMetric='volume'|'body';
-export function ProgressDetail({store,segment,initialVolumeView,onBody,onEditBody,onDeleteBody,onStart}:{store:Store;segment:ProgressMetric;initialVolumeView?:'muscles';onBody:()=>void;onEditBody:(entry:BodyEntry)=>void;onDeleteBody:(id:string)=>void;onStart:()=>void}) {
-  const [range,setRange]=useState<TrainingRange>('recent'),[deleteBody,setDeleteBody]=useState<string|null>(null),[nutrition,setNutrition]=useState(false);
+export function ProgressDetail({store,segment,initialVolumeView,initialRange,onBody,onEditBody,onDeleteBody,onStart}:{store:Store;segment:ProgressMetric;initialVolumeView?:'muscles';initialRange?:TrainingRange;onBody:()=>void;onEditBody:(entry:BodyEntry)=>void;onDeleteBody:(id:string)=>void;onStart:()=>void}) {
+  const [range,setRange]=useState<TrainingRange>(initialRange??'recent'),[deleteBody,setDeleteBody]=useState<string|null>(null),[nutrition,setNutrition]=useState(false);
   const [volumeView,setVolumeView]=useState<'trend'|'muscles'>(initialVolumeView??'trend');
   const journey=segment==='volume'?trainingJourney(store):null;
-  const sessions=journey?.sessions.filter(session=>range==='all'||session.date>=journey.recentWeeks[0].date&&session.date<=localDate())??[];
+  const sessions=journey?.sessions.filter(session=>range==='all'||session.date>=journey.recentWeeks[range==='short'?4:0].date&&session.date<=localDate())??[];
   const unit=store.settings.unit,body=[...store.body].sort((a,b)=>a.date.localeCompare(b.date)),averages=bodyAverages(body);
   return <>
     {segment==='body'&&<><div className="progress-toolbar"><button className="small-button" onClick={onBody}><Plus size={16}/>Log bodyweight</button></div><section className="chart-panel bodyweight-panel"><h2>Bodyweight trend</h2><BodyweightChart body={body} unit={unit}/></section></>}
     {journey&&<>
-      <div className="progress-toolbar"><select aria-label="Insights date range" value={range} onChange={event=>setRange(event.target.value as TrainingRange)}>
-        <option value="recent">Last 8 weeks</option><option value="all">All time</option>
-      </select></div>
+      <div className="progress-toolbar"><TrainingRangeSelect range={range} onRange={setRange}/></div>
       <div className="volume-detail-switch" role="group" aria-label="Volume views">
         <button className="small-button" aria-pressed={volumeView==='trend'} onClick={()=>setVolumeView('trend')}>Weekly trend</button>
         <button className="small-button" aria-pressed={volumeView==='muscles'} onClick={()=>setVolumeView('muscles')}>By muscle</button>

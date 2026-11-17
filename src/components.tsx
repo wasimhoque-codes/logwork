@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { X, ChevronLeft, Dumbbell, MoveUpRight, Footprints, Activity, Flame, Heart, ArrowUpRight } from './icons';
 import type { Exercise } from './data';
@@ -23,7 +24,7 @@ function historyRowInset(overlay: HTMLElement, row: HTMLElement | null) {
     return `inset(${top - frame.top}px ${frame.right - right}px ${frame.bottom - bottom}px ${left - frame.left}px round 14px)`;
 }
 
-export function Modal({ title, children, onClose, wide = false, variant = 'dialog', expandFromHistory = false, dismissDisabled=false }: {
+export function Modal({ title, children, onClose, wide = false, variant = 'dialog', expandFromHistory = false, dismissDisabled=false, portal=false }: {
     title: string;
     children: ReactNode;
     onClose: () => void;
@@ -31,6 +32,7 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
     variant?: 'dialog' | 'sheet' | 'page';
     expandFromHistory?: boolean;
     dismissDisabled?: boolean;
+    portal?: boolean;
 }) {
     const historySurfaceRef = useRef<HTMLDivElement>(null);
     const backdropRef = useRef<HTMLDivElement>(null);
@@ -76,6 +78,9 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
     }, [closing, finishDismiss]);
     useLayoutEffect(() => {
         const previous = returnFocus.current;
+        const app = portal ? document.querySelector<HTMLElement>('.app-shell') : null;
+        const appWasInert = app?.inert ?? false;
+        if (app) app.inert = true;
         const getFocusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex="0"], summary') ?? []).filter(e => !e.hasAttribute('disabled') && !e.closest('[inert]') && e.getClientRects().length > 0);
         if (!ref.current?.contains(document.activeElement)) getFocusable()[0]?.focus({ preventScroll: true });
         const handler = (e: KeyboardEvent) => {
@@ -99,8 +104,8 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
         const preference = motionPreference();
         const onPreference = () => { if (preference.matches && closingRef.current) finishDismiss(); };
         preference.addEventListener('change', onPreference);
-        return () => { preference.removeEventListener('change', onPreference); document.body.style.overflow = oldOverflow; document.removeEventListener('keydown', handler); if (previous?.isConnected) previous.focus({preventScroll:true}); };
-    }, [dismiss, finishDismiss]);
+        return () => { if (app) app.inert = appWasInert; preference.removeEventListener('change', onPreference); document.body.style.overflow = oldOverflow; document.removeEventListener('keydown', handler); if (previous?.isConnected) previous.focus({preventScroll:true}); };
+    }, [dismiss, finishDismiss, portal]);
     useLayoutEffect(() => {
         const surface = historySurfaceRef.current;
         if (!surface || reducedMotion() || !CSS.supports('clip-path', 'inset(0 round 0px)')) return;
@@ -117,12 +122,13 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
         <div ref={backdropRef} className="modal-backdrop" aria-hidden="true" onAnimationEnd={e=>{if(closing&&e.animationName==='overlay-out')finishDismiss();}}/>
         <div className={`modal ${wide ? 'modal-wide' : ''} ${variant === 'sheet' ? 'modal-sheet' : variant === 'page'?'modal-page':''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading">{variant==='page'?<><button className="icon-button" aria-label="Back to previous screen" disabled={dismissDisabled} onClick={dismiss}><ChevronLeft size={22}/></button><h2>{title}</h2></>:<><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" disabled={dismissDisabled} onClick={dismiss}><X size={20}/></button></>}</div>{children}</div>
     </>;
-    return <div className={`modal-overlay ${variant === 'sheet' ? 'sheet-overlay' : variant === 'page'?'page-overlay':''}`} data-state={closing?'closing':'open'}
+    const overlay = <div className={`modal-overlay ${variant === 'sheet' ? 'sheet-overlay' : variant === 'page'?'page-overlay':''}`} data-state={closing?'closing':'open'}
         onClickCapture={e=>{if(closingRef.current){e.preventDefault();e.stopPropagation();}}}
         onSubmitCapture={e=>{if(closingRef.current){e.preventDefault();e.stopPropagation();}}}
         onClick={e=>{if(e.target===e.currentTarget||e.target===historySurfaceRef.current)dismiss();}}>
         {expandFromHistory ? <div className="history-modal-surface" ref={historySurfaceRef}>{content}</div> : content}
     </div>;
+    return portal || variant==='page' ? createPortal(overlay,document.body) : overlay;
 }
 export function Empty({ title, text, icon = 'activity', action }: {
     title: string;

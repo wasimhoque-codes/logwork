@@ -38,33 +38,33 @@ async function openGrid(page: Page) { await page.getByRole('tab', { name: 'Exerc
 async function openKey(page: Page, key: string) { await page.locator('[data-exercise-key]').evaluateAll((nodes, key) => (nodes.find(n => (n as HTMLElement).dataset.exerciseKey === key) as HTMLButtonElement)?.click(), key); }
 test('Overview stays focused and Exercises shows every recorded identity alphabetically', async ({ page }) => {
   const store = fixture(); await seed(page, store);
-  await expect(page.locator('.journey-stat').first()).toContainText('3');
+  await expect(page.locator('.lifetime-totals dd').first()).toContainText('3');
   await expect(page.locator('.journey-lift,.spotlight-card')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Training volume', exact: true }).click(); await expect(page.getByRole('group', { name: /^Weekly kg/ })).toBeVisible();
+  await page.getByRole('button', { name: 'External-load volume', exact: true }).click(); await expect(page.getByRole('group', { name: /^Weekly kg/ })).toBeVisible();
   await openGrid(page); await expect(page).toHaveURL(/#progress\/exercises$/);
   await expect(page.locator('.exercise-tile')).toHaveCount(movementSeries(store.sessions).length);
   await page.getByLabel('Sort exercises').selectOption('alphabetical');
-  const names = await page.locator('.exercise-tile h3').allTextContents(); expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  const names = await page.locator('.directory-name strong').allTextContents(); expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
   await expect(page.locator('.exercise-tile .exercise-metrics,.exercise-tile .lift-role,.exercise-tile-footer,.exercise-tile .journey-legend')).toHaveCount(0);
   await expect(page.locator('.exercise-tile').first().locator('.exercise-tile-change')).toHaveText('1 recorded date');
   await expect(page.locator('.exercise-tile p').getByText('Basic', {exact:true})).toHaveCount(0);
   await expect(page.locator('.exercise-tile').first().getByText('Latest set', {exact:true})).toHaveCount(0);
-  await expect(page.locator('.exercise-tile').first().getByRole('img')).toBeVisible();
+  await expect(page.locator('.exercise-tile').first().getByRole('img')).toHaveCount(0);
   await expect(page.locator('.exercise-tile').first().locator('svg [role=button]')).toHaveCount(0);
   await page.getByRole('tab', { name: /History/ }).click(); await expect(page.locator('.history-row')).toHaveCount(3);
 });
 test('search, role filters, clear and detail return preserve place and focus', async ({ page }) => {
   await seed(page, fixture()); await openGrid(page);
-  await page.getByRole('button', { name: 'Main', exact: true }).click(); await page.getByLabel('Search exercises').fill('Basic');
-  const trigger = page.getByRole('button', { name: /View details for/ }).last(); await trigger.scrollIntoViewIfNeeded(); const scroll = await page.evaluate(() => scrollY), name = await trigger.getAttribute('aria-label');
+  await page.getByLabel('Exercise role').selectOption('main'); await page.getByLabel('Search exercises').fill('Basic');
+  const trigger = page.getByRole('button', { name: /View details for/ }).last(); await trigger.scrollIntoViewIfNeeded(); const scroll = await page.evaluate(() => matchMedia('(max-width:760px)').matches ? document.querySelector('.app-content')!.scrollTop : scrollY), name = await trigger.getAttribute('aria-label');
   await trigger.click(); await expect(page.locator('.exercise-detail')).toBeVisible(); await expect(page.getByLabel('Select exercise for strength chart')).toHaveCount(0);
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
-  await expect(page.getByLabel('Search exercises')).toHaveValue('Basic'); await expect(page.getByRole('button', { name: 'Main', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: name! })).toBeFocused(); await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
+  await expect(page.getByLabel('Search exercises')).toHaveValue('Basic'); await expect(page.getByLabel('Exercise role')).toHaveValue('main');
+  await expect(page.getByRole('button', { name: name! })).toBeFocused(); await expect.poll(() => page.evaluate(() => matchMedia('(max-width:760px)').matches ? document.querySelector('.app-content')!.scrollTop : scrollY)).toBeCloseTo(scroll, 0);
   await trigger.click(); await page.goBack(); await expect(page.getByLabel('Search exercises')).toHaveValue('Basic');
   await expect(page.getByRole('button', { name: name! })).toBeFocused();
   await page.getByRole('tab', { name: /History/ }).evaluate(el => (el as HTMLButtonElement).click()); await openGrid(page); await expect(page.getByRole('tab', { name: 'Exercises', exact: true })).toBeFocused();
-  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
+  await expect.poll(() => page.evaluate(() => matchMedia('(max-width:760px)').matches ? document.querySelector('.app-content')!.scrollTop : scrollY)).toBeCloseTo(scroll, 0);
   await page.getByLabel('Search exercises').fill('not found'); await expect(page.getByRole('heading', { name: 'No matching exercises' })).toBeVisible();
   await page.getByRole('button', { name: 'Clear filters' }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
 });
@@ -76,7 +76,7 @@ test('interactive details preserve exact identity on reload and support keyboard
   await expect(page.locator('.exercise-detail .exercise-metrics')).toContainText('Peak load');
   const points = page.locator('[data-point]'); await expect(points).toHaveCount(2); await points.last().focus(); await page.keyboard.press('Home'); await expect(points.first()).toBeFocused();
   await expect(page.locator('.selected-workout')).toContainText('26 Oct 2026'); await page.keyboard.press('End'); await expect(page.locator('.selected-workout')).toContainText('2 Nov 2026');
-  await page.getByRole('button', { name: 'Browse exercises', exact: true }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
+  await page.getByRole('button', { name: 'Go back', exact: true }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
 });
 test('Overview includes inline bodyweight and all-time volume across attempts', async ({ page }) => {
   const store = fixture();
@@ -85,11 +85,11 @@ test('Overview includes inline bodyweight and all-time volume across attempts', 
   await expect(page.locator('.body-chart-latest')).toContainText('62.0 kg');
   await expect(page.getByText('Workout feedback', { exact: true })).toHaveCount(0);
   const distribution = volumeDistribution(store.sessions);
-  await expect(page.locator('.volume-overview .distribution-row').filter({ hasText: 'Upper body' })).toContainText('2 sessions');
-  await page.getByRole('button', { name: 'By muscle', exact: true }).click();
+  await expect(page.locator('.volume-split-labels')).toContainText('Upper body');
+  await page.getByRole('button', { name: 'Training volume', exact: true }).click();
   const muscles = page.locator('.muscle-breakdown');
-  await expect(muscles).toContainText('Last 8 weeks');
-  await page.getByLabel('Insights date range').selectOption('all');
+  await expect(muscles).toContainText('All time');
+  await expect(page.getByLabel('Weekly date range')).toHaveValue('all');
   await page.getByRole('button',{name:'External-load volume',exact:true}).click();
   const chest = distribution.muscles.find(muscle => muscle.label === 'Chest')!;
   await expect(muscles.locator('.distribution-row').filter({ hasText: 'Chest' })).toContainText(chest.volume.toLocaleString('en-GB', { maximumFractionDigits: 2 }) + ' kg × reps');
@@ -98,7 +98,7 @@ test('old links and latest-five comparisons survive new attempts and mixed worko
   const store = fixture(), first = structuredClone(store.sessions[0]), lower = structuredClone(store.sessions[1]); store.sessions = [];
   for (let i = 0; i < 7; i++) { const s = structuredClone(first); s.id = 'old-' + i; s.date = i === 0 ? '2025-01-01' : `2026-10-0${i + 1}`; s.startedAt = Date.parse(s.date + 'T10:00:00Z'); s.endedAt = s.startedAt + 60000; s.exercises.forEach(log => log.sets.forEach(set => set.weight = log.mode === 'bodyweight' ? 0 : 10 + i * 5)); store.sessions.push(s); const mixed = structuredClone(lower); mixed.id = 'lower-' + i; mixed.date = s.date; mixed.startedAt = s.startedAt + 3600000; mixed.endedAt = mixed.startedAt + 60000; store.sessions.push(mixed); }
   const alternate = structuredClone(store.sessions[0]); alternate.id = 'other'; Object.assign(alternate.workout.exercises[0], { setup: 'Different bench' }); store.sessions.push(alternate);
-  await seed(page, validateStore(reviewWeek(store, 'repeat'))); await expect(page.locator('.journey-subtitle')).toContainText('1 Jan 2025'); await openGrid(page);
+  await seed(page, validateStore(reviewWeek(store, 'repeat'))); await expect(page.locator('.volume-overview .muted')).toContainText('1 Jan 2025'); await openGrid(page);
   await expect(page.locator('.exercise-tile')).toHaveCount(14);
   const legacyKey = JSON.parse(exerciseKey(first.workout.exercises[0], first.exercises[0].mode));
   legacyKey.splice(2, 0, 'different bench');
@@ -108,14 +108,14 @@ test('old links and latest-five comparisons survive new attempts and mixed worko
   await expect(page.locator('.selected-workout h3')).toHaveText('7 Oct 2026');
   await page.getByRole('button', { name: 'Previous date', exact: true }).click();
   await expect(page.locator('.selected-workout h3')).toHaveText('6 Oct 2026');
-  await page.getByRole('button', { name: 'All history', exact: true }).click();
+  await page.getByLabel('Chart date range').selectOption('all');
   await expect(points).toHaveCount(7);
   await expect(page.locator('.selected-workout h3')).toHaveText('6 Oct 2026');
   if (isMobile) await points.first().tap();
   else await points.first().click();
   await expect(page.locator('.selected-workout h3')).toHaveText('1 Jan 2025');
   await expect(page.getByRole('button', { name: 'Previous date', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Latest five', exact: true }).click();
+  await page.getByLabel('Chart date range').selectOption('recent');
   await expect(page.locator('.selected-workout h3')).toHaveText('7 Oct 2026');
   await expect(page.getByRole('button', { name: 'Next date', exact: true })).toBeDisabled();
   await expect(page.locator('.exercise-metrics')).toContainText('+30 kg load');
@@ -126,13 +126,13 @@ test('assistance, bodyweight and timed bests retain paired reps and workload uni
   await seed(page, validateStore(store)); await openGrid(page); await openKey(page, exerciseKey(session.workout.exercises[0], session.exercises[0].mode));
   await expect(page.locator('.selected-workout')).toContainText('10 kg assist × 4 reps'); await expect(page.locator('.exercise-metrics')).toContainText('Least assistance'); await expect(page.locator('.selected-workout-stats dt')).toHaveText('Logged sets');
   await page.getByRole('button', { name: 'Go back', exact: true }).click(); const index = session.workout.exercises.findIndex(ex => ex.timed); await openKey(page, exerciseKey(session.workout.exercises[index], session.exercises[index].mode));
-  await expect(page.locator('.selected-workout')).toContainText('40 sec / side'); await expect(page.locator('.exercise-metrics')).toContainText('Longest hold');
+  await expect(page.locator('.selected-workout')).toContainText('40s / side'); await expect(page.locator('.exercise-metrics')).toContainText('Longest hold');
 });
 test('offline reload preserves units, recorded identities and storage', async ({ page, context }) => {
-  const store = fixture(); await seed(page, store); await openGrid(page); await page.getByLabel('Progress weight unit').selectOption('lb');
+  const store = fixture(); await seed(page, store); await openGrid(page); await page.getByRole('button',{name:'Open settings',exact:true}).click(); await page.getByRole('button',{name:'lb',exact:true}).click(); await page.getByRole('button',{name:'Go back',exact:true}).click();
   await expect(page.locator('.exercise-tile').filter({ hasText: 'Chest-Supported Machine Row' })).toContainText('38.58 lb');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
-  await context.setOffline(true); await page.reload(); await expect(page.locator('.exercise-tile')).toHaveCount(14); await expect(page.getByLabel('Progress weight unit')).toHaveValue('lb');
+  await context.setOffline(true); await page.reload(); await expect(page.locator('.exercise-tile')).toHaveCount(14); await expect(page.locator('.exercise-directory')).toContainText('lb');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('gym-hawk-v4')!)); expect({ ...stored, settings: store.settings }).toEqual(store);
   await page.getByRole('button', { name: /^View details for Chest-Supported Machine Row/ }).click();
   await expect(page.locator('.exercise-latest')).toContainText('38.58 lb');
@@ -149,16 +149,16 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
       if (state === 'empty') await expect(page.getByRole('heading', { name: 'Your exercise progress starts here' })).toBeVisible();
       await page.screenshot({ path: path.join(directory, `${state}-${width}.png`), fullPage: true });
       if (state === 'populated') {
-        const tiles = await page.locator('.exercise-tile').evaluateAll(nodes => nodes.map(n => ({ name: n.querySelector('h3')?.textContent, height: n.getBoundingClientRect().height })));
+        const tiles = await page.locator('.exercise-tile').evaluateAll(nodes => nodes.map(n => ({ name: n.querySelector('.directory-name strong')?.textContent, height: n.getBoundingClientRect().height })));
         await fs.writeFile(path.join(directory, `heights-${width}.json`), JSON.stringify(tiles));
-        if (width <= 390) expect(Math.max(...tiles.map(t => t.height))).toBeLessThanOrEqual(380);
-        if (width === 390) expect(tiles.reduce((sum, tile) => sum + tile.height, 0) / tiles.length).toBeLessThanOrEqual(340);
+        if (width <= 390) expect(Math.max(...tiles.map(t => t.height))).toBeLessThanOrEqual(120);
+        if (width === 390) expect(tiles.reduce((sum, tile) => sum + tile.height, 0) / tiles.length).toBeLessThanOrEqual(76);
       }
       const targets = await page.locator('main button,header button,header select,[role=tab]').evaluateAll(nodes => nodes.filter(n => n.getClientRects().length > 0).map(n => { const b = n.getBoundingClientRect(); return { text: n.textContent, w: b.width, h: b.height }; })); expect(targets.filter(t => t.w < 43.5 || t.h < 43.5)).toEqual([]);
     }
     await replaceLocal(page, store); await page.reload(); await page.getByRole('button', { name: /View details for/ }).first().click(); await settled(page); await noOverflow(page); await page.screenshot({ path: path.join(directory, `detail-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Go back', exact: true }).click(); await page.evaluate(() => document.documentElement.style.fontSize = '20px'); await noOverflow(page);
-    const last = page.locator('.comparison-help summary');
+    const last = page.locator('.exercise-directory-row').last();
     await last.scrollIntoViewIfNeeded();
     const caption = (await last.boundingBox())!, navigation = (await page.getByRole('navigation', { name: 'Main navigation' }).boundingBox())!;
     // Main navigation is a bottom dock on phones and a sidebar on desktop.
@@ -184,7 +184,7 @@ test('flat load shows rep gains and a shared date preserves all completed sets',
   await openGrid(page);
   const key = exerciseKey(first.workout.exercises[0], first.exercises[0].mode);
   const tile = page.locator('.exercise-tile').filter({ has: page.locator('[data-exercise-key]').and(page.getByRole('button', { name: new RegExp('^View details for ' + first.workout.exercises[0].name) })) });
-  await expect(tile.locator('.exercise-tile-change strong')).toHaveText('45 kg × 9 reps → 45 kg × 11 reps');
+  await expect(tile.locator('.exercise-tile-change')).toHaveText('+2 reps at 45 kg');
   await openKey(page, key);
   await expect(page.locator('[data-point]')).toHaveCount(2);
   await expect(page.locator('.movement-plot').getByText('9 reps', { exact: true })).toBeVisible();
@@ -225,7 +225,7 @@ for (const width of [320, 1440]) {
     const card = page.getByRole('region', { name: 'Exercise trend' });
     await noOverflow(page);
     await card.screenshot({ path: `artifacts/exercise-grid/recent-detail-${width}.png` });
-    await page.getByRole('button', { name: 'All history', exact: true }).click();
+    await page.getByLabel('Chart date range').selectOption('all');
     await expect(points).toHaveCount(24);
     await points.last().focus();
     await page.keyboard.press('ArrowLeft');
@@ -239,3 +239,36 @@ for (const width of [320, 1440]) {
     await card.screenshot({ path: `artifacts/exercise-grid/dense-detail-${width}.png` });
   });
 }
+
+test('History filters and both workout-to-exercise links preserve the selected workout', async ({ page }) => {
+  const store=fixture(), session=store.sessions.at(-1)!;
+  await seed(page,store);
+  await page.getByRole('tab',{name:'History',exact:true}).click();
+  await page.getByRole('button',{name:'Filters',exact:true}).click();
+  let dialog=page.getByRole('dialog');
+  await dialog.getByRole('combobox',{name:'Workout',exact:true}).selectOption(session.workoutId);
+  await dialog.getByRole('button',{name:'Apply filters'}).click();
+  await expect(page.getByRole('button',{name:'Filters (1)'})).toBeVisible();
+  const row=page.locator('.history-row').first();
+  await row.click();
+  dialog=page.getByRole('dialog');
+  await expect(dialog).toHaveCount(1);
+  await expect(page.locator('.bottom-nav')).toHaveAttribute('inert','');
+  expect(await page.evaluate(()=>document.elementFromPoint(5,innerHeight-5)?.closest('.page-overlay')!=null)).toBe(true);
+  const exercise=dialog.getByRole('button',{name:`View progress for ${session.exercises[0].name}`,exact:true});
+  await exercise.click();
+  await expect(dialog.getByRole('heading',{name:session.exercises[0].name,exact:true})).toBeVisible();
+  await expect(dialog.locator('.selected-workout h3')).toHaveText('2 Nov 2026');
+  await dialog.getByRole('combobox',{name:'Metric',exact:true}).selectOption('estimate');
+  await expect(dialog.locator('.exercise-latest')).toContainText('Estimated 1RM');
+  await dialog.getByRole('button',{name:'View workout',exact:true}).click();
+  await expect(dialog.getByRole('heading',{name:session.workout.name,exact:true})).toBeVisible();
+  await dialog.getByRole('button',{name:'Back to previous screen'}).click();
+  await expect(dialog.getByRole('button',{name:'View workout',exact:true})).toBeFocused();
+  await expect(dialog.getByRole('combobox',{name:'Metric',exact:true})).toHaveValue('estimate');
+  await dialog.getByRole('button',{name:'Back to previous screen'}).click();
+  await expect(exercise).toBeFocused();
+  await dialog.getByRole('button',{name:'Back to previous screen'}).click();
+  await expect(row).toBeFocused();
+  await expect(page.getByRole('button',{name:'Filters (1)'})).toBeVisible();
+});

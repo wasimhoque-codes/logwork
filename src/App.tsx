@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, Layers, ChartNoAxesCombined, Settings2, ChevronLeft, Clock3, Pause, Play, X } from './icons';
 import { fixedWorkoutForDay, fixedSetCount, variantsFor, SATURDAY_CORE, weekEffort, FIXED_WORKOUT_WEEK, type Exercise, type ExerciseChoice, type Workout } from './data';
 import { savedRaw, newSession, localDate, doneSets, validateStore, previousExercise, exerciseHistory, sessionResume, restSeconds, markSetSkipped, prefillExercise, exerciseKey, normalizeExerciseKey, workoutDateError, type BodyEntry, type Store, type Session, type SetLog, type ResumeState } from './model';
 import { Hawk, Modal, ModalTriggerContext } from './components';
-import { Today, Plan, History, ProgressDetail, SettingsScreen, type ProgressMetric } from './screens';
+import { Today, Plan, History, emptyHistory, ProgressDetail, SettingsScreen, type ProgressMetric } from './screens';
+import type { TrainingRange } from './progress-charts';
 import { movementSeries } from './progress-data';
 import { ProgressOverview } from './progress';
-import { ExerciseGrid, ExerciseProgressDetail, emptyExerciseGrid, type ExerciseGridState } from './exercise-progress';
+import { ExerciseGrid, ExerciseProgressDetail, emptyExerciseGrid, type ExerciseGridState, type ExerciseTrendSelection } from './exercise-progress';
 import { ExerciseDetails, OptionsModal, PreparationModal, TrainingGuide, UrgentHelp } from './programme-ui';
 import { WorkoutScreen } from './workout';
 import { ReviewWorkout, WorkoutSaved } from './flow';
@@ -16,6 +17,8 @@ import { useKeyboardViewport } from './keyboard-viewport';
 import { useTrainingStore } from './persistence/use-training-store';
 import { SyncPanel } from './persistence/sync-panel';
 import { resolvePage, pageTitles, type Page } from './routes';
+type DetailLocation = { scroll: number; focus?: string; trend?: ExerciseTrendSelection };
+type DetailView = ({ kind:'workout'; id:string } | { kind:'exercise'; key:string; name:string; date:string }) & { location?: DetailLocation };
 type Dialog='body'|'discard'|'restore'|'guide'|'urgent'|'warmup'|'options'|'knee-check'|null;
 const nav=[{id:'today',label:'Today',icon:LayoutDashboard},{id:'programme',label:'Programme',icon:Layers},{id:'progress',label:'Progress',icon:ChartNoAxesCombined}] as const;
 const progressTabs = [['progress','Overview'],['progress/exercises','Exercises'],['progress/history','History']] as const;
@@ -34,24 +37,109 @@ export default function App() {
   const openBody=()=>{setBodyToEdit(null);setDialog('body');};
   const [storageError,setStorageError]=useState('');
   const [page,setPage]=useState<Page>(()=>resolvePage(window.location.hash)),[selectedDay,setSelectedDay]=useState((new Date().getDay()+6)%7);
-  const [dialog,setDialog]=useState<Dialog>(null),[detail,setDetail]=useState<Session|null>(null),[previewExercise,setPreviewExercise]=useState<Exercise|null>(null),[pendingImport,setPendingImport]=useState<Store|null>(null),[toast,setToast]=useState('');
+  const [dialog,setDialog]=useState<Dialog>(null),[details,setDetails]=useState<DetailView[]>([]),[previewExercise,setPreviewExercise]=useState<Exercise|null>(null),[pendingImport,setPendingImport]=useState<Store|null>(null),[toast,setToast]=useState('');
   const navigationPage=useRef(page),freshSave=useRef<string|null>(null);
   const [savingSession,setSavingSession]=useState<Session|null>(null),[todayHandoff,setTodayHandoff]=useState<string|null>(null);
-  const [progressSelection,setProgressSelection]=useState<{exerciseKey?:string;volumeView?:'muscles'}>(()=>({exerciseKey:hashExercise()}));
+  const [progressSelection,setProgressSelection]=useState<{exerciseKey?:string;volumeView?:'muscles';range?:TrainingRange}>(()=>({exerciseKey:hashExercise()}));
+  const [overviewRange,setOverviewRange]=useState<TrainingRange>('recent');
+  const [historyFilters,setHistoryFilters]=useState(emptyHistory);
   const [exerciseGrid,setExerciseGrid]=useState<ExerciseGridState>({...emptyExerciseGrid});
   const [pendingWorkout,setPendingWorkout]=useState<Workout|null>(null),[kneeReady,setKneeReady]=useState(false),[savedId,setSavedId]=useState<string|null>(null),[now,setNow]=useState(Date.now());
   const uploadRef=useRef<HTMLInputElement>(null),settingsOrigin=useRef<Page>('today'),headingRef=useRef<HTMLHeadingElement>(null),mainRef=useRef<HTMLElement>(null),progressTabsRef=useRef<HTMLDivElement>(null),focusProgressTab=useRef(false);
-  const modalTriggerRef=useRef<HTMLElement>(null);
+  const contentRef=useRef<HTMLDivElement>(null),movementOrigin=useRef<Page>('progress/exercises');
+  const scrollPositions=useRef(new Map<Page,number>()),restorePageScroll=useRef(false);
+  const detailView=details.at(-1);
+  const detail=detailView?.kind==='workout'?store.sessions.find(session=>session.id===detailView.id):undefined;
+  const modalTriggerRef=useRef<HTMLElement>(null),detailTrigger=useRef<HTMLElement>(null);
   const progressTab=progressTabs.some(([id])=>id===page);
   useContentFade(mainRef,page,'page');
   useTabHighlight(progressTabsRef,page,progressTab&&persistence.ready);
   useKeyboardViewport();
-  const alert=useCallback((message:string)=>setToast(message),[]),closeDialog=useCallback(()=>setDialog(null),[]),closeDetail=useCallback(()=>setDetail(null),[]),closeExercise=useCallback(()=>setPreviewExercise(null),[]);
-  const go=useCallback((next:Page,exerciseKey?:string)=>{setTodayHandoff(null);if(next!=='workout/saved')freshSave.current=null;const gridScroll=window.scrollY;if(navigationPage.current==='progress/exercises'&&next!=='progress/exercises')setExerciseGrid(s=>({...s,scroll:gridScroll}));navigationPage.current=next;setProgressSelection({exerciseKey});setPage(next);window.location.hash=next+(exerciseKey?'?exercise='+encodeURIComponent(exerciseKey):'');if(next!=='progress/exercises')window.scrollTo({top:0,behavior:'instant'});},[]);
+  const alert=useCallback((message:string)=>setToast(message),[]),closeDialog=useCallback(()=>setDialog(null),[]),closeExercise=useCallback(()=>setPreviewExercise(null),[]);
+  const scrollPage=useCallback((top:number)=>{
+    if(contentRef.current)contentRef.current.scrollTop=top;
+    window.scrollTo({top,behavior:'instant'});
+  },[]);
+  const trackScroll=useCallback(()=>{
+    const scroll=contentRef.current?.dataset.dock==='true'&&window.matchMedia('(max-width:760px)').matches
+      ? contentRef.current.scrollTop : window.scrollY;
+    scrollPositions.current.set(navigationPage.current,scroll);
+  },[]);
+  const go=useCallback((next:Page,exerciseKey?:string,restore=false)=>{
+    setTodayHandoff(null);
+    if(next!=='workout/saved')freshSave.current=null;
+    if(next!==navigationPage.current){
+      trackScroll();
+      if(next==='progress/movement')movementOrigin.current=navigationPage.current;
+    }
+    restorePageScroll.current=restore;
+    navigationPage.current=next;
+    setProgressSelection({exerciseKey});
+    setPage(next);
+    setDetails([]);
+    window.location.hash=next+(exerciseKey?'?exercise='+encodeURIComponent(exerciseKey):'');
+    if(!restore)scrollPage(0);
+  },[scrollPage,trackScroll]);
+  function openDetail(view:DetailView,trend?:ExerciseTrendSelection){
+    if(!detailView)detailTrigger.current=modalTriggerRef.current;
+    const modal=document.querySelector<HTMLElement>('.page-overlay .modal-page');
+    const trigger=modal?.querySelector<HTMLElement>(':focus')??null;
+    setDetails(stack=>stack.length
+      ? [...stack.slice(0,-1),{...stack.at(-1)!,location:{scroll:modal?.scrollTop??0,focus:trigger?.dataset.detailFocus,trend}},view]
+      : [view]);
+  }
+  const openWorkoutDetail=(session:Session,trend?:ExerciseTrendSelection)=>openDetail({kind:'workout',id:session.id},trend);
+  const closeDetail=useCallback(()=>setDetails(stack=>stack.slice(0,-1)),[]);
+  useLayoutEffect(()=>{
+    if(!detailView){
+      const trigger=detailTrigger.current;
+      detailTrigger.current=null;
+      if(trigger?.isConnected)trigger.focus({preventScroll:true});
+      return;
+    }
+    const location=detailView.location;
+    if(!location)return;
+    const overlay=document.querySelector<HTMLElement>('.page-overlay .modal-page');
+    if(!overlay)return;
+    overlay.scrollTop=location.scroll;
+    [...overlay.querySelectorAll<HTMLElement>('[data-detail-focus]')].find(control=>control.dataset.detailFocus===location.focus)?.focus({preventScroll:true});
+  },[detailView]);
   const updateSession=useCallback((fn:(s:Session)=>Session)=>setStore(s=>s.active&&!setWrite.current?{...s,active:fn(s.active)}:s),[]);
   const updateResume=useCallback((patch:Partial<ResumeState>)=>updateSession(s=>({...s,resume:{...sessionResume(s),...patch}})),[updateSession]);
-  useEffect(()=>{const handler=()=>{const next=resolvePage(window.location.hash);if(navigationPage.current!==next){setTodayHandoff(null);if(next!=='workout/saved')freshSave.current=null;}if(navigationPage.current!==next||next==='progress/movement')setProgressSelection({exerciseKey:next==='progress/movement'?hashExercise():undefined});navigationPage.current=next;setPage(next);if(next!=='progress/movement'&&window.location.hash!=='#'+next)window.history.replaceState(null,'','#'+next);if(next!=='progress/exercises')window.scrollTo({top:0,behavior:'instant'});};handler();window.addEventListener('hashchange',handler);return()=>window.removeEventListener('hashchange',handler);},[]);
-  useEffect(()=>{if(focusProgressTab.current){focusProgressTab.current=false;progressTabsRef.current?.querySelector<HTMLElement>('[aria-selected=true]')?.focus({preventScroll:true});}else if(page!=='progress/exercises'||!exerciseGrid.focusKey)headingRef.current?.focus({preventScroll:true});},[page]);
+  useEffect(()=>{
+    const handler=()=>{
+      const next=resolvePage(window.location.hash);
+      if(navigationPage.current!==next){
+        trackScroll();
+        restorePageScroll.current=scrollPositions.current.has(next);
+        setTodayHandoff(null);
+        if(next!=='workout/saved')freshSave.current=null;
+        setProgressSelection({exerciseKey:next==='progress/movement'?hashExercise():undefined});
+        setDetails([]);
+      }else if(next==='progress/movement'){
+        setProgressSelection({exerciseKey:hashExercise()});
+      }
+      navigationPage.current=next;
+      setPage(next);
+      if(next!=='progress/movement'&&window.location.hash!=='#'+next)window.history.replaceState(null,'','#'+next);
+    };
+    handler();
+    window.addEventListener('hashchange',handler);
+    return()=>window.removeEventListener('hashchange',handler);
+  },[trackScroll]);
+  useLayoutEffect(()=>{
+    const restore=restorePageScroll.current;
+    restorePageScroll.current=false;
+    scrollPage(restore?scrollPositions.current.get(page)??0:0);
+    if(focusProgressTab.current){
+      focusProgressTab.current=false;
+      progressTabsRef.current?.querySelector<HTMLElement>('[aria-selected=true]')?.focus({preventScroll:true});
+    }else if(page==='progress/exercises'&&restore&&exerciseGrid.focusKey){
+      [...(mainRef.current?.querySelectorAll<HTMLButtonElement>('[data-exercise-key]')??[])].find(row=>row.dataset.exerciseKey===exerciseGrid.focusKey)?.focus({preventScroll:true});
+    }else{
+      headingRef.current?.focus({preventScroll:true});
+    }
+  },[page,scrollPage]);
   useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),4500);return()=>clearTimeout(timer);},[toast]);
   useEffect(()=>{if(!store.active)return;const timer=setInterval(()=>setNow(Date.now()),500);return()=>clearInterval(timer);},[store.active?.id]);
   const active=store.active,resume=active?sessionResume(active):{exerciseIndex:0,restEnd:null,restPaused:null},remaining=restSeconds(resume,now);
@@ -184,7 +272,8 @@ export default function App() {
     if(!s.sessions.some(record=>record.id===session.id))throw new Error('This workout was removed.');
     return {...s,sessions:s.sessions.map(record=>record.id===session.id?session:record)};
   });
-  function back(){if(page==='settings')go(settingsOrigin.current);else if(page==='workout')go(active?.resume?.origin??'today');else if(page==='workout/review')go('workout');else if(page==='progress/movement')go('progress/exercises');else go('progress');}
+  function back(){if(page==='settings')go(settingsOrigin.current);else if(page==='workout')go(active?.resume?.origin??'today');else if(page==='workout/review')go('workout');else if(page==='progress/movement')go(movementOrigin.current,undefined,true);else go('progress',undefined,true);}
+  const progressDetail=!!metric||page==='progress/movement';
   const backVisible=page==='settings'||!!metric||page==='progress/movement'||page==='workout'||page==='workout/review';
   const rest=(resume.restEnd!==null||resume.restPaused!==null)?<div className="rest-timer" role="group" aria-label="Rest timer"><Clock3 size={20}/><div><span>{resume.restPaused!==null?'Paused':'Rest'}</span><strong aria-live="off">{Math.floor(remaining/60)}:{String(remaining%60).padStart(2,'0')}</strong></div><button className="icon-button" aria-label={resume.restPaused!==null?'Resume rest timer':'Pause rest timer'} onClick={()=>{if(resume.restPaused!==null){updateResume({restEnd:Date.now()+resume.restPaused*1000,restPaused:null});setNow(Date.now());}else updateResume({restPaused:remaining,restEnd:null});}}>{resume.restPaused!==null?<Play size={18}/>:<Pause size={18}/>}</button><button className="small-button" aria-label="Add 30 seconds rest" onClick={()=>resume.restPaused!==null?updateResume({restPaused:Math.min(86400,resume.restPaused+30)}):updateResume({restEnd:Math.min(Date.now()+86400000,(resume.restEnd??Date.now())+30000)})}>+30s</button><button className="icon-button" aria-label="Skip rest timer" onClick={()=>updateResume({restEnd:null,restPaused:null})}><X size={20}/></button></div>:undefined;
   const warmupKey=selectedWorkout?.id+'|'+localDate();
@@ -194,14 +283,14 @@ export default function App() {
     // Safari can activate a button without moving focus to it.
     const trigger=event.target instanceof Element?event.target.closest<HTMLElement>('button, a[href]'):null;
     if(trigger&&!trigger.closest('.modal-overlay'))modalTriggerRef.current=trigger;
-  }} className={'app-shell '+(focused?'workout-shell':'')+' '+(page==='workout/review'?'review-shell':'')}><header className="app-header">{backVisible?<button className="icon-button" disabled={savingSet||page==='workout/review'&&!!savingSession} aria-label={page==='workout/review'?'Back to workout':page==='workout'?'Leave workout':'Go back'} onClick={back}><ChevronLeft size={23}/></button>:<span className="brand-mark"><Hawk size={24}/></span>}<div className="header-heading"><h1 ref={headingRef} tabIndex={-1}>{page==='workout'?active?.workout.name??'Workout':movementName??pageTitles[page]}</h1>{page==='workout'&&<p className="session-meta">{completedSets} of {totalSets} sets · {Math.max(0,Math.floor((now-(active?.startedAt??now))/60000))} min elapsed</p>}<SyncPanel persistence={persistence} actions={page==='settings'}/></div>{progressTab&&<label className="progress-unit"><span className="sr-only">Progress weight unit</span><select value={unit} onChange={event=>setStore(s=>({...s,settings:{...s.settings,unit:event.target.value as 'kg'|'lb'}}))}><option value="kg">kg</option><option value="lb">lb</option></select></label>}{page==='workout'?<button className="small-button" disabled={savingSet} aria-label="Review and finish workout" onClick={()=>go('workout/review')}>Finish</button>:!focused&&page!=='settings'?<button className="icon-button" aria-label="Open settings" onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/></button>:null}</header>
+  }} className={'app-shell '+(focused?'workout-shell':'')+' '+(page==='workout/review'?'review-shell':'')}><div ref={contentRef} className="app-content" data-dock={progressTab} inert={!!detailView}><header className="app-header">{backVisible?<button className="icon-button" disabled={savingSet||page==='workout/review'&&!!savingSession} aria-label={page==='workout/review'?'Back to workout':page==='workout'?'Leave workout':'Go back'} onClick={back}><ChevronLeft size={23}/></button>:<span className="brand-mark"><Hawk size={24}/></span>}<div className="header-heading"><h1 ref={headingRef} tabIndex={-1}>{page==='workout'?active?.workout.name??'Workout':movementName??pageTitles[page]}</h1>{page==='workout'&&<p className="session-meta">{completedSets} of {totalSets} sets · {Math.max(0,Math.floor((now-(active?.startedAt??now))/60000))} min elapsed</p>}<SyncPanel persistence={persistence} actions={page==='settings'} compact={progressTab||progressDetail}/></div>{page==='workout'?<button className="small-button" disabled={savingSet} aria-label="Review and finish workout" onClick={()=>go('workout/review')}>Finish</button>:!focused&&!progressDetail&&page!=='settings'?<button className="icon-button" aria-label="Open settings" onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/></button>:null}</header>
     {(storageError||persistence.error)&&<div className="storage-error" role="alert">{storageError||persistence.error}<button onClick={downloadBackup}>Export data</button></div>}<main ref={mainRef}>
-      {page==='today'&&<Today handoffId={todayHandoff} onProgress={()=>go('progress')} onHistory={()=>go('progress/history')} store={store} onStart={workout=>active?openWorkout():start(workout)} onDetail={setDetail} onPlan={day=>{setSelectedDay((day+6)%7);go('programme');}} onBody={openBody}/>}
+      {page==='today'&&<Today handoffId={todayHandoff} onProgress={()=>go('progress')} onHistory={()=>go('progress/history')} store={store} onStart={workout=>active?openWorkout():start(workout)} onDetail={openWorkoutDetail} onPlan={day=>{setSelectedDay((day+6)%7);go('programme');}} onBody={openBody}/>}
       {page==='programme'&&<Plan store={store} day={selectedDay} onDay={setSelectedDay} workout={selectedWorkout} onStart={()=>start(selectedWorkout)} onResume={openWorkout} onOptions={()=>setDialog('options')} onWarmup={()=>setDialog('warmup')} onGuide={()=>setDialog('guide')} onUrgent={()=>setDialog('urgent')} onExercise={setPreviewExercise}/>}
-      {progressTab&&<><div ref={progressTabsRef} className="progress-switch" role="tablist" aria-label="Progress views">{progressTabs.map(([id,label],index)=><button key={id} id={'progress-tab-'+index} aria-controls="progress-panel" role="tab" aria-selected={page===id} tabIndex={page===id?0:-1} onClick={()=>{if(page!==id){setExerciseGrid(s=>({...s,focusKey:undefined}));focusProgressTab.current=true;go(id as Page);}}} onKeyDown={event=>{const next=event.key==='ArrowRight'?(index+1)%progressTabs.length:event.key==='ArrowLeft'?(index+progressTabs.length-1)%progressTabs.length:event.key==='Home'?0:event.key==='End'?progressTabs.length-1:null;if(next!==null){event.preventDefault();if(next!==index){setExerciseGrid(s=>({...s,focusKey:undefined}));focusProgressTab.current=true;go(progressTabs[next][0]);}}}}>{label}{id==='progress/history'&&<span className="history-count" aria-label={`${store.sessions.length} logs`}>{store.sessions.length}</span>}</button>)}</div><div id="progress-panel" role="tabpanel" aria-labelledby={'progress-tab-'+progressTabs.findIndex(([id])=>id===page)} tabIndex={0}>
-        {page==='progress'?<ProgressOverview store={store} onGo={go} onBody={openBody} onVolume={()=>{go('progress/volume');setProgressSelection({volumeView:'muscles'});}}/>:page==='progress/exercises'?<ExerciseGrid store={store} state={exerciseGrid} onState={setExerciseGrid} onOpen={key=>go('progress/movement',key)} onStart={()=>go('programme')}/>:<History store={store} onDetail={setDetail} onStart={()=>go('programme')}/>}
+      {progressTab&&<><div ref={progressTabsRef} className="progress-switch" role="tablist" aria-label="Progress views">{progressTabs.map(([id,label],index)=><button key={id} id={'progress-tab-'+index} aria-controls="progress-panel" role="tab" aria-selected={page===id} tabIndex={page===id?0:-1} onClick={()=>{if(page!==id){setExerciseGrid(s=>({...s,focusKey:undefined}));focusProgressTab.current=true;go(id as Page,undefined,true);}}} onKeyDown={event=>{const next=event.key==='ArrowRight'?(index+1)%progressTabs.length:event.key==='ArrowLeft'?(index+progressTabs.length-1)%progressTabs.length:event.key==='Home'?0:event.key==='End'?progressTabs.length-1:null;if(next!==null){event.preventDefault();if(next!==index){setExerciseGrid(s=>({...s,focusKey:undefined}));focusProgressTab.current=true;go(progressTabs[next][0],undefined,true);}}}}>{label}</button>)}</div><div id="progress-panel" role="tabpanel" aria-labelledby={'progress-tab-'+progressTabs.findIndex(([id])=>id===page)} tabIndex={0}>
+        {page==='progress'?<ProgressOverview store={store} range={overviewRange} onRange={setOverviewRange} onGo={go} onBody={openBody} onVolume={range=>{go('progress/volume');setProgressSelection({volumeView:'muscles',range});}}/>:page==='progress/exercises'?<ExerciseGrid store={store} state={exerciseGrid} onState={setExerciseGrid} onOpen={key=>go('progress/movement',key)} onStart={()=>go('programme')}/>:<History store={store} filters={historyFilters} onFilters={setHistoryFilters} onDetail={openWorkoutDetail} onStart={()=>go('programme')}/>}
       </div></>}
-      {page==='progress/movement'?<ExerciseProgressDetail store={store} exerciseKey={progressSelection.exerciseKey} onBrowse={()=>go('progress/exercises')}/>:metric&&<ProgressDetail key={metric} store={store} segment={metric} initialVolumeView={progressSelection.volumeView} onBody={openBody} onEditBody={entry=>{setBodyToEdit(entry);setDialog('body');}} onDeleteBody={id=>setStore(s=>({...s,body:s.body.filter(b=>b.id!==id)}))} onStart={()=>go('programme')}/>}
+      {page==='progress/movement'?<ExerciseProgressDetail store={store} exerciseKey={progressSelection.exerciseKey} onWorkout={openWorkoutDetail} onBrowse={()=>go('progress/exercises')}/>:metric&&<ProgressDetail key={metric} store={store} segment={metric} initialVolumeView={progressSelection.volumeView} initialRange={progressSelection.range} onBody={openBody} onEditBody={entry=>{setBodyToEdit(entry);setDialog('body');}} onDeleteBody={id=>setStore(s=>({...s,body:s.body.filter(b=>b.id!==id)}))} onStart={()=>go('programme')}/>}
       {page==='settings'&&<SettingsScreen settings={store.settings} onChange={patch=>setStore(s=>({...s,settings:{...s.settings,...patch}}))} onExport={downloadBackup} onImport={()=>uploadRef.current?.click()}/>}
       {page==='workout'&&active&&<WorkoutScreen key={active.id} session={active} exerciseIndex={currentIndex} unit={unit} saving={savingSet} initialSet={reviewSet} previous={previousExercise(store.sessions,active.workout.exercises[currentIndex],active.exercises[currentIndex].mode)} history={exerciseHistory(store.sessions,active,currentIndex)} onIndex={changeIndex} onSet={updateSet} onCommit={commitSet}
         onSkip={(set,skip)=>updateSession(s=>markSetSkipped(s,currentIndex,set,skip))}
@@ -210,9 +299,9 @@ export default function App() {
       {page==='workout/review'&&(active||savingSession)&&<ReviewWorkout session={(active??savingSession)!} saving={!!savingSession}
         date={workoutDateDraft?.id===(active??savingSession)!.id?workoutDateDraft.date:(active??savingSession)!.date}
         onDate={date=>setWorkoutDateDraft({id:(active??savingSession)!.id,date})} onUpdate={updateSession} onSave={finish} onContinue={()=>{setReviewSet(undefined);go('workout');}} onJump={(index,set)=>{changeIndex(index);setReviewSet(set);go('workout');}}/>}
-      {page==='workout/saved'&&savedSession&&<WorkoutSaved session={savedSession} animate={freshSave.current===savedSession.id} onToday={returnToToday} onView={()=>setDetail(savedSession)}/>}
-    </main>{!focused&&<nav className="bottom-nav" aria-label="Main navigation"><div className="nav-brand"><span><Hawk size={27}/></span><strong>Gym Hawk<small>YOUR TRAINING SPACE</small></strong></div><p className="nav-caption">WORKSPACE</p>{nav.map(item=><button key={item.id} aria-current={page===item.id||item.id==='progress'&&page.startsWith('progress/')?'page':undefined} onClick={()=>go(item.id)}><item.icon size={22}/><span>{item.label}</span></button>)}<div className="nav-spacer"/><button className="nav-settings" aria-current={page==='settings'?'page':undefined} onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/><span>Settings</span></button></nav>}
-    {toast&&!dialog&&!detail&&!previewExercise&&<div className="toast" role="status"><span>{toast}</span><button className="icon-button" aria-label="Dismiss notification" onClick={()=>setToast('')}><X size={18}/></button></div>}
+      {page==='workout/saved'&&savedSession&&<WorkoutSaved session={savedSession} animate={freshSave.current===savedSession.id} onToday={returnToToday} onView={()=>openWorkoutDetail(savedSession)}/>}
+    </main></div>{!focused&&<nav inert={!!detailView} className="bottom-nav" aria-label="Main navigation"><div className="nav-brand"><span><Hawk size={27}/></span><strong>Gym Hawk<small>YOUR TRAINING SPACE</small></strong></div><p className="nav-caption">WORKSPACE</p>{nav.map(item=><button key={item.id} aria-current={page===item.id||item.id==='progress'&&page.startsWith('progress/')?'page':undefined} onClick={()=>go(item.id)}><item.icon size={22}/><span>{item.label}</span></button>)}<div className="nav-spacer"/><button className="nav-settings" aria-current={page==='settings'?'page':undefined} onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/><span>Settings</span></button></nav>}
+    {toast&&!dialog&&!detailView&&!previewExercise&&<div className="toast" role="status"><span>{toast}</span><button className="icon-button" aria-label="Dismiss notification" onClick={()=>setToast('')}><X size={18}/></button></div>}
     <input type="file" ref={uploadRef} accept="application/json,.json" hidden aria-label="Import backup file" onChange={e=>void importBackup(e.target.files?.[0])}/>
     {dialog==='body'&&<BodyModal unit={unit} entry={bodyToEdit??undefined} onClose={closeDialog} onSave={async(date,kg)=>{
       await setStore(s=>{
@@ -241,6 +330,15 @@ export default function App() {
         }else void swapForSession(choice);
       }}/>}
     {previewExercise&&<ExerciseDetails sessions={store.sessions} unit={unit} exercise={previewExercise} choice={store.programme.options.choices[previewExercise.slot!]} onClose={closeExercise} onSave={choice=>{const key=previewExercise.slot!;setStore(s=>({...s,programme:{...s.programme,options:{...s.programme.options,choices:{...s.programme.options.choices,[key]:choice},...(key==='optional:core'?{saturdayCore:choice.variantId==='p16-dead-bug'?'dead-bug' as const:'knee-raise' as const}:{})}}}));closeExercise();alert('Exercise choice saved for future workouts.');}}/>}
-    {detail&&<SessionDetail key={detail.id} session={detail} unit={unit} expandFromHistory={page==='progress/history'} onClose={closeDetail} onSave={async session=>{await saveHistory(session);setDetail(session);alert('Workout updated.');}} onDelete={()=>{setStore(s=>({...s,sessions:s.sessions.filter(x=>x.id!==detail.id)}));closeDetail();alert('Workout deleted.');}}/>}
+    {detail&&<SessionDetail key={`workout-${details.length}-${detail.id}`} session={detail} unit={unit}
+      expandFromHistory={page==='progress/history'&&details.length===1&&!detailView?.location}
+      onExercise={(key,name,date)=>openDetail({kind:'exercise',key,name,date})} onClose={closeDetail}
+      onSave={async session=>{await saveHistory(session);alert('Workout updated.');}}
+      onDelete={async()=>{await commitStore(s=>({...s,sessions:s.sessions.filter(x=>x.id!==detail.id)}));closeDetail();alert('Workout deleted.');}}
+      sessions={store.sessions}/>}
+    {detailView?.kind==='workout'&&!detail&&<Modal variant="page" title="Workout unavailable" onClose={closeDetail}><p>This workout is no longer in your history.</p></Modal>}
+    {detailView?.kind==='exercise'&&<Modal key={`exercise-${details.length}-${detailView.key}`} variant="page" title={detailView.name} onClose={closeDetail}>
+      <ExerciseProgressDetail store={store} exerciseKey={detailView.key} initialDate={detailView.date} initialTrend={detailView.location?.trend} onBrowse={closeDetail} onWorkout={openWorkoutDetail}/>
+    </Modal>}
   </div></ModalTriggerContext.Provider>;
 }

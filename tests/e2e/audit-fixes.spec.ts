@@ -90,7 +90,7 @@ test('carry warm-up, substitute one exercise, skip a set, and edit the saved bac
   const detail=page.getByRole('dialog');
   await expect(detail).toContainText('15 November 2026');
   await expect(detail).toContainText('Skipped');
-  await detail.getByRole('button',{name:'Edit date'}).click();
+  await detail.getByRole('button',{name:'Edit workout'}).click();
   await detail.getByLabel('Workout date').fill('2026-11-16');
   await detail.getByLabel('Belt Squat set 2 RIR').selectOption('2');
   await detail.getByLabel('Belt Squat notes').fill('Use Station 2 again.');
@@ -154,6 +154,7 @@ test('edit a weigh-in and use manual rest and a separate timed hold',async({page
   await page.getByRole('button',{name:'Save bodyweight'}).click();
   await expect(page.getByRole('button',{name:'Edit bodyweight for 2026-11-16'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Edit bodyweight for 2026-11-15'})).toHaveCount(0);
+  await page.getByRole('button',{name:'Go back',exact:true}).click();
   await page.getByRole('button',{name:'Programme',exact:true}).click();
   await page.getByRole('tab',{name:'Thu Upper B'}).click();
   await page.getByRole('button',{name:'Train this session today'}).click();

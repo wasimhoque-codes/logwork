@@ -1,7 +1,9 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { Check, CheckCheck, Layers, Clock3, NotebookPen, Trash2, Plus } from './icons';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Check, CheckCheck, Layers, Clock3, ChevronRight, NotebookPen, Trash2, Plus } from './icons';
 import { Modal } from './components';
-import { sessionWorkout, doneSets, volume, number, dateLabel, fromKg, toKg, localDate, sessionLabel, completeSession, addSessionSet, removeLastSessionSet, MAX_SETS_PER_EXERCISE, workoutDateError, markSetSkipped, skippedSets, type BodyEntry, type Session, type SetLog } from './model';
+import { sessionWorkout, doneSets, volume, number, dateLabel, exerciseKey, fromKg, toKg, localDate, sessionLabel, completeSession, addSessionSet, removeLastSessionSet, MAX_SETS_PER_EXERCISE, workoutDateError, markSetSkipped, skippedSets, type BodyEntry, type Session, type SetLog } from './model';
+import { workoutPersonalRecords } from './progress-data';
+import { setLabel } from './progress-charts';
 import type { Unit } from './data';
 import { RirInput } from './workout';
 export function BodyModal({ unit, entry, onClose, onSave }: {
@@ -41,12 +43,14 @@ export function BodyModal({ unit, entry, onClose, onSave }: {
         </form>
     </Modal>;
 }
-export function SessionDetail({ session, unit, onClose, onSave, onDelete, expandFromHistory }: {
+export function SessionDetail({ session, unit, onClose, onSave, onDelete, expandFromHistory, sessions, onExercise }: {
     session: Session;
     unit: Unit;
     onClose: () => void;
     onSave: (s: Session) => Promise<void>;
-    onDelete: () => void;
+    onDelete: () => Promise<void>;
+    sessions: Session[];
+    onExercise: (key:string,name:string,date:string)=>void;
     expandFromHistory?: boolean;
 }) {
     const [editing, setEditing] = useState(false), [draft, setDraft] = useState(session), [confirmDelete, setConfirmDelete] = useState(false), [error, setError] = useState('');
@@ -54,6 +58,9 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
     const dateRef=useRef<HTMLInputElement>(null),pendingSave=useRef(false);
     const listRef = useRef<HTMLDivElement>(null), pendingFocus = useRef<{ exercise: number; set: number | null } | null>(null);
     const id = useId(), w = sessionWorkout(session), label = sessionLabel(session);
+    const records=useMemo(()=>workoutPersonalRecords(sessions,session),[sessions,session]);
+    const loadedVolume=volume(draft);
+    const minutes=session.endedAt===undefined?0:Math.round((session.endedAt-session.startedAt)/60000);
     useEffect(() => {
         const target = pendingFocus.current;
         if (!target) return;
@@ -80,6 +87,13 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
         catch { setError('Could not save this workout. Try again.'); }
         finally { pendingSave.current=false;setSaving(false); }
     }
+    async function deleteWorkout() {
+        if(pendingSave.current)return;
+        pendingSave.current=true;setSaving(true);setError('');
+        try { await onDelete(); }
+        catch { setError('Could not delete this workout. Try again.'); }
+        finally { pendingSave.current=false;setSaving(false); }
+    }
     function patch(ei: number, si: number, patch: Partial<SetLog>) {
         setError('');
         setDraft(s => {
@@ -102,10 +116,9 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
     }
     return <Modal variant="page" title={w.name} onClose={onClose} dismissDisabled={saving} expandFromHistory={expandFromHistory} wide>
         <div className="detail-subtitle"><span>{dateLabel(draft.date||session.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span><span className="unit-badge">{label && label + ' · '}{completeSession(draft) ? 'Complete' : 'Partial'}</span></div>
-        <div className="summary-pills"><span><CheckCheck size={15}/>{doneSets(draft)} sets</span><span><Layers size={15}/>{number(fromKg(volume(draft), unit), 0)} {unit} × reps volume</span><span><Clock3 size={15}/>{Math.round(((session.endedAt ?? session.startedAt) - session.startedAt) / 60000)} min elapsed</span></div>
+        <div className="summary-pills"><span><CheckCheck size={15}/>{doneSets(draft)} sets</span>{loadedVolume>0&&<span><Layers size={15}/>{number(fromKg(loadedVolume,unit),0)} {unit} × reps</span>}{minutes>0&&<span><Clock3 size={15}/>{minutes} min elapsed</span>}</div>
         {!editing&&<div className="history-edit-actions">
             <button className="secondary" onClick={()=>setEditing(true)}><NotebookPen size={16}/>Edit workout</button>
-            <button className="text-button" onClick={()=>{setEditing(true);requestAnimationFrame(()=>dateRef.current?.focus());}}>Edit date</button>
         </div>}
         {editing&&<label className="history-date-field">Workout date
             <input ref={dateRef} className="text-input" type="date" min="1900-01-01" max={localDate()} value={draft.date}
@@ -115,9 +128,12 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
             const skipped=skippedSets(draft,ei);
             if (!editing && !e.sets.some(s => s.done) && !e.note&&!skipped.length) return null;
             const spec = w.exercises[ei], atLimit = e.sets.length >= MAX_SETS_PER_EXERCISE;
+            const key=exerciseKey(spec,e.mode), record=records.get(key);
             const limitId = `${id}-set-limit-${ei}`;
             return <div className="detail-exercise" data-exercise-index={ei} key={e.id}>
-                <h3>{e.name}<span>{e.mode === 'assistance' ? 'Assistance' : e.mode === 'bodyweight' ? 'Bodyweight' : unit}</span></h3>
+                <h3>{!editing&&e.sets.some(set=>set.done)
+                  ? <button type="button" className="workout-exercise-link" data-detail-focus={`exercise-${ei}`} aria-label={`View progress for ${e.name}`} onClick={event=>{event.currentTarget.focus({preventScroll:true});onExercise(key,e.name,session.date);}}>{e.name}<ChevronRight size={18}/></button>
+                  : e.name}</h3>
                 {spec.supportCm !== null && spec.supportCm !== undefined && <p className="input-hint">Support: {spec.supportCm} cm</p>}
                 {spec.role === 'core' && spec.coreLevel && <p className="input-hint">Core variation: {spec.coreLevel}</p>}
                 {e.sets.map((s, si) => <div className={`detail-set ${!s.done ? 'not-logged' : ''}`} data-set-index={si} key={si}>
@@ -130,8 +146,9 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
                         <RirInput label={`${e.name} set ${si + 1} RIR`} value={s.rir} onChange={rir=>patch(ei,si,{rir})}/>
                         {si >= spec.sets && si === e.sets.length - 1 && !s.done && <button className="text-button detail-remove-set" aria-label={`Remove extra set ${si + 1} from ${e.name}`} onClick={() => removeSet(ei)}>Remove extra set</button>}
                     </> : <>
-                        <strong>{s.done ? `${e.mode === 'bodyweight' ? 'BW' : `${number(fromKg(s.weight ?? 0, unit))} ${unit}`} × ${s.reps}${spec.timed ? ' sec' : ' reps'}${spec.perSide ? ' / side' : ''}` : skipped.includes(si)?'Skipped':'Not logged'}</strong>
-                        <span>{s.done && s.rir !== null ? `${s.rir} RIR` : ''}</span>{s.done && <Check size={14}/>}
+                        <strong>{s.done ? setLabel({exercise:spec,log:e,best:s},unit) : skipped.includes(si)?'Skipped':'Not logged'}</strong>
+                        {s.done&&s.rir!==null&&<span>{s.rir} RIR</span>}
+                        {record?.set===session.exercises[ei]?.sets[si]&&<span className="record-badge">{record.label}</span>}
                     </>}
                 </div>)}
                 {editing && <>
@@ -144,10 +161,14 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
             </div>;
         })}</div>
         {editing ? <><label className="field-label" htmlFor="edit-session-note">Session notes</label><textarea id="edit-session-note" disabled={saving} maxLength={2000} value={draft.note} onChange={e => setDraft(s => ({ ...s, note: e.target.value }))}/></> : draft.note && <p className="session-detail-note"><NotebookPen size={16}/>{draft.note}</p>}
-        {error && <p className="form-error" role="alert">{error}</p>}
-        {confirmDelete ? <div className="delete-confirm"><p>Delete this workout and all of its logged sets?</p><button className="danger" onClick={onDelete}>Delete workout</button><button className="secondary" onClick={() => setConfirmDelete(false)}>Keep it</button></div> : <div className="detail-actions">
-            {editing ? <><button className="primary" disabled={saving} onClick={save}>{saving?'Saving…':'Save changes'}<Check size={16}/></button><button className="secondary" disabled={saving} onClick={() => { setDraft(session); setEditing(false); setError(''); }}>Cancel</button></> : null}
-            <button className="icon-button danger-text" aria-label="Delete workout" disabled={saving} onClick={() => setConfirmDelete(true)}><Trash2 size={18}/></button>
-        </div>}
+        {editing ? <div className="detail-actions workout-edit-footer">
+            {error&&<p className="form-error" role="alert">{error}</p>}
+            <button className="primary" disabled={saving} onClick={save}>{saving?'Saving…':'Save changes'}<Check size={16}/></button>
+            <button className="secondary" disabled={saving} onClick={()=>{setDraft(session);setEditing(false);setError('');}}>Cancel</button>
+        </div> : <details className="progress-method workout-more">
+            <summary>Workout options</summary>
+            {confirmDelete ? <div className="delete-confirm"><p>Delete this workout and all of its logged sets?</p>{error&&<p className="form-error" role="alert">{error}</p>}<button className="danger" disabled={saving} onClick={()=>void deleteWorkout()}>Delete workout</button><button className="secondary" disabled={saving} onClick={()=>{setConfirmDelete(false);setError('');}}>Keep it</button></div>
+                : <button className="text-button danger-text" onClick={()=>setConfirmDelete(true)}><Trash2 size={18}/>Delete workout…</button>}
+        </details>}
     </Modal>;
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import '../src/styles.css';
 import '../src/redesign.css';
 import '../src/training-motion.css';
+import '../src/progress.css';
 
 export const metadata: Metadata = {
   title: 'Gym Hawk',

@@ -67,7 +67,7 @@ describe('shared movement series', () => {
     const ex = s.workout.exercises[1], log = s.exercises[1]; ex.timed = true; log.mode = 'external';
     log.sets[0] = { weight: 20, reps: 40, done: true, rir: null }; log.sets[1] = { weight: 30, reps: 30, done: true, rir: null };
     const timed = movementSeries(store.sessions).find(item => item.exercise.id === ex.id)!;
-    expect(timed.records[0].value).toBe(40); expect(setLabel(timed.records[0], 'lb')).toBe('44.09 lb × 40 sec');
+    expect(timed.records[0].value).toBe(40); expect(setLabel(timed.records[0], 'lb')).toBe('44.09 lb × 40s');
     ex.timed = false; log.mode = 'bodyweight';
     expect(movementSeries(store.sessions).find(item => item.exercise.id === ex.id)!.records[0].value).toBe(40);
   });

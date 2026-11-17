@@ -74,7 +74,7 @@ test('partially saved workouts allow sets on exercises with no logged sets and r
   const index=store.sessions[0].exercises[1].sets.length+1;
   const weight=page.getByLabel(`${name} set ${index} weight`,{exact:true});await expect(weight).toBeFocused();await expect(weight).toHaveValue('');
   await page.getByLabel(`${name} set ${index} logged`,{exact:true}).check();await page.getByRole('button',{name:'Save changes',exact:true}).click();
-  await expect(page.locator('.app-shell').getByRole('alert')).toContainText('Logged sets need a valid weight');
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Logged sets need a valid weight');
   await weight.fill('18');await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);
   const data=await backup(page);expect(data.sessions[0].exercises[1].sets.at(-1)).toMatchObject({weight:18,done:true});validateStore(data);
 });
@@ -89,7 +89,7 @@ test('saved extras preserve pounds, assistance, bodyweight, timed and per-side v
     if(log.mode==='bodyweight')await expect(weight).toBeDisabled();else await expect(weight).toHaveValue('26.46');
     await page.getByLabel(`${log.name} set ${set} logged`,{exact:true}).check();
   }
-  await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(exercise(page,6).locator('.detail-set').last()).toContainText('sec / side');await close(page);
+  await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(exercise(page,6).locator('.detail-set').last()).toContainText('20s / side');await close(page);
   const data=await backup(page);for(const i of [0,3,6])expect(data.sessions[0].exercises[i].sets.at(-1)).toEqual({...store.sessions[0].exercises[i].sets.at(-1),rir:null});validateStore(data);
 });
 

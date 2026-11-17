@@ -81,7 +81,7 @@ test('technique demos are available on demand with different angles and static p
 test('muscle selection changes the figure view and history closes back into the same row', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await open(page, 'progress', true);
-  await page.getByRole('button', { name: 'By muscle' }).click();
+  await page.getByRole('button', { name: 'Training volume', exact: true }).click();
   const rows = page.locator('.muscle-rows');
   await rows.getByRole('button', { name: /^Chest / }).click();
   await expect(page.locator('.muscle-model [role=status]')).toHaveText('Chest · Front view');

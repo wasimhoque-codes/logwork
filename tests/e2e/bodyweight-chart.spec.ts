@@ -30,10 +30,10 @@ test('Progress overview and detail retain every weigh-in within one week, with r
     await expect(chart(page).getByRole('button',{name:'Last 30 days'})).toHaveAttribute('aria-pressed','true');
     await expect(page.getByRole('group',{name:/^Bodyweight trend/})).toBeVisible();
     await chart(page).getByRole('button',{name:'Previous weigh-in'}).click();
-    await expect(chart(page).locator('.body-reading')).toContainText('29 Oct 2026');
+    await expect(chart(page).locator('.body-chart-latest')).toContainText('29 Oct 2026');
   }
   await page.reload();
-  await expect(page.getByLabel('Insights date range')).toHaveCount(0);
+  await expect(page.getByLabel('Weekly date range')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Weekly bodyweight summaries' }).locator('div')).toHaveCount(1);
   expect((await data(page)).body).toEqual(store.body);
 });
@@ -113,7 +113,7 @@ test('Today hero text and bodyweight chart marks retain readable contrast', asyn
   for (const selector of ['.today-card h2', '.today-card .workout-meta', '.today-card .badge', '.hero-button']) expect(await contrast(selector), selector).toBeGreaterThanOrEqual(4.5);
   expect(await page.locator('.today-card').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(36, 47, 40)');
   await page.goto('/#progress/bodyweight'); await settled(page);
-  for (const selector of ['.body-chart-label', '.body-chart-legend', '.body-chart-caption']) expect(await contrast(selector), selector).toBeGreaterThanOrEqual(4.5);
+  for (const selector of ['.body-chart-label', '.body-chart-legend', '.bodyweight-chart .progress-method summary']) expect(await contrast(selector), selector).toBeGreaterThanOrEqual(4.5);
   expect(await contrast('.body-weigh-in', 'fill')).toBeGreaterThanOrEqual(3);
   expect(await contrast('.body-average-line', 'stroke')).toBeGreaterThanOrEqual(3);
 });

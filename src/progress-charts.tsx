@@ -7,19 +7,22 @@ import type { ExerciseChartMetric, ExerciseObservation, MovementDay, MovementRec
 export const fullDate = (date: string) => dateLabel(date, { day: 'numeric', month: 'short', year: 'numeric' });
 export const movementUnit = (series: MovementSeries, unit: Unit) => series.exercise.timed ? 'sec' : series.mode === 'bodyweight' ? 'reps' : unit;
 export const movementValue = (record: MovementRecord, unit: Unit) => record.exercise.timed || record.log.mode === 'bodyweight' ? record.value : fromKg(record.value, unit);
-export function setLabel(record: MovementRecord, unit: Unit) {
-  const { exercise, log, best } = record;
+export function durationLabel(seconds: number) {
+  const minutes = Math.floor(seconds / 60), remainder = seconds % 60;
+  return minutes ? `${minutes}m${remainder ? ` ${remainder}s` : ''}` : `${seconds}s`;
+}
+export function setLabel({ exercise, log, best }: Pick<MovementRecord, 'exercise' | 'log' | 'best'>, unit: Unit) {
   const load = log.mode !== 'bodyweight' ? `${number(fromKg(best.weight ?? 0, unit), 2)} ${unit}${log.mode === 'assistance' ? ' assist' : ''} × ` : '';
-  return `${load}${best.reps} ${exercise.timed ? 'sec' : 'reps'}${exercise.perSide ? ' / side' : ''}`;
+  return `${load}${exercise.timed ? durationLabel(best.reps) : `${best.reps} ${best.reps === 1 ? 'rep' : 'reps'}`}${exercise.perSide ? ' / side' : ''}`;
 }
 export function changeLabel(series: MovementSeries, first: MovementRecord, last: MovementRecord, unit: Unit) {
   const delta = movementValue(last, unit) - movementValue(first, unit);
   const rounded = Math.round(delta * 100) / 100;
   return `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${number(Math.abs(rounded), 2)} ${movementUnit(series, unit)}${!series.exercise.timed && series.mode !== 'bodyweight' ? series.mode === 'assistance' ? ' assistance' : ' load' : ''}`;
 }
-export function setupLabel(series: MovementSeries) {
+export function setupLabel(series: MovementSeries, includeBasic = true) {
   const ex = series.exercise;
-  return [series.mode === 'assistance' ? 'Assisted' : series.mode === 'bodyweight' ? 'Bodyweight' : '', ex.supportCm != null ? `${ex.supportCm} cm support` : '', ex.coreLevel].filter(Boolean).join(' · ');
+  return [series.mode === 'assistance' ? 'Assisted' : series.mode === 'bodyweight' ? 'Bodyweight' : '', ex.supportCm != null ? `${ex.supportCm} cm support` : '', includeBasic || ex.coreLevel !== 'Basic' ? ex.coreLevel : ''].filter(Boolean).join(' · ');
 }
 function usePlotWidth() {
   const ref = useRef<HTMLDivElement>(null), [width, setWidth] = useState(320);
@@ -37,6 +40,21 @@ export function recentMovementChange(series: MovementSeries, first: MovementReco
     return `${reps > 0 ? '+' : reps < 0 ? '−' : ''}${Math.abs(reps)} reps${series.exercise.perSide ? ' / side' : ''}`;
   }
   return changeLabel(series, first, last, unit);
+}
+
+export function directoryChange(series: MovementSeries, change: {previous?:MovementRecord;latest:MovementRecord}, unit: Unit) {
+  const {previous,latest}=change;
+  if(!previous)return '';
+  if(previous.value===latest.value&&previous.best.reps===latest.best.reps)return '';
+  if(series.exercise.timed){
+    const delta=latest.value-previous.value;
+    return `${delta>0?'+':'−'}${durationLabel(Math.abs(delta))}${series.exercise.perSide?' / side':''}`;
+  }
+  if(series.mode!=='bodyweight'&&latest.value===previous.value){
+    const load=`${number(fromKg(latest.value,unit),2)} ${unit}${series.mode==='assistance'?' assist':''}`;
+    return `${recentMovementChange(series,previous,latest,unit)} at ${load}`;
+  }
+  return changeLabel(series,previous,latest,unit);
 }
 
 export function movementMeasure(series: MovementSeries, unit: Unit) {
@@ -101,7 +119,7 @@ export function MovementChart({ series, days, unit, selected, onSelect, metric='
     const margin = dates[i].length * 3 + 4;
     return Math.min(width - margin, Math.max(margin, x));
   });
-  const reps = days.map(({ best }) => `${best.best.reps} reps`);
+  const reps = days.map(({ best }) => `${best.best.reps} ${best.best.reps === 1 ? 'rep' : 'reps'}`);
   const labels = dates.map((date, i) => isLoad && reps[i].length > date.length ? reps[i] : date);
   const labeled = chartLabels(datePositions, labels, index);
   const describe=({date,best}:MovementDay,i:number)=>{
@@ -165,14 +183,20 @@ export function MovementChart({ series, days, unit, selected, onSelect, metric='
     </div>
   </div>;
 }
-export type TrainingRange='recent'|'all';
+export type TrainingRange='short'|'recent'|'all';
+export const trainingRangeLabel: Record<TrainingRange,string> = { short:'Last 4 weeks',recent:'Last 8 weeks',all:'All time' };
+export function TrainingRangeSelect({range,onRange}:{range:TrainingRange;onRange:(range:TrainingRange)=>void}) {
+  return <select aria-label="Weekly date range" value={range} onChange={event=>onRange(event.target.value as TrainingRange)}>
+    {Object.entries(trainingRangeLabel).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+  </select>;
+}
 
-export function WeeklyChart({journey,unit,range,volumeOnly=false}:{journey:ReturnType<typeof trainingJourney>;unit:Unit;range:TrainingRange;volumeOnly?:boolean}) {
+export function WeeklyChart({journey,unit,range,onRange,volumeOnly=false}:{journey:ReturnType<typeof trainingJourney>;unit:Unit;range:TrainingRange;onRange?:(value:TrainingRange)=>void;volumeOnly?:boolean}) {
   const [metric,setMetric]=useState<'sessions'|'volume'>('sessions');
   const [selected,setSelected]=useState<string>();
   const {ref,width}=usePlotWidth();
   const barsRef=useRef<SVGGElement>(null);
-  const weeks=range==='recent'?journey.recentWeeks:journey.weeks;
+  const weeks=range==='all'?journey.weeks:journey.weeks.filter(week=>week.date>=journey.recentWeeks[range==='short'?4:0].date&&week.date<=journey.currentWeek);
   const volume=volumeOnly||metric==='volume';
   useContentFade(barsRef,volume?'volume':'sessions');
   useLayoutEffect(()=>{
@@ -191,13 +215,14 @@ export function WeeklyChart({journey,unit,range,volumeOnly=false}:{journey:Retur
     element?.scrollIntoView({block:'nearest',inline:'nearest'});
   }
   return <section className="weekly-history">
-    <div className="weekly-chart-heading"><h3>{volumeOnly?`Volume · ${unit} × reps`:'Training over time'}</h3>
+    <div className="weekly-chart-heading"><h3>{volumeOnly?`Volume · ${unit} × reps`:'Training trend'}</h3>
+      {onRange&&<TrainingRangeSelect range={range} onRange={onRange}/>}
+    </div>
       {!volumeOnly&&<div className="volume-detail-switch" role="group" aria-label="Weekly chart metric">
         <button className="small-button" aria-pressed={!volume} onClick={()=>setMetric('sessions')}>Sessions</button>
-        <button className="small-button" aria-pressed={volume} onClick={()=>setMetric('volume')}>Training volume</button>
+        <button className="small-button" aria-pressed={volume} onClick={()=>setMetric('volume')}>External-load volume</button>
       </div>}
-    </div>
-    <p className="weekly-selection" role="status">Week of {fullDate(weeks[index].date)} · <strong>{number(values[index],2)} {label}</strong></p>
+    <p className="weekly-selection" role="status">Week of {fullDate(weeks[index].date)} · <strong>{number(values[index],2)} {label}</strong>{weeks[index].date===journey.currentWeek&&' · In progress'}</p>
     <div ref={ref} className="weekly-scroll">
       <svg width={chartWidth} height="192" viewBox={`0 0 ${chartWidth} 192`} role="group" aria-label={`Weekly ${label}. Use arrow keys to select a week.`}>
         {[max,max/2,0].filter((value,i)=>volume||i!==1||Number.isInteger(value)).map(value=><g key={value} aria-hidden="true">
@@ -212,11 +237,12 @@ export function WeeklyChart({journey,unit,range,volumeOnly=false}:{journey:Retur
             event.preventDefault();focusWeek(Math.max(0,Math.min(weeks.length-1,next)));
           }}>
           <rect x={left+i*step} y="8" width={step} height="151" fill="transparent"/>
-          <rect x={left+i*step+(step-barWidth)/2} y={150-Math.max(2,values[i]/max*125)} width={barWidth} height={Math.max(2,values[i]/max*125)} rx="3" className="weekly-bar"/>
+          <rect x={left+i*step+(step-barWidth)/2} y={150-Math.max(2,values[i]/max*125)} width={barWidth} height={Math.max(2,values[i]/max*125)} rx="3" className="weekly-bar" data-current={week.date===journey.currentWeek||undefined}/>
         </g>)}</g>
         {weeks.map((week,i)=>(i===0||i===weeks.length-1||i%Math.ceil(82/step)===0&&i*step>74&&(weeks.length-i-1)*step>74)&&<text key={week.date} aria-hidden="true" x={i===0?left:i===weeks.length-1?right:left+(i+.5)*step} y="181" textAnchor={i===0?'start':i===weeks.length-1?'end':'middle'}>{dateLabel(week.date)}</text>)}
       </svg>
     </div>
-    <p className="chart-caption">{volume?'External load × reps, as recorded. Assistance, bodyweight and timed sets are excluded.':'Saved workouts with logged sets include partial and optional sessions.'} Weeks start Monday.</p>
+    <p className="chart-caption">{volume?`External load × reps, as recorded in ${unit}.`:'Includes partial workouts with logged sets.'}</p>
+    <details className="progress-method"><summary>How it’s calculated</summary><p>Weeks start Monday. {volume?'Assisted, bodyweight and timed work is excluded. Values are recorded as entered per hand or side.':'Optional sessions count when they have logged sets.'}</p></details>
   </section>;
 }

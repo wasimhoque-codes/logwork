@@ -92,6 +92,11 @@ export function recentMovements(series: MovementSeries[]) {
     || a.exercise.name.localeCompare(b.exercise.name) || a.key.localeCompare(b.key)).slice(0, 4);
 }
 
+export function exerciseChange(series: MovementSeries) {
+  const days = movementDays(series);
+  return { latest: days.at(-1)!.best, previous: days.at(-2)?.best };
+}
+
 export function defaultMovement(series: MovementSeries[]) {
   return [...series].sort((a, b) => Number(b.exercise.role === 'main') - Number(a.exercise.role === 'main')
     || b.records.length - a.records.length || b.records.at(-1)!.session.startedAt - a.records.at(-1)!.session.startedAt
@@ -102,6 +107,8 @@ const weekDay = (date: string) => {
   const day = calendarDay(date);
   return day - (new Date(day * 86400000).getUTCDay() + 6) % 7;
 };
+export const dateFromDay = (day: number) => new Date(day * 86400000).toISOString().slice(0, 10);
+export const mondayOf = (date: string) => dateFromDay(weekDay(date));
 
 export function trainingJourney(store: Store, today = localDate()) {
   const sessions = recordedSessions(store.sessions), series = movementSeries(sessions);
@@ -123,7 +130,7 @@ export function trainingJourney(store: Store, today = localDate()) {
   const todayDay=calendarDay(today);
   const currentSessions=sessions.filter(session=>calendarDay(session.date)>=currentWeek&&calendarDay(session.date)<=todayDay).length;
   const previousSessions=sessions.filter(session=>calendarDay(session.date)>=currentWeek-7&&calendarDay(session.date)<=todayDay-7).length;
-  return { sessions, series, recentWeeks,currentSessions,previousSessions,firstDate: sessions.length ? sessions.reduce((first, s) => s.date < first ? s.date : first, sessions[0].date) : undefined,
+  return { sessions, series, recentWeeks,currentSessions,previousSessions,currentWeek:dateFromDay(currentWeek),firstDate: sessions.length ? sessions.reduce((first, s) => s.date < first ? s.date : first, sessions[0].date) : undefined,
     sets: sessions.reduce((n, s) => n + doneSets(s), 0), activeWeeks,
     weeks: [...weeks].sort(([a], [b]) => a - b).map(([, week]) => week) };
 }
@@ -170,7 +177,7 @@ export function bodySnapshot(store: Store, today = localDate()) {
 }
 
 export function volumeDistribution(sessions: Session[]) {
-  const muscles = new Map<string, {label:string;volume:number;sets:number}>();
+  const muscles = new Map<string, {label:string;volume:number;sets:number;exercises:Map<string,{sets:number;volume:number}>}>();
   const groups = ['Upper body', 'Lower body'].map(label => ({ label, volume: 0, sessions: 0 }));
   let coreSeconds = 0;
   for (const session of sessions.filter(s => s.endedAt !== undefined)) {
@@ -179,8 +186,11 @@ export function volumeDistribution(sessions: Session[]) {
       const log = session.exercises[index], amount = exerciseVolume(exercise, log);
       const sets=log.sets.filter(set=>set.done).length;
       if(sets){
-        const item=muscles.get(exercise.muscle)??{label:exercise.muscle,volume:0,sets:0};
+        const item=muscles.get(exercise.muscle)??{label:exercise.muscle,volume:0,sets:0,exercises:new Map()};
         item.volume+=amount;item.sets+=sets;
+        const contribution=item.exercises.get(exercise.name)??{sets:0,volume:0};
+        contribution.sets+=sets;contribution.volume+=amount;
+        item.exercises.set(exercise.name,contribution);
         muscles.set(exercise.muscle,item);
       }
       total += amount;
@@ -197,6 +207,21 @@ export function movementSummary(series: MovementSeries) {
   const recent = series.records.slice(-5);
   const best = series.records.reduce((best, record) => beatsMovementRecord(record, best) ? record : best, first);
   return { first, latest, recent, best };
+}
+
+export function workoutPersonalRecords(sessions: Session[], session: Session) {
+  const records = new Map<string,{set:SetLog;label:string}>();
+  for(const series of movementSeries(sessions)){
+    const index=series.records.findIndex(record=>record.session.id===session.id);
+    if(index<1)continue;
+    const current=series.records[index];
+    const assistance=series.mode==='assistance'&&!current.exercise.timed;
+    const isRecord=series.records.slice(0,index).every(record=>assistance?current.value<record.value:current.value>record.value);
+    if(!isRecord)continue;
+    const label=current.exercise.timed?'Longest hold':assistance?'Least assistance':series.mode==='bodyweight'?'Most reps':'Heaviest set';
+    records.set(series.key,{set:current.best,label});
+  }
+  return records;
 }
 
 
