@@ -47,7 +47,7 @@ Version-4 backups include programme attempts/options, active and finished workou
 
 Loads are stored in kilograms and converted for display/input. Dumbbell entries use one hand’s load. Unilateral values are per side; complete both sides before logging a set. Assistance is recorded as assistance and excluded from lifted-load volume. Volume is recorded external load × reps, excluding timed and bodyweight-only work, without doubling per-hand or per-side values. It is a consistent personal tracking measure rather than total biomechanical work.
 
-Main-workout counts require every prescribed and added set and one completion per main workout type in the current programme attempt. Partial sessions, Wednesday recovery and optional Saturday are excluded. The calendar selector remains independent of programme weeks, so you can train on different days.
+Main-workout counts require every prescribed set and one completion per main workout type in the current programme attempt. Logged extra sets contribute to set totals and, where applicable, external-load volume. Partial sessions, Wednesday recovery and optional Saturday are excluded. The calendar selector remains independent of programme weeks, so you can train on different days.
 
 The app records your observations; it does not establish medical clearance. Its training guide retains source technique/modification guidance and links to [NHS back-pain guidance](https://www.nhs.uk/conditions/back-pain/).
 

@@ -21,7 +21,7 @@ export function bodyTrend(body: BodyEntry[]): BodyTrendPoint[] {
 
 export function bodyTrendBounds(points: BodyTrendPoint[]) {
   if (!points.length) return { low: 0, high: 1 };
-  const { min, max } = points.reduce((bounds, point) => ({ min: Math.min(bounds.min, point.kg), max: Math.max(bounds.max, point.kg) }), { min: Infinity, max: -Infinity });
+  const { min, max } = points.reduce((bounds, point) => ({ min: Math.min(bounds.min, point.kg, point.averageKg), max: Math.max(bounds.max, point.kg, point.averageKg) }), { min: Infinity, max: -Infinity });
   const span = Math.max(1, (max - min) * 1.3), centre = (min + max) / 2;
   return { low: Math.max(0, Math.floor((centre - span / 2) * 10) / 10), high: Math.ceil((centre + span / 2) * 10) / 10 };
 }

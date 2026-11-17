@@ -40,9 +40,9 @@ test('a successful save plays its treatment once and hands off to Today', async 
   await expect(page.locator('.saved-mark')).toHaveCSS('animation-name', 'saved-check-in');
   await page.getByRole('button', { name: 'Back to Today' }).click();
   await expect(page.locator('.today-card')).toHaveAttribute('data-handoff', 'partial');
-  await expect(page.locator('.today-preview')).toHaveCSS('animation-name', 'today-preview-in');
+  await expect(page.locator('.today-check')).toHaveCount(0);
   await page.reload();
-  await expect(page.locator('.today-preview')).toHaveCSS('animation-name', 'none');
+  await expect(page.locator('.today-card')).toContainText('Partial workout saved');
 });
 
 test('technique demos are available on demand with different angles and static poses', async ({ page }) => {

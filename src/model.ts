@@ -4,7 +4,7 @@ export type ExerciseLog = { id:string; name:string; mode:LoadMode; sets:SetLog[]
 export const MAX_SETS_PER_EXERCISE=10;
 export type Symptom = 'none'|'stable'|'worse'|'radiating'|null;
 export type Feedback = { before:Symptom; after:Symptom; nextDay:Symptom; nextDayDate:string|null; technique:boolean|null };
-export type ResumeState = { exerciseIndex:number; restEnd:number|null; restPaused:number|null; origin?:'today'|'programme' };
+export type ResumeState = { exerciseIndex:number; restEnd:number|null; restPaused:number|null; origin?:'today'|'programme'; skippedSets?:Record<number,number[]> };
 export type Session = { id:string; workoutId:string; programId:'programme-16'; workout:Workout; date:string; startedAt:number; endedAt?:number; phase:'full'; exercises:ExerciseLog[]; note:string; week?:number; attemptId?:string; feedback?:Feedback; warmup?:boolean[]; cooldown?:boolean[]; resume?:ResumeState };
 export type BodyEntry = { id:string; date:string; kg:number };
 export type Settings = { name:string; unit:Unit; autoRest:boolean };
@@ -51,7 +51,35 @@ export function removeLastSessionSet(session:Session,exerciseIndex:number):Sessi
   if(!log||!exercise||log.sets.length<=exercise.sets||log.sets.at(-1)?.done)return session;
   return {...session,exercises:session.exercises.map((e,i)=>i===exerciseIndex?{...e,sets:e.sets.slice(0,-1)}:e)};
 }
-export function completeSession(s:Session) { return s.endedAt!==undefined&&s.exercises.length>0&&s.exercises.every(e=>e.sets.length>0&&e.sets.every(set=>set.done)); }
+export function prescribedSetsComplete(session:Session) {
+  return session.workout.exercises.length>0&&session.workout.exercises.every((exercise,index)=>
+    Array.from({length:exercise.sets},(_,set)=>session.exercises[index]?.sets[set]?.done).every(Boolean));
+}
+export function completeSession(session:Session) { return session.endedAt!==undefined&&prescribedSetsComplete(session); }
+export function removeUnusedExtras(session:Session):Session {
+  return {...session,exercises:session.exercises.map((log,index)=>({...log,
+    sets:log.sets.filter((set,i)=>i<session.workout.exercises[index].sets||set.done)}))};
+}
+export function skippedSets(session:Session,index:number) { return session.resume?.skippedSets?.[index]??[]; }
+export function markSetSkipped(session:Session,index:number,set:number,skip:boolean):Session {
+  if(!session.exercises[index]?.sets[set]||set>=session.workout.exercises[index].sets) return session;
+  if(!skip&&!skippedSets(session,index).includes(set))return session;
+  const resume=sessionResume(session);
+  const markers={...resume.skippedSets};
+  const sets=skippedSets(session,index).filter(value=>value!==set);
+  if(skip&&!session.exercises[index].sets[set].done) sets.push(set);
+  if(sets.length) markers[index]=sets;
+  else delete markers[index];
+  return {...session,resume:{...resume,skippedSets:markers}};
+}
+export function compareTrainingDates(a:Session,b:Session) {
+  return a.date.localeCompare(b.date)||a.startedAt-b.startedAt||a.id.localeCompare(b.id);
+}
+export function workoutDateError(session:Session,value:string) {
+  if(!date(value)||value>'9999-12-31'||value<'1900-01-01'||value>localDate()) return 'Choose a valid workout date through today.';
+  if(session.feedback?.nextDayDate&&value>=session.feedback.nextDayDate) return 'Choose a date before the recorded next-day feedback.';
+  return '';
+}
 export function coreWorkoutCount(sessions:Session[]) { return new Set(sessions.filter(s=>s.programId==='programme-16'&&s.workout.category==='strength'&&completeSession(s)).map(s=>s.workoutId)).size; }
 export function sessionWorkout(s:Session) { return s.workout; }
 export function sessionLabel(s:Session) { return s.workout.prescriptionMode === 'fixed' || s.week === undefined ? '' : 'Week '+s.week; }
@@ -65,7 +93,7 @@ export function exerciseHistory(sessions:Session[],current:Session,exerciseIndex
   const exercise=current.workout.exercises[exerciseIndex],log=current.exercises[exerciseIndex];
   if(!exercise||!log)return [];
   const key=exerciseKey(exercise,log.mode),entries:ExerciseHistoryEntry[]=[];
-  const previous=sessions.filter(s=>s.id!==current.id&&s.endedAt!==undefined&&s.startedAt<current.startedAt).sort((a,b)=>b.startedAt-a.startedAt);
+  const previous=sessions.filter(s=>s.id!==current.id&&s.endedAt!==undefined&&(s.date<current.date||s.date===current.date&&s.startedAt<current.startedAt)).sort((a,b)=>compareTrainingDates(b,a));
   for(const session of previous){
     const index=session.exercises.findIndex((e,i)=>e.sets.some(set=>set.done)&&exerciseKey(session.workout.exercises[i],e.mode)===key);
     if(index<0)continue;
@@ -75,14 +103,22 @@ export function exerciseHistory(sessions:Session[],current:Session,exerciseIndex
   }
   return entries;
 }
-export function previousExercise(sessions:Session[],ex:Exercise,mode=ex.mode??'external') { const key=exerciseKey(ex,mode);for(const s of [...sessions].sort((a,b)=>b.startedAt-a.startedAt)) {const i=s.exercises.findIndex((log,i)=>log.sets.some(set=>set.done)&&exerciseKey(s.workout.exercises[i],log.mode)===key);if(i>=0)return s.exercises[i];} }
+export function previousExercise(sessions:Session[],ex:Exercise,mode=ex.mode??'external') { const key=exerciseKey(ex,mode);for(const s of [...sessions].sort((a,b)=>compareTrainingDates(b,a))) {const i=s.exercises.findIndex((log,i)=>log.sets.some(set=>set.done)&&exerciseKey(s.workout.exercises[i],log.mode)===key);if(i>=0)return s.exercises[i];} }
 export function newSession(w:Workout,store:Store):Session {
   const fixed = w.prescriptionMode === 'fixed';
   // Both prescription formats keep the existing version-4 database linkage.
   if((!fixed&&store.programme.status==='complete')||w.category==='recovery'||!w.exercises.length)throw new Error('Choose an available resistance workout.');
-  return {id:crypto.randomUUID(),workoutId:w.id,programId:'programme-16',workout:structuredClone(w),date:localDate(),startedAt:Date.now(),resume:{exerciseIndex:0,restEnd:null,restPaused:null},phase:'full',week:store.programme.week,attemptId:currentAttempt(store).id,note:'',...(!fixed ? {feedback:emptyFeedback()} : {}),warmup:Array(7).fill(false),cooldown:Array(3).fill(false),exercises:w.exercises.map(ex=>{
-    const mode=ex.mode??'external',previous=previousExercise(store.sessions,ex,mode);
-    return {id:ex.id,name:ex.name,mode,note:'',sets:Array.from({length:ex.sets},(_,i)=>{const last=previous?.sets.filter(set=>set.done)[i]??previous?.sets.filter(set=>set.done).at(-1);return {weight:mode==='bodyweight'?0:last?.weight??null,reps:Math.max(ex.min,Math.min(ex.max,last?.reps??ex.min)),rir:null,done:false};})};
+  return {id:crypto.randomUUID(),workoutId:w.id,programId:'programme-16',workout:structuredClone(w),date:localDate(),startedAt:Date.now(),resume:{exerciseIndex:0,restEnd:null,restPaused:null},phase:'full',week:store.programme.week,attemptId:currentAttempt(store).id,note:'',...(!fixed ? {feedback:emptyFeedback()} : {}),warmup:Array(7).fill(false),cooldown:Array(3).fill(false),exercises:w.exercises.map(ex=>prefillExercise(ex,store.sessions))};
+}
+export function previousSetAt(previous:ExerciseLog|undefined,index:number) {
+  const matching=previous?.sets[index];
+  return matching?.done?matching:previous?.sets.filter(set=>set.done).at(-1);
+}
+export function prefillExercise(exercise:Exercise,sessions:Session[]):ExerciseLog {
+  const mode=exercise.mode??'external',previous=previousExercise(sessions,exercise,mode);
+  return {id:exercise.id,name:exercise.name,mode,note:'',sets:Array.from({length:exercise.sets},(_,i)=>{
+    const last=previousSetAt(previous,i);
+    return {weight:mode==='bodyweight'?0:last?.weight??null,reps:last?.reps??exercise.min,rir:null,done:false};
   })};
 }
 export function reviewWeek(store:Store,action:'advance'|'repeat'|'restart'):Store {
@@ -177,6 +213,15 @@ function validNewSession(value:unknown):boolean {
     }
     const log=value.exercises[i];
     if(!record(log)||log.id!==spec.id||log.name!==spec.name||log.mode!==(spec.mode??'external')||!string(log.note)||!Array.isArray(log.sets)||log.sets.length<spec.sets||log.sets.length>MAX_SETS_PER_EXERCISE||!log.sets.every(set=>record(set)&&(set.weight===null||finite(set.weight,0,2000))&&integer(set.reps,set.done?1:0,1000)&&(set.rir===null||integer(set.rir,0,10))&&typeof set.done==='boolean'&&(!set.done||set.weight!==null)&&(log.mode!=='bodyweight'||set.weight===0)))return false;
+  }
+  const resume=value.resume as ResumeState|undefined;
+  if(resume?.skippedSets!==undefined) {
+    if(!record(resume.skippedSets))return false;
+    for(const [index,sets] of Object.entries(resume.skippedSets)) {
+      const spec=specs[Number(index)];
+      if(!/^(0|[1-9][0-9]*)$/.test(index)||!spec||!Array.isArray(sets)||new Set(sets).size!==sets.length||
+        sets.some(set=>!integer(set,0,spec.sets-1)||(value.exercises as ExerciseLog[])[Number(index)].sets[set].done))return false;
+    }
   }
   if (fixed) return true;
   if(template.optional){

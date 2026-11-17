@@ -23,6 +23,7 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
     await expect(pageA.getByRole('textbox',{name:'What should we call you?'})).toHaveValue('Cloud choice');
     await expect(pageA.getByText('Synced',{exact:true})).toBeVisible();
     expect((await bootstrap()).store!.settings.name).toBe('Cloud choice');
+    await expect(pageA.getByRole('button',{name:/Download recovered backup/})).toBeVisible();
     const dataRoutes='**/api/{bootstrap,mutations,imports,backup}';
     const unauthorized=(route:import('@playwright/test').Route)=>route.fulfill({status:401,contentType:'application/json',body:'{"error":"Sign in"}'});
     let signedIn=true;
@@ -68,7 +69,7 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
     await pageB.evaluate(()=>window.dispatchEvent(new Event('focus')));
     await expect(pageB.getByText('Synced',{exact:true})).toBeVisible();
     const today = pageB.getByRole('region',{name:'Today’s workout'});
-    await expect(today.getByRole('status')).toHaveText('Done');
+    await expect(today.getByRole('status')).toHaveText('Partial workout saved');
     await expect(today.getByRole('heading',{name:'Upper C'})).toBeVisible();
     await expect(today.getByRole('button',{name:'Start workout'})).toHaveCount(0);
     await pageB.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Progress'}).click();

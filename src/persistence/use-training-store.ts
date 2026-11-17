@@ -42,6 +42,27 @@ export function useTrainingStore() {
     });
     void result.catch(()=>{});return result;
   },[]);
+  const commitStore=useCallback((action:(store:Store)=>Store):Promise<void>=>{
+    const generation=engineRef.current?.generation, draft=ref.current;
+    pending.current++;
+    const task=chain.current.then(async()=>{
+      const engine=engineRef.current;
+      if(!engine?.current) throw new Error('Browser database is unavailable.');
+      if(unsaved.current)await engine.edit(engine.current.store,draft,Date.now(),generation);
+      await engine.commit(action,generation);
+      unsaved.current=false;
+      setError('');
+      try{saveStore(engine.current!.store);}catch{/* IndexedDB has committed the edit. */}
+    }).finally(()=>{
+      pending.current--;
+      if(!pending.current&&!unsaved.current&&engineRef.current?.current){
+        ref.current=engineRef.current.current.store;
+        setView(ref.current);
+      }
+    });
+    chain.current=task.catch(()=>{});
+    return task;
+  },[]);
   const restore=useCallback(async(value:Store)=>{
     await chain.current;
     if(!engineRef.current?.current)throw new Error('Browser database is unavailable.');
@@ -49,7 +70,7 @@ export function useTrainingStore() {
     try{saveStore(value);}catch{/* IndexedDB is authoritative. */}
   },[]);
   return {
-    store,setStore,ready,error,syncError,status,blocked:doc?.blocked??!!initial.corrupt,
+    store,setStore,commitStore,ready,error,syncError,status,blocked:doc?.blocked??!!initial.corrupt,
     recovered:doc?.recovered??[],restore,sync:()=>void engineRef.current?.sync(),
   };
 }

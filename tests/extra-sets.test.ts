@@ -46,7 +46,7 @@ describe('session-only extra sets',()=>{
     expect(original).toEqual(before);
     expect(added.exercises[0].sets[index]).toEqual({weight:20,reps:original.exercises[0].sets.at(-1)!.reps,rir:null,done:false});
     expect({...added,exercises:original.exercises}).toEqual(original);
-    expect(completeSession(added)).toBe(false);
+    expect(completeSession(added)).toBe(!partial);
     store.sessions=[added];expect(validateStore(JSON.parse(JSON.stringify(store)))).toEqual(store);
     expect(removeLastSessionSet(added,0)).toEqual(original);
     expect(added.exercises[0].sets).toHaveLength(index+1);
@@ -85,10 +85,10 @@ describe('session-only extra sets',()=>{
       (s:Session)=>s.exercises[0].sets.at(-1)!.done=true,
     ]){const copy=structuredClone(store);mutate(copy.active!);expect(()=>validateStore(copy)).toThrow();}
   });
-  it('counts extras in completion and volume and applies all progression checks to them',()=>{
+  it('counts logged extras in volume while completion uses prescribed sets',()=>{
     const original=complete(active().active!),s=addSessionSet(original,0),ex=s.workout.exercises[0],log=s.exercises[0];
     s.endedAt=original.endedAt;
-    expect(completeSession(s)).toBe(false);expect(progression(ex,log,s)).toBeNull();
+    expect(completeSession(s)).toBe(true);expect(progression(ex,log,s)).toBeNull();
     Object.assign(log.sets.at(-1)!,{weight:20,reps:ex.max,rir:3,done:true});
     expect(completeSession(s)).toBe(true);expect(doneSets(s)).toBe(doneSets(original)+1);expect(volume(s)).toBe(volume(original)+20*ex.max);
     expect(progression(ex,log,s)?.title).toContain('load increase');

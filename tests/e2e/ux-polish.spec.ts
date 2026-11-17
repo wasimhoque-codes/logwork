@@ -95,8 +95,13 @@ test('sheet dismissal keeps focus trapped through exit and restores its trigger'
 });
 
 test('a sheet can dismiss mid-entrance and Reduce Motion finishes the exit', async ({ page }) => {
+  await page.emulateMedia({reducedMotion:'no-preference'});
   await page.goto('/#today');
-  await page.addStyleTag({ content: ':root { --motion-sheet: 2s; --motion-dismiss: 2s; }' });
+  await page.addStyleTag({content:`
+    :root { --motion-sheet: 2s !important; --motion-dismiss: 20s !important; }
+    .modal-overlay[data-state="open"] .modal-backdrop { animation: overlay-in 2s linear -200ms both paused; }
+    .modal-overlay[data-state="open"] .modal { animation: panel-in 2s linear -200ms both paused; }
+  `});
   const trigger = page.getByRole('button', { name: 'Log bodyweight', exact: true });
   await trigger.click();
   const overlay = page.locator('.modal-overlay');
@@ -104,10 +109,6 @@ test('a sheet can dismiss mid-entrance and Reduce Motion finishes the exit', asy
   const entrance = await overlay.evaluate(element => {
     const panel = element.querySelector<HTMLElement>('[role=dialog]')!;
     const backdrop = element.querySelector<HTMLElement>('.modal-backdrop')!;
-    for (const animation of element.getAnimations({ subtree: true })) {
-      animation.pause();
-      animation.currentTime = 200;
-    }
     const frame = { opacity: getComputedStyle(backdrop).opacity, transform: getComputedStyle(panel).transform };
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     return frame;
@@ -213,16 +214,22 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     test.setTimeout(120000);
     const directory = path.resolve('artifacts/sky-blue'); await fs.mkdir(directory, { recursive: true });
     await page.setViewportSize({ width, height });
-    await page.clock.setFixedTime(new Date('2026-10-30T10:00:00Z'));
-    await seed(page, fixture(true, true));
+    const time=new Date('2026-10-30T10:00:00Z');
+    await page.clock.setFixedTime(time);
+    const records=fixture(true,true);
+    if(records.active){
+      records.active.date=localDate(time);
+      records.active.startedAt=time.getTime()-10*60_000;
+    }
+    await seed(page,records);
     const shot = async (name: string) => {
-      await page.evaluate(async () => { await document.fonts.ready; await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))); });
+      await page.evaluate(()=>document.fonts.ready.then(()=>{}));
       await noOverflow(page);
       const undersized = await page.locator('button,a[href],summary').evaluateAll(nodes => nodes.filter(element => { const box = element.getBoundingClientRect(); return box.width > 0 && box.height > 0 && (box.width < 43.5 || box.height < 43.5); }).map(element => element.textContent?.trim() || element.getAttribute('aria-label')));
       expect(undersized, name + ' touch targets').toEqual([]);
-      await page.screenshot({ path: path.join(directory, `${name}-${width}.png`) });
+      await page.screenshot({path:path.join(directory,`${name}-${width}.png`),animations:'disabled'});
     };
-    await page.goto('/#today'); await shot('today');
+    await page.goto('/#today'); await expect(nav(page)).toBeVisible(); await shot('today');
     if (width === 320) {
       const action = await page.getByRole('button', { name: 'Resume Upper A', exact: true }).boundingBox();
       const navigation = await nav(page).boundingBox(); expect(action!.y + action!.height).toBeLessThan(navigation!.y);
@@ -240,10 +247,10 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     await current.scrollIntoViewIfNeeded();
     const inputs = await page.locator('.set-inputs').boundingBox(), dock = await page.locator('.workout-dock').boundingBox();
     expect(inputs!.y + inputs!.height).toBeLessThanOrEqual(dock!.y + 1);
-    await page.getByLabel('Set 1 weight in kg').fill('12'); await page.getByRole('button', { name: 'Log set 1', exact: true }).click(); await shot('rest');
+    await page.getByLabel('Set 1 weight in kg').fill('12'); await page.getByRole('button', { name: 'Log set 1', exact: true }).click(); await expect(page.getByRole('group',{name:'Rest timer'})).toBeVisible(); await shot('rest');
     await page.getByRole('button', { name: /^History for / }).click(); await shot('exercise-history'); await dismiss(page);
     await page.getByRole('button', { name: 'Review and finish workout', exact: true }).click(); await shot('review');
-    await page.getByRole('button', { name: 'Save workout', exact: true }).click(); await shot('saved');
+    await page.getByRole('button', { name: 'Save workout', exact: true }).click(); await expect(page.getByRole('heading',{name:'Workout saved'})).toBeVisible(); await shot('saved');
     // Empty progress is a separate state, captured after the populated flows.
     await replaceLocal(page, freshStore());
     await page.goto('/#progress'); await page.reload(); await shot('progress-empty');

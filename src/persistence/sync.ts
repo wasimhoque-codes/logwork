@@ -1,6 +1,6 @@
 import { validateStore, type Store } from '../model';
 import { LocalDatabase, type LocalDocument } from './local';
-import { changesBetween, equal, importRecords, mergeEdit, overlay, SYNC_PROTOCOL, type Edit, type Snapshot, type Change } from './records';
+import { changesBetween, compareEdits, equal, importRecords, mergeEdit, overlay, records, SYNC_PROTOCOL, type Edit, type Snapshot, type Change } from './records';
 
 export type SyncStatus = 'opening' | 'saving' | 'local' | 'syncing' | 'synced' | 'signin' | 'update' | 'error';
 
@@ -48,6 +48,16 @@ function makeEdit(before: Store, after: Store, changes: Change[], editedAt: numb
   };
 }
 
+function enqueueEdit(doc:LocalDocument,before:Store,after:Store,changes:Change[],editedAt:number):LocalDocument {
+  if(!changes.length) return doc;
+  const store=overlay(doc.store,changes);
+  const time=Math.max(editedAt,(doc.lastEditAt??0)+1);
+  const queue=doc.queue??(doc.base?.store?[
+    makeEdit(doc.base.store,doc.store,changesBetween(doc.base.store,doc.store,doc.base.versions),0),
+  ]:[]);
+  return {...doc,store,lastEditAt:time,queue:[...queue,makeEdit(before,after,changes,time)]};
+}
+
 function project(doc: LocalDocument, base: Snapshot, queue: Edit[]): LocalDocument {
   if (!base.store) return {...doc, base, queue};
   let store = base.store, clocks = base.clocks ?? {};
@@ -77,7 +87,19 @@ function reconcile(doc: LocalDocument, remote: Snapshot, acknowledged?: string):
     return doc;
   }
   const base = doc.base && doc.base.revision > remote.revision ? doc.base : remote;
-  return project(doc, base, (doc.queue ?? []).filter(edit => edit.id !== acknowledged));
+  const queue=doc.queue??[];
+  const projected=project(doc,base,queue.filter(edit=>edit.id!==acknowledged));
+  const pending=new Map<string,{edit:Edit;change:Change}>();
+  for(const edit of queue) for(const change of edit.changes) pending.set(change.key,{edit,change});
+  const local=records(doc.store),merged=records(projected.store);
+  const replaced=[...pending.values()].some(({edit,change})=>{
+    const key=change.key;
+    if(!equal(change.value,local[key])||equal(local[key],merged[key]))return false;
+    if(compareEdits(edit,base.clocks?.[key])<0)return true;
+    return key==='active'&&doc.store.active!==null&&
+      base.store?.sessions.some(session=>session.id===doc.store.active?.id);
+  });
+  return replaced?{...projected,recovered:recover(doc)}:projected;
 }
 
 export class SyncEngine {
@@ -148,16 +170,28 @@ export class SyncEngine {
     await this.update(doc => {
       const current = doc.restore?.id ?? doc.base?.datasetId ?? null;
       if (current !== generation) return {...doc, recovered:recover({...doc, store:after})};
-      const store = overlay(doc.store, changes);
-      const time = Math.max(editedAt, (doc.lastEditAt ?? 0) + 1);
-      const queue = doc.queue ?? (doc.base?.store ? [
-        makeEdit(doc.base.store, doc.store, changesBetween(doc.base.store, doc.store, doc.base.versions), 0),
-      ] : []);
-      return {...doc, store, lastEditAt:time, queue:[...queue, makeEdit(before, after, changes, time)]};
+      return enqueueEdit(doc, before, after, changes, editedAt);
     });
     this.status = 'local';
     this.emit();
     this.schedule();
+  }
+
+  async commit(action:(store:Store)=>Store, generation=this.generation) {
+    this.status='saving';
+    this.emit();
+    try {
+      await this.update(doc=>{
+        const current=doc.restore?.id??doc.base?.datasetId??null;
+        if(doc.blocked||current!==generation) throw new Error('Local records changed. Try again.');
+        const after=action(doc.store);
+        return enqueueEdit(doc,doc.store,after,changesBetween(doc.store,after),Date.now());
+      });
+    } finally {
+      this.status='local';
+      this.emit();
+      this.schedule();
+    }
   }
 
   async restore(store: Store) {

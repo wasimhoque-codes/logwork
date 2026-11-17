@@ -22,7 +22,7 @@ test('three-tab navigation, old links and returning from settings',async({page})
 });
 test('today starts in one tap and prefilled sets log in one tap',async({page})=>{
   await page.clock.setFixedTime(new Date('2026-10-26T10:00:00Z'));await go(page,'today');await page.getByRole('button',{name:'Start workout',exact:true}).click();await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 2');
-  await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('12');await page.getByRole('button',{name:'Log set 2',exact:true}).click();await expect(page.getByRole('heading',{name:'Exercise complete',exact:true})).toBeVisible();await expect(page.locator('.workout-dock').getByRole('button',{name:'Next exercise',exact:true})).toBeVisible();await page.getByRole('button',{name:'More exercise options'}).click();await page.getByText('Optional RIR',{exact:true}).click();await page.getByLabel('Set 1 RIR',{exact:true}).selectOption('4');await page.getByLabel('Exercise notes',{exact:true}).fill('Bench setting two');await close(page);const data=await backup(page);expect(data.active!.exercises[0].sets[0].rir).toBe(4);expect(data.active!.exercises[0].note).toBe('Bench setting two');
+  await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByLabel('Set 1 RIR',{exact:true}).selectOption('4');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('12');await page.getByRole('button',{name:'Log set 2',exact:true}).click();await expect(page.getByRole('heading',{name:'Exercise complete',exact:true})).toBeVisible();await expect(page.locator('.workout-dock').getByRole('button',{name:'Next exercise',exact:true})).toBeVisible();await page.getByRole('button',{name:'More exercise options'}).click();await page.getByLabel('Exercise notes',{exact:true}).fill('Bench setting two');await close(page);const data=await backup(page);expect(data.active!.exercises[0].sets[0].rir).toBe(4);expect(data.active!.exercises[0].note).toBe('Bench setting two');
 });
 
 test('Today shows the partial workout actually saved and keeps it on reload', async ({page}) => {
@@ -38,12 +38,12 @@ test('Today shows the partial workout actually saved and keeps it on reload', as
   await page.getByRole('button', {name:'Log set 1', exact:true}).click();
   await save(page);
   await page.getByRole('button', {name:'Back to Today'}).click();
-  await expect(card.locator('.today-check')).toHaveCSS('animation-name', 'today-check-in');
-  await expect(card.getByRole('button', {name:/^Up next/})).toHaveCSS('animation-name', 'today-preview-in');
+  await expect(card.locator('.today-check')).toHaveCount(0);
+  await expect(card.getByRole('button',{name:'Scheduled today · Upper A'})).toBeVisible();
 
   for (const reload of [false, true]) {
     if (reload) await page.reload();
-    await expect(card.getByRole('status')).toHaveText('Done');
+    await expect(card.getByRole('status')).toHaveText('Partial workout saved');
     await expect(card.getByRole('heading', {name:'Lower A'})).toBeVisible();
     await expect(card.getByText('1 exercise · 1 set logged')).toBeVisible();
     await expect(card.getByRole('button', {name:'Start workout'})).toHaveCount(0);
@@ -86,7 +86,7 @@ for (const preview of previews) {
   });
 }
 
-test('Today shows the latest save alongside an active workout and rolls over at local midnight', async ({page}) => {
+test('Today prioritises the active workout and rolls over at local midnight', async ({page}) => {
   await page.clock.install({time:new Date(2026, 10, 16, 23, 59, 50)});
   await page.emulateMedia({reducedMotion:'reduce'});
   const store = freshStore();
@@ -100,11 +100,10 @@ test('Today shows the latest save alongside an active workout and rolls over at 
   await seed(page, store);
   await go(page, 'today');
   const card = page.getByRole('region', {name:'Today’s workout'});
-  await expect(card.getByRole('status')).toHaveText('Done');
-  await expect(card.getByRole('heading', {name:'Lower A'})).toBeVisible();
+  await expect(card.getByRole('status')).toHaveText('In progress');
+  await expect(card.getByRole('heading', {name:'Upper B'})).toBeVisible();
   await expect(card.getByRole('button', {name:'Resume Upper B'})).toBeVisible();
-  await expect(card.locator('.today-check')).toHaveCSS('animation-name', 'none');
-  await expect(card.getByRole('button', {name:/^Up next/})).toHaveCSS('animation-name', 'none');
+  await expect(card.locator('.today-check')).toHaveCount(0);
   await page.clock.fastForward(11000);
   await expect(page.locator('.today-date')).toHaveAttribute('datetime', '2026-11-17');
   await expect(card.getByRole('status')).toHaveText('In progress');
@@ -259,7 +258,7 @@ for (const week of [1, 2, 16]) test(`Week ${week} data can train the fixed sched
   await go(page, 'today');
   await expect(page.locator('.weekly-card, .nav-programme, .review-ready')).toHaveCount(0);
   await go(page, 'programme');
-  await expect(page.locator('.programme-heading')).toHaveText('Week 2');
+  await expect(page.locator('.programme-heading')).toHaveText('Weekly schedule');
   await expect(page.getByRole('tablist', { name: 'Weekly programme' }).getByRole('tab')).toHaveCount(7);
   await expect(page.getByText('16-week roadmap')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Sat Upper C' }).click();
@@ -298,9 +297,9 @@ test('assistance and timed per-side sets retain their meaning',async({page})=>{
 });
 test('bodyweight remains available with replacement and no daily tracking',async({page})=>{
   await go(page,'today');await expect(page.getByRole('button',{name:/Daily check-in/})).toHaveCount(0);
-  for(const value of ['61','62']){await page.getByRole('button',{name:/Log bodyweight/}).click();await page.getByLabel('Bodyweight (kg)',{exact:true}).fill(value);await page.getByRole('button',{name:'Save bodyweight'}).click();await page.reload();}
+  for(const value of ['61','62']){await page.getByRole('button',{name:/Log bodyweight/}).click();await page.getByLabel('Bodyweight (kg)',{exact:true}).fill(value);await page.getByRole('button',{name:'Save bodyweight'}).click();await expect(page.getByRole('dialog',{name:'Log bodyweight'})).toHaveCount(0);await page.reload();}
   const data=await backup(page);expect(data.daily).toEqual([]);expect(data.body).toHaveLength(1);expect(data.body[0].kg).toBe(62);
-  await go(page,'progress/bodyweight');await expect(page.locator('.body-entries')).toContainText('62');await expect(page.getByRole('img',{name:/^Bodyweight trend/})).toBeVisible();await page.getByRole('button',{name:'Nutrition reference',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Maintenance +200–300 kcal/day');await close(page);await page.getByRole('button',{name:/Delete bodyweight for/}).click();await page.getByRole('button',{name:'Delete entry',exact:true}).click();await expect(page.locator('.body-entries')).toHaveCount(0);
+  await go(page,'progress/bodyweight');await expect(page.locator('.body-entries')).toContainText('62');await expect(page.getByRole('group',{name:/^Bodyweight trend/})).toBeVisible();await page.getByRole('button',{name:'Nutrition reference',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Maintenance +200–300 kcal/day');await close(page);await page.getByRole('button',{name:/Delete bodyweight for/}).click();await page.getByRole('button',{name:'Delete entry',exact:true}).click();await expect(page.locator('.body-entries')).toHaveCount(0);
   await go(page,'progress/recovery');await expect(page.getByRole('heading',{name:'Habit consistency'})).toHaveCount(0);await expect(page.getByRole('button',{name:/Daily check-in/})).toHaveCount(0);await expect(page).toHaveURL(/#progress$/);
 });
 test('loading and importing old version-4 check-ins removes only retired records',async({page})=>{

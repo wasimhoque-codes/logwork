@@ -18,7 +18,7 @@ async function settled(page: Page) {
   await page.evaluate(async () => { await document.fonts.ready; await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))); });
 }
 
-test('Progress overview and detail retain every weigh-in within one week, with rolling averages and no chart controls', async ({ page }) => {
+test('Progress overview and detail retain every weigh-in within one week, with rolling averages and selectable readings', async ({ page }) => {
   const store = fixture(); await seed(page, store);
   for (const route of ['progress', 'progress/bodyweight']) {
     await page.goto('/#' + route);
@@ -26,10 +26,11 @@ test('Progress overview and detail retain every weigh-in within one week, with r
     await expect(chart(page).locator('.body-average-line')).toHaveCount(1);
     await expect(chart(page).locator('.body-chart-latest')).toContainText('70.6 kg');
     await expect(chart(page).locator('.body-chart-stats')).toContainText('70.3 kg');
-    await expect(chart(page).locator('.body-chart-stats')).toContainText('+0.6 kg');
-    await expect(chart(page).getByRole('table').getByRole('row')).toHaveCount(6);
-    await expect(chart(page).locator('button,select,[role=slider],[role=tooltip],svg title')).toHaveCount(0);
-    await expect(page.getByRole('img', { name: /^Bodyweight trend/ })).toBeVisible();
+    await expect(chart(page).locator('.body-chart-stats')).toContainText('5 readings through 30 Oct 2026');
+    await expect(chart(page).getByRole('button',{name:'Last 30 days'})).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByRole('group',{name:/^Bodyweight trend/})).toBeVisible();
+    await chart(page).getByRole('button',{name:'Previous weigh-in'}).click();
+    await expect(chart(page).locator('.body-reading')).toContainText('29 Oct 2026');
   }
   await page.reload();
   await expect(page.getByLabel('Insights date range')).toHaveCount(0);
@@ -44,11 +45,12 @@ test('old readings remain visible and irregular dates use real time spacing', as
     { id: 'recent', date: '2026-10-30', kg: 70 },
   ];
   await seed(page, store); await page.goto('/#progress/bodyweight'); await settled(page);
+  await expect(chart(page).locator('.body-weigh-in')).toHaveCount(1);
+  await chart(page).getByRole('button',{name:'All time'}).click();
   await expect(chart(page).locator('.body-weigh-in')).toHaveCount(3);
-  await expect(chart(page).locator('.body-chart-caption')).toContainText('1 Jan 2020');
   const xs = await chart(page).locator('.body-weigh-in').evaluateAll(nodes => nodes.map(node => Number(node.getAttribute('cx'))));
   expect((xs[1] - xs[0]) / (xs[2] - xs[0])).toBeLessThan(.01);
-  await expect(chart(page).locator('.body-chart-stats')).toContainText('1 reading in 7 days');
+  await expect(chart(page).locator('.body-chart-stats')).toContainText('1 reading through 30 Oct 2026');
 });
 
 test('single and empty states show honest data and logging prompts', async ({ page }) => {
@@ -56,8 +58,7 @@ test('single and empty states show honest data and logging prompts', async ({ pa
   await seed(page, store); await page.goto('/#progress/bodyweight');
   await expect(chart(page).locator('.body-weigh-in')).toHaveCount(1);
   await expect(chart(page).locator('.body-average-line')).toHaveCount(0);
-  await expect(chart(page)).toContainText('Log another day');
-  await expect(chart(page).locator('.body-chart-stats')).toContainText('—');
+  await expect(chart(page).locator('.body-chart-stats')).toContainText('1 reading through 30 Oct 2026');
   await page.getByRole('button', { name: 'Delete bodyweight for 2026-10-30', exact: true }).click();
   await page.getByRole('button', { name: 'Delete entry', exact: true }).click();
   await expect(page.locator('.body-chart-empty')).toContainText('Log your first weigh-in');
@@ -86,6 +87,7 @@ test('replacement, deletion, offline reload, units and backups preserve chart da
   expect(backup.body).toEqual(saved.body); expect(backup.version).toBe(4);
   await page.getByLabel('Import backup file').setInputFiles({ name: 'bodyweight.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(store)) });
   await page.getByRole('button', { name: 'Replace data and restore', exact: true }).click();
+  await expect(page.getByRole('dialog',{name:'Restore your backup?'})).toHaveCount(0);
   await page.goto('/#progress/bodyweight'); await expect(chart(page).locator('.body-chart-latest')).toContainText('70.6 kg');
   await page.getByRole('button', { name: 'Delete bodyweight for 2026-10-30', exact: true }).click(); await page.getByRole('button', { name: 'Delete entry', exact: true }).click();
   await expect(chart(page).locator('.body-weigh-in')).toHaveCount(4); await expect(chart(page).locator('.body-chart-latest')).toContainText('70.3 kg');

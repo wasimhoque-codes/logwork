@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { freshStore, selectedWorkout, newSession, reviewWeek, currentAttempt, volume, fromKg, type Store, type Session } from '../src/model';
+import { doneSets, freshStore, selectedWorkout, newSession, reviewWeek, currentAttempt, volume, fromKg, type Store, type Session } from '../src/model';
 import { attemptSummary, bodySnapshot, calendarDay, strengthSpotlight, volumeDistribution } from '../src/progress-data';
 
 function fixture(week = 5) {
@@ -153,7 +153,7 @@ describe('volume distribution', () => {
     session.exercises.forEach((log, i) => { if (log.mode === 'external') log.sets.forEach(s => s.done = false); if (session.workout.exercises[i].timed) log.sets.forEach(s => s.weight = 500); });
     const active = structuredClone(session); delete active.endedAt;
     const result = volumeDistribution([session, active]);
-    expect(result.groups.every(g => g.volume === 0 && g.sessions === 0)).toBe(true); expect(result.muscles).toEqual([]); expect(result.coreSeconds).toBe(80);
+    expect(result.groups.every(g => g.volume === 0 && g.sessions === 0)).toBe(true); expect(result.muscles.every(muscle=>muscle.volume===0)).toBe(true);expect(result.muscles.reduce((count,muscle)=>count+muscle.sets,0)).toBe(doneSets(session)); expect(result.coreSeconds).toBe(80);
   });
   it('does not mutate stored history while deriving the dashboard', () => {
     const store = fixture(); save(store); const original = structuredClone(store);

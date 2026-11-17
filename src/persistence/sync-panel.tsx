@@ -70,7 +70,7 @@ export function SyncPanel({persistence:p,actions=false}:{persistence:ReturnType<
       setSigningOut(false);
     }
   }
-  const labels={opening:'Opening records…',saving:'Saving on this device…',local:'Waiting to sync',syncing:'Syncing…',synced:'Synced',signin:'Sign in to sync',update:'Reload to update sync',error:'Saved on this device · sync unavailable'};
+  const labels={opening:'Opening records…',saving:'Saving on this device…',local:'Saved on this device · waiting to sync',syncing:'Syncing…',synced:'Synced',signin:'Saved on this device · sign in to sync',update:'Reload to update sync',error:'Saved on this device · sync unavailable'};
   useEffect(()=>{
     if(process.env.NODE_ENV!=='production'||!('serviceWorker' in navigator))return;
     void navigator.serviceWorker.register('/sw.js').catch(()=>{});
@@ -78,7 +78,7 @@ export function SyncPanel({persistence:p,actions=false}:{persistence:ReturnType<
   const signedOut=needsSignIn||cloudSession?.signedIn===false;
   return <>
     <div className="sync-strip">
-      <span aria-live="polite" title={p.syncError}>{signedOut?'Sign in to sync':labels[p.status]}</span>
+      <span aria-live="polite" title={p.syncError}>{labels[p.status]}</span>
       {actions&&signedOut&&<a href="/api/auth/github/start" className="text-button">Sign in with GitHub</a>}
       {actions&&p.status==='update'&&<button className="text-button" onClick={()=>window.location.reload()}>Reload Gym Hawk</button>}
       {actions&&cloudSession?.signedIn&&!cloudSession.localDevelopment&&!needsSignIn&&
@@ -86,7 +86,7 @@ export function SyncPanel({persistence:p,actions=false}:{persistence:ReturnType<
     </div>
     {actions&&authMessage&&<p className="sync-auth-message" role="status">{authMessage}</p>}
     {actions&&p.recovered.length>0&&<div className="sync-auth-message">
-      <p>Earlier local changes are available as backups.</p>
+      <p>Some local changes were replaced during sync or restore. Earlier copies are available to download.</p>
       {p.recovered.map((store,index)=><button key={index} className="text-button" onClick={()=>exportRecovered(store,index)}>
         {p.recovered.length===1?'Download recovered backup':`Download recovered backup ${index + 1}`}
       </button>)}

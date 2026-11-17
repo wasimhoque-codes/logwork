@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronRight, Dumbbell, Plus, Download, Upload, Search, Trash2, Scale, TrendingUp, ArrowUpRight, CalendarDays, Footprints } from './icons';
 import { WORKOUTS, DAY_NAMES, FIXED_WORKOUT_WEEK, fixedWorkoutForDay, weekEffort, workoutForDay, type Exercise, type Workout } from './data';
-import { completeSession, sessionLabel, dateLabel, doneSets, fromKg, localDate, monday, number, volume, bodyAverages, bodyGuidance, type Session, type Store, type Settings } from './model';
-import { Empty, LineChart, Modal } from './components';
+import { completeSession, sessionLabel, dateLabel, doneSets, fromKg, localDate, number, volume, bodyAverages, bodyGuidance, type BodyEntry, type Session, type Store, type Settings } from './model';
+import { Empty, Modal } from './components';
 import { BodyweightChart } from './body-chart';
-import { recordedSessions, volumeDistribution } from './progress-data';
+import { trainingJourney, volumeDistribution } from './progress-data';
+import { WeeklyChart, type TrainingRange } from './progress-charts';
 import { motionPreference, useContentFade } from './motion';
 import { MobilityGuide } from './technique-demo';
 import { MuscleVolume } from './muscle-volume';
@@ -30,7 +31,7 @@ export function WeekPicker({day,onDay}:{day:number;onDay:(day:number)=>void}) {
   },[day]);
   return <div ref={stripRef} className="week-picker" role="tablist" aria-label="Weekly programme">{DAY_NAMES.map((name,i)=>{
     const label=workoutForDay((i+1)%7)?.name??'Rest';
-    return <button key={name} id={'programme-day-'+i} aria-controls="programme-day-panel" role="tab" aria-label={name.slice(0,3)+' '+label} aria-selected={day===i} tabIndex={day===i?0:-1} onClick={()=>onDay(i)} onKeyDown={e=>{const next=e.key==='ArrowRight'?(i+1)%7:e.key==='ArrowLeft'?(i+6)%7:e.key==='Home'?0:e.key==='End'?6:null;if(next!==null){e.preventDefault();onDay(next);e.currentTarget.parentElement?.querySelectorAll('button')[next]?.focus({preventScroll:true});}}}><span>{name.slice(0,3)}</span><strong>{label==='Active recovery'?'Recovery':label}</strong></button>;
+    return <button key={name} id={'programme-day-'+i} aria-controls="programme-day-panel" role="tab" aria-label={name.slice(0,3)+' '+label} aria-selected={day===i} tabIndex={day===i?0:-1} onClick={()=>onDay(i)} onKeyDown={e=>{const next=e.key==='ArrowRight'?(i+1)%7:e.key==='ArrowLeft'?(i+6)%7:e.key==='Home'?0:e.key==='End'?6:null;if(next!==null){e.preventDefault();onDay(next);e.currentTarget.parentElement?.querySelectorAll('button')[next]?.focus({preventScroll:true});}}}><span>{name.slice(0,3)}</span><strong>{label==='Active recovery'?'Rest':label}</strong></button>;
   })}</div>;
 }
 function RestDaySuggestions() {
@@ -116,18 +117,23 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const options = store.programme.options;
-  const saved = store.sessions.reduce<Session | undefined>((latest, session) => {
+  const recent = store.sessions.reduce<Session | undefined>((latest, session) => {
     if (session.date !== date || session.endedAt === undefined) return latest;
     if (!latest || session.endedAt > (latest.endedAt ?? 0) || (session.endedAt === latest.endedAt && session.startedAt > latest.startedAt)) return session;
     return latest;
   }, undefined);
   const active = store.active;
-  const workout = saved?.workout ?? active?.workout ?? fixedWorkoutForDay(today.getDay(), options);
+  const saved=active?undefined:recent;
+  const scheduled=fixedWorkoutForDay(today.getDay(),options);
+  const pendingSchedule=isTrainingDay(scheduled)&&!store.sessions.some(session=>
+    session.date===date&&session.workoutId===scheduled.id&&completeSession(session));
+  const workout=active?.workout??saved?.workout??scheduled;
   const training = isTrainingDay(workout);
   const totalSets = active?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
   const activeSets = active ? doneSets(active) : 0;
-  const status = saved ? 'Done' : active ? 'In progress' : training ? 'Scheduled' : 'Recovery';
-  const statusClass = saved ? 'done' : active ? 'active' : training ? 'ready' : 'rest';
+  const complete=saved?completeSession(saved):false;
+  const status=active?'In progress':saved?complete?'Done':'Partial workout saved':training?'Scheduled':'Recovery';
+  const statusClass=active?'active':saved?complete?'done':'partial':training?'ready':'rest';
   const loggedExercises = saved?.exercises.filter(exercise => exercise.sets.some(set => set.done)).length ?? 0;
   const latestBody=[...store.body].sort((a,b)=>b.date.localeCompare(a.date))[0];
   const hour = today.getHours();
@@ -151,7 +157,7 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
             : <><p className="workout-meta">{workout?.focus ?? 'Optional movement, at your own pace.'}</p>
               {training && <p className="today-prescription">{prescription(workout)}</p>}</>}
         </div>
-        {saved ? <TodayStatusGraphic/> : <span className="today-card-visual" aria-hidden="true">
+        {saved ? complete?<TodayStatusGraphic/>:null : <span className="today-card-visual" aria-hidden="true">
           <TodayIllustration kind={training || active ? 'strength' : 'recovery'} register={registerIllustration}/>
           {active && <TodayStatusGraphic progress={activeSets / Math.max(totalSets, 1) * 100}/>}
         </span>}
@@ -159,13 +165,14 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
       {saved ? <>
         <div className="today-saved-actions">
           <button className="today-card-link" onClick={() => onDetail(saved)}>View workout<ArrowUpRight size={16} aria-hidden="true"/></button>
-          {active && <button className="today-card-link" onClick={() => onStart()}>Resume {active.workout.name}<ArrowRight size={16} aria-hidden="true"/></button>}
         </div>
-        <UpcomingDay date={tomorrow} workout={fixedWorkoutForDay(tomorrow.getDay(), options)} onOpen={() => onPlan(tomorrow.getDay())}/>
+        {pendingSchedule&&<button className="today-card-link" onClick={()=>onPlan(today.getDay())}>Scheduled today · {scheduled.name}<ChevronRight size={16}/></button>}
+        {complete&&<UpcomingDay date={tomorrow} workout={fixedWorkoutForDay(tomorrow.getDay(), options)} onOpen={() => onPlan(tomorrow.getDay())}/>}
       </> : active || training ? <button className="primary hero-button" onClick={() => onStart(workout)}>{active ? `Resume ${active.workout.name}` : 'Start workout'}<ArrowRight size={20} aria-hidden="true"/></button>
         : <><RestDaySuggestions/><button className="today-card-link" onClick={() => onPlan(today.getDay())}>View your programme<ArrowUpRight size={16} aria-hidden="true"/></button></>}
+      {active&&pendingSchedule&&active.workoutId!==scheduled.id&&<button className="today-card-link" onClick={()=>onPlan(today.getDay())}>Scheduled today · {scheduled.name}<ChevronRight size={16}/></button>}
     </section>
-    <div className="today-section-title"><h3>Your daily rhythm</h3><span>Small steps. Lasting change.</span></div>
+    <button className="today-history" onClick={onHistory}><strong>View workout history<ArrowRight size={17}/></strong></button>
     <button className="daily-card daily-body" onClick={onBody} aria-label="Log bodyweight">
       <span className="daily-icon" aria-hidden="true"><Scale size={21}/></span>
       <span className="daily-card-action" aria-hidden="true"><Plus size={18}/><span>Log weight</span></span>
@@ -186,17 +193,16 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
       </span>
       <TodayIllustration kind="progress" register={registerIllustration}/>
     </button>
-    <button className="today-history" onClick={onHistory}><span>Every session, in one place.</span><strong>View workout history<ArrowRight size={17}/></strong></button>
   </div>;
 }
 export function Plan({store,day,onDay,workout,onStart,onResume,onOptions,onWarmup,onGuide,onUrgent,onExercise}:{store:Store;day:number;onDay:(day:number)=>void;workout?:Workout;onStart:()=>void;onResume:()=>void;onOptions:()=>void;onWarmup:()=>void;onGuide:()=>void;onUrgent:()=>void;onExercise:(e:Exercise)=>void}) {
   const restDay=!workout||workout.category==='recovery'||!workout.exercises.length;
   const dayRef=useRef<HTMLDivElement>(null);useContentFade(dayRef,day,'panel');
-  return <><div className="programme-heading"><p className="eyebrow">Week {FIXED_WORKOUT_WEEK}</p>{workout?.optional&&<button className="text-button" onClick={onOptions}>Upper C settings</button>}</div><WeekPicker day={day} onDay={onDay}/>
+  return <><div className="programme-heading"><p className="eyebrow">Weekly schedule</p>{workout?.optional&&<button className="text-button" onClick={onOptions}>Upper C settings</button>}</div><WeekPicker day={day} onDay={onDay}/>
     {store.active&&<aside className="active-banner"><p><strong>{store.active.workout.name} is in progress</strong><span>Finish or discard it before starting another session.</span></p><button className="secondary full-width" onClick={onResume}>Resume {store.active.workout.name}<ArrowRight size={18}/></button></aside>}
     <div ref={dayRef} id="programme-day-panel" role="tabpanel" aria-labelledby={'programme-day-'+day} tabIndex={0}><section className="plan-card"><p className="overline">{DAY_NAMES[day]}</p><h2>{restDay?'Rest day':workout?.name}</h2><p className="dialog-description">{restDay?'Optional movement, at your own pace.':workout?.focus}</p>{workout?.exercises.length?<p className="plan-effort">{workout.exercises.reduce((n,e)=>n+e.sets,0)} working sets · {weekEffort(FIXED_WORKOUT_WEEK)} reps in reserve</p>:null}
       {!restDay&&<button className="primary full-width" disabled={!!store.active} onClick={onStart}>Train this session today<ArrowRight size={18}/></button>}
-      {!!workout?.exercises.length&&<p className="input-hint">Recorded on {dateLabel(localDate(),{day:'numeric',month:'long'})}, whenever you train.</p>}
+      {!!workout?.exercises.length&&<p className="input-hint">The set and effort targets repeat each week. Your session is logged on the workout date you choose.</p>}
     </section>
     {!!workout?.exercises.length&&<section className="exercise-list" aria-label="Planned exercises">{workout.exercises.map((e,i)=><button className="exercise-row" key={e.slot??e.id} onClick={()=>onExercise(e)}><span className="row-number">{i+1}</span><span className="exercise-row-name">{e.name}<small>{e.sets} × {e.min===e.max?e.min:e.min+'–'+e.max}{e.timed?' sec':' reps'}{e.perSide?' / side':''} · {e.rest}s rest</small></span><ChevronRight size={18}/></button>)}</section>}
     {restDay&&<RestDaySuggestions/>}
@@ -205,29 +211,42 @@ export function Plan({store,day,onDay,workout,onStart,onResume,onOptions,onWarmu
 }
 export function History({store,onDetail,onStart}:{store:Store;onDetail:(s:Session)=>void;onStart:()=>void}) {
   const [search,setSearch]=useState(''),[filter,setFilter]=useState('all');
-  const sessions=store.sessions.filter(s=>(filter==='all'||filter===s.workoutId)&&[s.workout.name,s.date,s.note,sessionLabel(s),...s.exercises.map((e,i)=>e.name+' '+e.note+' '+(s.workout.exercises[i].setup??''))].join(' ').toLowerCase().includes(search.toLowerCase()));
+  const [status,setStatus]=useState('all'),[from,setFrom]=useState(''),[to,setTo]=useState('');
+  const currentYear=localDate().slice(0,4);
+  const sessions=store.sessions.filter(s=>(filter==='all'||filter===s.workoutId)&&
+    (status==='all'||completeSession(s)===(status==='complete'))&&(!from||s.date>=from)&&(!to||s.date<=to)&&[s.workout.name,s.date,s.note,sessionLabel(s),...s.exercises.map((e,i)=>e.name+' '+e.note+' '+(s.workout.exercises[i].setup??''))].join(' ').toLowerCase().includes(search.trim().toLowerCase()));
   const dates=[...new Set(sessions.map(s=>s.date))].sort((a,b)=>b.localeCompare(a));
   return <><div className="filter-bar"><label className="search-field"><Search size={18}/><input aria-label="Search workout history" placeholder="Search workouts" value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Filter workout history" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All workouts</option>{WORKOUTS.filter(w=>w.category!=='recovery').map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-    {!dates.length?<Empty title={store.sessions.length?'No matching workouts':'No workouts yet'} text="Saved workouts appear here." action={<button className="primary" onClick={onStart}>View programme<ArrowRight size={17}/></button>}/>:<div className="history-list">{dates.map(date=><section key={date}><h2 className="date-heading">{dateLabel(date,{weekday:'short',day:'numeric',month:'short'})}</h2><div className="list-card">{sessions.filter(s=>s.date===date).sort((a,b)=>b.startedAt-a.startedAt).map(s=>{const label=sessionLabel(s);return <button className="history-row" key={s.id} onClick={()=>onDetail(s)}><span className="history-icon"><Dumbbell size={20}/></span><span className="history-main"><strong>{s.workout.name}</strong><small>{label && label+' · '}{completeSession(s)?'Complete':'Partial'}<br/>{doneSets(s)} sets · {number(fromKg(volume(s),store.settings.unit),0)} {store.settings.unit} × reps volume</small></span><ChevronRight size={18}/></button>;})}</div></section>)}</div>}
+    <div className="history-filters">
+      <label>Status<select value={status} onChange={event=>setStatus(event.target.value)}><option value="all">All statuses</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
+      <label>From<input type="date" value={from} onChange={event=>setFrom(event.target.value)}/></label>
+      <label>To<input type="date" value={to} onChange={event=>setTo(event.target.value)}/></label>
+    </div>
+    {!dates.length?<Empty title={store.sessions.length?'No matching workouts':'No workouts yet'} text="Saved workouts appear here." action={<button className="primary" onClick={onStart}>View programme<ArrowRight size={17}/></button>}/>:<div className="history-list">{dates.map(date=>{const rows=sessions.filter(s=>s.date===date).sort((a,b)=>b.startedAt-a.startedAt);return <section key={date}><h2 className="date-heading">{dateLabel(date,{weekday:'short',day:'numeric',month:'short',year:date.startsWith(currentYear)?undefined:'numeric'})}</h2><div className="list-card">{rows.map(s=>{const label=sessionLabel(s);return <button className="history-row" key={s.id} onClick={()=>onDetail(s)}><span className="history-icon"><Dumbbell size={20}/></span><span className="history-main"><strong>{s.workout.name}</strong><small>{label && label+' · '}{completeSession(s)?'Complete':'Partial'}{rows.length>1&&' · '+new Date(s.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}<br/>{doneSets(s)} sets · {number(fromKg(volume(s),store.settings.unit),0)} {store.settings.unit} × reps volume</small></span><ChevronRight size={18}/></button>;})}</div></section>;})}</div>}
   </>;
 }
 export type ProgressMetric='volume'|'body';
-export function ProgressDetail({store,segment,initialVolumeView,onBody,onDeleteBody,onStart}:{store:Store;segment:ProgressMetric;initialVolumeView?:'muscles';onBody:()=>void;onDeleteBody:(id:string)=>void;onStart:()=>void}) {
-  const [range,setRange]=useState('112'),[deleteBody,setDeleteBody]=useState<string|null>(null),[nutrition,setNutrition]=useState(false);
+export function ProgressDetail({store,segment,initialVolumeView,onBody,onEditBody,onDeleteBody,onStart}:{store:Store;segment:ProgressMetric;initialVolumeView?:'muscles';onBody:()=>void;onEditBody:(entry:BodyEntry)=>void;onDeleteBody:(id:string)=>void;onStart:()=>void}) {
+  const [range,setRange]=useState<TrainingRange>('recent'),[deleteBody,setDeleteBody]=useState<string|null>(null),[nutrition,setNutrition]=useState(false);
   const [volumeView,setVolumeView]=useState<'trend'|'muscles'>(initialVolumeView??'trend');
-  const recorded=segment==='volume'?recordedSessions(store.sessions):[];
-  const muscleData=volumeDistribution(volumeView==='muscles'?recorded:[]);
-  const unit=store.settings.unit,cutoff=new Date();cutoff.setDate(cutoff.getDate()-Number(range));
-  const sessions=recorded.filter(s=>range==='all'||s.date>=localDate(cutoff));
-  const volumeMap=new Map<string,number>();sessions.forEach(s=>{const date=localDate(monday(new Date(s.date+'T12:00:00')));volumeMap.set(date,(volumeMap.get(date)??0)+volume(s));});
-  const volumes=[...volumeMap].sort(([a],[b])=>a.localeCompare(b)).map(([date,value])=>({label:dateLabel(date),value:fromKg(value,unit)}));
-  const body=[...store.body].sort((a,b)=>a.date.localeCompare(b.date)),averages=bodyAverages(body);
-  if(segment==='volume'&&!recorded.length&&volumeView==='trend')return <Empty title="No training volume yet" text="Log external resistance to build your load × repetitions trend." action={<button className="primary" onClick={onStart}>Explore programme</button>}/>;
-  return <>{segment==='volume'&&volumeView==='trend'&&<div className="progress-toolbar"><select aria-label="Insights date range" value={range} onChange={e=>setRange(e.target.value)}><option value="28">Last 4 weeks</option><option value="112">Last 16 weeks</option><option value="all">All time</option></select></div>}
+  const journey=segment==='volume'?trainingJourney(store):null;
+  const sessions=journey?.sessions.filter(session=>range==='all'||session.date>=journey.recentWeeks[0].date&&session.date<=localDate())??[];
+  const unit=store.settings.unit,body=[...store.body].sort((a,b)=>a.date.localeCompare(b.date)),averages=bodyAverages(body);
+  return <>
     {segment==='body'&&<><div className="progress-toolbar"><button className="small-button" onClick={onBody}><Plus size={16}/>Log bodyweight</button></div><section className="chart-panel bodyweight-panel"><h2>Bodyweight trend</h2><BodyweightChart body={body} unit={unit}/></section></>}
-    {segment==='volume'&&<><div className="volume-detail-switch" role="group" aria-label="Volume views"><button className="small-button" aria-pressed={volumeView==='trend'} onClick={()=>setVolumeView('trend')}>Weekly trend</button><button className="small-button" aria-pressed={volumeView==='muscles'} onClick={()=>setVolumeView('muscles')}>By muscle</button></div>{volumeView==='muscles'&&<MuscleVolume muscles={muscleData.muscles} unit={unit}/>}</>}
-    {segment==='volume'&&volumeView==='trend'&&<section className="chart-panel"><h2>Volume · {unit} × reps</h2>{volumes.length>0?<LineChart points={volumes} unit={unit+' × reps'} label="Weekly lifting volume"/>:<p className="empty-chart-copy">No records for this selection yet.</p>}<p className="chart-caption">Recorded external load × reps. Assistance, bodyweight and timed work are excluded. Per-hand and per-side values are shown as logged.</p></section>}
-    {segment==='body'&&<><p className="recovery-callout">{bodyGuidance(store.body)}</p>{averages.length>0&&<><h2 className="body-weekly-heading">Weekly summaries</h2><section className="metric-records list-card" aria-label="Weekly bodyweight summaries">{averages.map(a=><div key={a.date}><span>Week of {dateLabel(a.date)}<small>{a.count} weigh-in{a.count===1?'':'s'}</small></span><strong>{number(fromKg(a.kg,unit))} {unit}</strong></div>)}</section></>}{body.length>0&&<section className="body-entries list-card" aria-label="Bodyweight entries">{[...body].reverse().map(b=><div key={b.id}><span>{dateLabel(b.date)}</span><strong>{number(fromKg(b.kg,unit))} {unit}</strong><button className="icon-button" aria-label={'Delete bodyweight for '+b.date} onClick={()=>setDeleteBody(b.id)}><Trash2 size={17}/></button></div>)}</section>}<button className="summary-link" onClick={()=>setNutrition(true)}><span>Nutrition reference</span><ChevronRight size={17}/></button></>}
+    {journey&&<>
+      <div className="progress-toolbar"><select aria-label="Insights date range" value={range} onChange={event=>setRange(event.target.value as TrainingRange)}>
+        <option value="recent">Last 8 weeks</option><option value="all">All time</option>
+      </select></div>
+      <div className="volume-detail-switch" role="group" aria-label="Volume views">
+        <button className="small-button" aria-pressed={volumeView==='trend'} onClick={()=>setVolumeView('trend')}>Weekly trend</button>
+        <button className="small-button" aria-pressed={volumeView==='muscles'} onClick={()=>setVolumeView('muscles')}>By muscle</button>
+      </div>
+      {volumeView==='muscles'?<MuscleVolume muscles={volumeDistribution(sessions).muscles} unit={unit} range={range}/>:
+        journey.sessions.length?<WeeklyChart journey={journey} unit={unit} range={range} volumeOnly/>:
+        <Empty title="No training volume yet" text="Log a workout to see weekly training volume." action={<button className="primary" onClick={onStart}>Explore programme</button>}/>}
+    </>}
+    {segment==='body'&&<><p className="recovery-callout">{bodyGuidance(store.body)}</p>{averages.length>0&&<><h2 className="body-weekly-heading">Weekly summaries</h2><section className="metric-records list-card" aria-label="Weekly bodyweight summaries">{averages.map(a=><div key={a.date}><span>Week of {dateLabel(a.date)}<small>{a.count} weigh-in{a.count===1?'':'s'}</small></span><strong>{number(fromKg(a.kg,unit))} {unit}</strong></div>)}</section></>}{body.length>0&&<section className="body-entries list-card" aria-label="Bodyweight entries">{[...body].reverse().map(b=><div key={b.id}><span>{dateLabel(b.date)}</span><strong>{number(fromKg(b.kg,unit))} {unit}</strong><button className="text-button" aria-label={'Edit bodyweight for '+b.date} onClick={()=>onEditBody(b)}>Edit</button><button className="icon-button" aria-label={'Delete bodyweight for '+b.date} onClick={()=>setDeleteBody(b.id)}><Trash2 size={17}/></button></div>)}</section>}<button className="summary-link" onClick={()=>setNutrition(true)}><span>Nutrition reference</span><ChevronRight size={17}/></button></>}
     {deleteBody&&<Modal variant="sheet" title="Delete this weigh-in?" onClose={()=>setDeleteBody(null)}><button className="danger full-width" onClick={()=>{onDeleteBody(deleteBody);setDeleteBody(null);}}>Delete entry</button><button className="text-button full-width" onClick={()=>setDeleteBody(null)}>Keep entry</button></Modal>}
     {nutrition&&<Modal variant="sheet" title="Nutrition reference" onClose={()=>setNutrition(false)}><ul className="guide-list"><li>Maintenance +200–300 kcal/day. No maintenance estimate is assumed.</li><li>At 60 kg: approximately 100–130 g protein/day, or 1.6–2.2 g/kg. Spread across three or four meals.</li><li>Sleep: 7–9 hours each night.</li></ul><p className="recovery-callout">{bodyGuidance(store.body)}</p><p className="input-hint">Programme references, not a personalized calorie prescription.</p></Modal>}
   </>;

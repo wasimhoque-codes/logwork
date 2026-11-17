@@ -43,36 +43,42 @@ function MuscleModel({ label, view }: { label?: string; view: View }) {
   return <canvas ref={canvas} width={370} height={400} aria-hidden="true"/>;
 }
 
-export function MuscleVolume({ muscles, unit }: { muscles: { label: string; volume: number }[]; unit: Unit }) {
-  const initial = muscles.find(row => muscleRegions.has(row.label))?.label;
-  const [selection, setSelection] = useState<{ label: string; view: View }>();
-  const label = selection && muscles.some(row => row.label === selection.label) ? selection.label : initial;
-  const view = selection && selection.label === label ? selection.view : regionView(label);
-  const max = Math.max(1, ...muscles.map(row => row.volume));
-  const rows = muscles.map(row => {
-    const contents = <>
-      <span className="muscle-row-value"><strong>{row.label}</strong><span>{number(fromKg(row.volume, unit), 2)} {unit} × reps</span></span>
-      <span className="distribution-track" aria-hidden="true"><span style={{ width: `${row.volume / max * 100}%` }}/></span>
+export function MuscleVolume({muscles,unit,range}:{muscles:{label:string;volume:number;sets:number}[];unit:Unit;range:'recent'|'all'}) {
+  const [metric,setMetric]=useState<'sets'|'volume'>('sets');
+  const [selection,setSelection]=useState<{label:string;view:View}>();
+  const values=muscles.filter(row=>row[metric]>0).sort((a,b)=>b[metric]-a[metric]||a.label.localeCompare(b.label));
+  const initial=values.find(row=>muscleRegions.has(row.label))?.label;
+  const label=selection&&values.some(row=>row.label===selection.label)?selection.label:initial;
+  const view=selection?.label===label&&selection?selection.view:regionView(label);
+  const max=values[0]?.[metric]??1;
+  const rows=values.map(row=>{
+    const contents=<>
+      <span className="muscle-row-value"><strong>{row.label}</strong><span>{metric==='sets'?`${row.sets} ${row.sets===1?'set':'sets'}`:`${number(fromKg(row.volume,unit),2)} ${unit} × reps`}</span></span>
+      <span className="distribution-track" aria-hidden="true"><span style={{width:`${row[metric]/max*100}%`}}/></span>
     </>;
-    return muscleRegions.has(row.label)
-      ? <button type="button" key={row.label} className="distribution-row muscle-row" aria-pressed={label === row.label}
-        onClick={() => setSelection({ label: row.label, view: regionView(row.label) })}>{contents}</button>
-      : <div className="distribution-row muscle-row" key={row.label}>{contents}</div>;
+    return muscleRegions.has(row.label)?
+      <button type="button" key={row.label} className="distribution-row muscle-row" aria-pressed={label===row.label}
+        onClick={()=>setSelection({label:row.label,view:regionView(row.label)})}>{contents}</button>:
+      <div className="distribution-row muscle-row" key={row.label}>{contents}</div>;
   });
   return <section className="distribution-card muscle-breakdown">
-    <h2>Volume by muscle</h2>
-    <p className="muted">All time · {unit} × reps</p>
-    {muscles.length ? <div className="muscle-volume-layout" data-has-model={!!label}>
-      {label && <div className="muscle-model">
+    <h2>{metric==='sets'?'Working sets by muscle':'Volume by muscle'}</h2>
+    <p className="muted">{range==='all'?'All time':'Last 8 weeks'}</p>
+    <div className="volume-detail-switch" role="group" aria-label="Muscle chart metric">
+      <button className="small-button" aria-pressed={metric==='sets'} onClick={()=>setMetric('sets')}>Working sets</button>
+      <button className="small-button" aria-pressed={metric==='volume'} onClick={()=>setMetric('volume')}>External-load volume</button>
+    </div>
+    {values.length?<div className="muscle-volume-layout" data-has-model={!!label}>
+      {label&&<div className="muscle-model">
         <MuscleModel label={label} view={view}/>
-        <p role="status">{label} · {view === 'front' ? 'Front' : 'Back'} view</p>
+        <p role="status">{label} · {view==='front'?'Front':'Back'} view</p>
         <div className="segmented" role="group" aria-label="Body model view">
-          <button type="button" aria-pressed={view === 'front'} onClick={() => setSelection({ label, view: 'front' })}>Front</button>
-          <button type="button" aria-pressed={view === 'back'} onClick={() => setSelection({ label, view: 'back' })}>Back</button>
+          <button type="button" aria-pressed={view==='front'} onClick={()=>setSelection({label,view:'front'})}>Front</button>
+          <button type="button" aria-pressed={view==='back'} onClick={()=>setSelection({label,view:'back'})}>Back</button>
         </div>
       </div>}
-      <div className="muscle-rows" aria-label="Recorded volume by muscle">{rows}</div>
-    </div> : <p className="empty-chart-copy">No external load logged yet.</p>}
-    <p className="distribution-caption">Recorded external load × reps, grouped by the muscle label saved with each exercise. Assistance, bodyweight and timed work excluded. Per-hand and per-side values are not doubled.</p>
+      <div className="muscle-rows" aria-label={metric==='sets'?'Working sets by muscle':'Recorded volume by muscle'}>{rows}</div>
+    </div>:<p className="empty-chart-copy">{metric==='sets'?'No working sets logged in this period.':'No external load logged in this period.'}</p>}
+    <p className="distribution-caption">{metric==='sets'?'Each logged set counts once under the exercise’s stored muscle label, including assisted, bodyweight and timed work.':'Recorded external load × reps, grouped by the muscle label saved with each exercise. Assistance, bodyweight and timed work excluded. Per-hand and per-side values are recorded as entered.'}</p>
   </section>;
 }
