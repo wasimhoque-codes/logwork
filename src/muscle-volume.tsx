@@ -1,26 +1,81 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { fromKg, number } from './model';
 import type { Unit } from './data';
 import { motionDuration, motionPreference } from './motion';
-import { drawTrainingModel, muscleRegions, muscleScene } from './training-model';
+import { drawTrainingModel, muscleRegions, muscleScene, type Scene } from './training-model';
+import type { createMuscleModelRenderer } from './muscle-model-renderer';
 
 type View = 'front' | 'back';
 const cameraAngle = (view: View) => (view === 'back' ? Math.PI : 0) + .18;
 const regionView = (label: string | undefined): View => muscleRegions.get(label ?? '')?.back ? 'back' : 'front';
 
-function MuscleModel({ label, view }: { label?: string; view: View }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
+function MuscleModel({ label, view }: { label: string; view: View }) {
+  const stage = useRef<HTMLDivElement>(null);
+  const fallback = useRef<HTMLCanvasElement>(null);
+  const detailed = useRef<HTMLCanvasElement>(null);
+  const renderer = useRef<Awaited<ReturnType<typeof createMuscleModelRenderer>>>(null);
+  const fallbackScene = useRef<Scene>(null);
+  const selected = useRef(label);
   const yaw = useRef(cameraAngle(view));
+  const draw = useCallback((angle: number) => {
+    yaw.current = angle;
+    if (renderer.current) {
+      try {
+        renderer.current.draw(selected.current, angle);
+        stage.current?.setAttribute('data-renderer', '3d');
+        return;
+      } catch {
+        renderer.current.dispose();
+        renderer.current = null;
+      }
+    }
+    stage.current?.removeAttribute('data-renderer');
+    if (fallback.current) {
+      fallbackScene.current ??= muscleScene(selected.current);
+      drawTrainingModel(fallback.current, fallbackScene.current, angle, .12, [0, .92, 0], .49);
+    }
+  }, []);
+
+  useEffect(() => {
+    const canvas = detailed.current;
+    const container = stage.current;
+    if (!canvas || !container) return;
+    const request = new AbortController();
+    const redraw = () => { if (renderer.current) draw(yaw.current); };
+    const onContextLost = () => {
+      request.abort();
+      renderer.current?.dispose();
+      renderer.current = null;
+      draw(yaw.current);
+    };
+    const observer = new ResizeObserver(redraw);
+    observer.observe(container);
+    canvas.addEventListener('webglcontextlost', onContextLost);
+    void import('./muscle-model-renderer').then(async module => {
+      if (request.signal.aborted) return;
+      const loaded = await module.createMuscleModelRenderer(canvas, request.signal);
+      if (request.signal.aborted) {
+        loaded.dispose();
+        return;
+      }
+      renderer.current = loaded;
+      redraw();
+    }).catch(() => { /* The canvas fallback is already visible. */ });
+    return () => {
+      request.abort();
+      observer.disconnect();
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      renderer.current?.dispose();
+      renderer.current = null;
+      container.removeAttribute('data-renderer');
+    };
+  }, [draw]);
+
   useLayoutEffect(() => {
-    const surface = canvas.current;
-    if (!surface) return;
-    const scene = muscleScene(label);
+    if (selected.current !== label) fallbackScene.current = null;
+    selected.current = label;
     const preference = motionPreference();
     const target = cameraAngle(view);
-    const draw = (angle: number) => {
-      yaw.current = angle;
-      drawTrainingModel(surface, scene, angle, .12, [0, .92, 0], .49);
-    };
     const duration = motionDuration('--motion-sheet');
     if (yaw.current === target || preference.matches || !duration) {
       draw(target);
@@ -38,9 +93,12 @@ function MuscleModel({ label, view }: { label?: string; view: View }) {
     preference.addEventListener('change', settle);
     frame = requestAnimationFrame(animate);
     return () => { preference.removeEventListener('change', settle); cancelAnimationFrame(frame); };
-  }, [label, view]);
+  }, [draw, label, view]);
 
-  return <canvas ref={canvas} width={370} height={400} aria-hidden="true"/>;
+  return <div className="muscle-model-stage" ref={stage} aria-hidden="true">
+    <canvas ref={fallback} width={370} height={400}/>
+    <canvas ref={detailed} className="muscle-model-detail"/>
+  </div>;
 }
 
 export function MuscleVolume({muscles,unit,range}:{muscles:{label:string;volume:number;sets:number}[];unit:Unit;range:'recent'|'all'}) {

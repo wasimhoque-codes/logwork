@@ -121,7 +121,25 @@
   text-align: center;
 }
 
-.muscle-model canvas { max-width: 250px; }
+.muscle-model-stage {
+  position: relative;
+  width: 100%;
+  max-width: 250px;
+}
+
+.muscle-model-stage[data-renderer="3d"] > canvas:first-child { visibility: hidden; }
+
+.muscle-model canvas.muscle-model-detail {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  visibility: hidden;
+  background:
+    radial-gradient(ellipse 26% 4% at 50% 94%, rgb(41 47 41 / 21%), transparent),
+    radial-gradient(ellipse at 45% 25%, #fbfcf9, #e7ece3);
+}
+
+.muscle-model-stage[data-renderer="3d"] > .muscle-model-detail { visibility: visible; }
 
 .muscle-model > p {
   margin: 0;

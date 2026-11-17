@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { join, relative } from 'node:path';
 const root='.open-next/assets';
 async function walk(dir) {return (await Promise.all((await readdir(dir,{withFileTypes:true})).map(e=>e.isDirectory()?walk(join(dir,e.name)):[join(dir,e.name)]))).flat();}
-const paths=(await walk(root)).filter(p=>!p.endsWith('sw.js')&&!p.endsWith('_headers')&&!p.endsWith('.map')&&(p.includes('/_next/static/')||/\.(png|svg|woff2|webmanifest)$/.test(p)));
+const paths=(await walk(root)).filter(p=>!p.endsWith('sw.js')&&!p.endsWith('_headers')&&!p.endsWith('.map')&&(p.includes('/_next/static/')||/\.(png|svg|woff2|webmanifest|glb)$/.test(p)));
 const fingerprint=createHash('sha256');for(const path of paths)fingerprint.update(await readFile(path));
 const cache='gym-hawk-next-'+fingerprint.digest('hex').slice(0,16);
 const assets=paths.map(p=>'/'+relative(root,p).split('\\').join('/'));
