@@ -59,7 +59,7 @@ test('compact history shows five dated sessions, preserves input and edit drafts
   await page.getByRole('button',{name:'Copy last session',exact:true}).click();await close(page);
   await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('21');
   const active=JSON.parse((await raw(page))!).active;expect(active.exercises[0].sets[0].weight).toBe(18);
-  await jump(page,'Chest-Supported Machine Row');await history(page).click();await expect(sheet(page)).toContainText('No previous logged sets for this exercise and setup yet.');
+  await jump(page,'Chest-Supported Machine Row');await history(page).click();await expect(sheet(page)).toContainText('No previous logged sets for this exercise variation yet.');
   await close(page);await jump(page,'Incline Dumbbell Press, Neutral Grip');await history(page).click();await expect(sheet(page).locator('.exercise-history-session')).toHaveCount(5);
 });
 

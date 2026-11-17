@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, Layers, ChartNoAxesCombined, Settings2, ChevronLeft, Clock3, Pause, Play, X } from './icons';
 import { fixedWorkoutForDay, fixedSetCount, variantsFor, SATURDAY_CORE, weekEffort, FIXED_WORKOUT_WEEK, type Exercise, type ExerciseChoice, type Workout } from './data';
-import { savedRaw, newSession, localDate, doneSets, validateStore, previousExercise, exerciseHistory, sessionResume, restSeconds, markSetSkipped, prefillExercise, exerciseKey, workoutDateError, type BodyEntry, type Store, type Session, type SetLog, type ResumeState } from './model';
+import { savedRaw, newSession, localDate, doneSets, validateStore, previousExercise, exerciseHistory, sessionResume, restSeconds, markSetSkipped, prefillExercise, exerciseKey, normalizeExerciseKey, workoutDateError, type BodyEntry, type Store, type Session, type SetLog, type ResumeState } from './model';
 import { Hawk, Modal, ModalTriggerContext } from './components';
 import { Today, Plan, History, ProgressDetail, SettingsScreen, type ProgressMetric } from './screens';
 import { movementSeries } from './progress-data';
@@ -12,13 +12,14 @@ import { WorkoutScreen } from './workout';
 import { ReviewWorkout, WorkoutSaved } from './flow';
 import { BodyModal, SessionDetail } from './details';
 import { useContentFade, useTabHighlight } from './motion';
+import { useKeyboardViewport } from './keyboard-viewport';
 import { useTrainingStore } from './persistence/use-training-store';
 import { SyncPanel } from './persistence/sync-panel';
 import { resolvePage, pageTitles, type Page } from './routes';
 type Dialog='body'|'discard'|'restore'|'guide'|'urgent'|'warmup'|'options'|'knee-check'|null;
 const nav=[{id:'today',label:'Today',icon:LayoutDashboard},{id:'programme',label:'Programme',icon:Layers},{id:'progress',label:'Progress',icon:ChartNoAxesCombined}] as const;
 const progressTabs = [['progress','Overview'],['progress/exercises','Exercises'],['progress/history','History']] as const;
-const hashExercise = () => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('exercise') ?? undefined;
+const hashExercise = () => normalizeExerciseKey(new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('exercise') ?? undefined);
 const progressMetrics:Partial<Record<Page,ProgressMetric>>={'progress/volume':'volume','progress/bodyweight':'body'};
 export default function App() {
   const persistence=useTrainingStore();
@@ -44,6 +45,7 @@ export default function App() {
   const progressTab=progressTabs.some(([id])=>id===page);
   useContentFade(mainRef,page,'page');
   useTabHighlight(progressTabsRef,page,progressTab&&persistence.ready);
+  useKeyboardViewport();
   const alert=useCallback((message:string)=>setToast(message),[]),closeDialog=useCallback(()=>setDialog(null),[]),closeDetail=useCallback(()=>setDetail(null),[]),closeExercise=useCallback(()=>setPreviewExercise(null),[]);
   const go=useCallback((next:Page,exerciseKey?:string)=>{setTodayHandoff(null);if(next!=='workout/saved')freshSave.current=null;const gridScroll=window.scrollY;if(navigationPage.current==='progress/exercises'&&next!=='progress/exercises')setExerciseGrid(s=>({...s,scroll:gridScroll}));navigationPage.current=next;setProgressSelection({exerciseKey});setPage(next);window.location.hash=next+(exerciseKey?'?exercise='+encodeURIComponent(exerciseKey):'');if(next!=='progress/exercises')window.scrollTo({top:0,behavior:'instant'});},[]);
   const updateSession=useCallback((fn:(s:Session)=>Session)=>setStore(s=>s.active&&!setWrite.current?{...s,active:fn(s.active)}:s),[]);
@@ -56,7 +58,6 @@ export default function App() {
   useEffect(()=>{if(active&&!savingSet&&resume.restEnd!==null&&resume.restEnd<=now){updateResume({restEnd:null});alert('Rest complete.');if('vibrate' in navigator)navigator.vibrate([100,60,100]);}},[active?.id,resume.restEnd,now,savingSet,updateResume,alert]);
   const savedSession=store.sessions.find(s=>s.id===savedId)??[...store.sessions].sort((a,b)=>(b.endedAt??0)-(a.endedAt??0))[0];
   useEffect(()=>{if((page==='workout'||page==='workout/review')&&!active&&!savingSession)go('today');if(page==='workout/saved'&&!savedSession)go('today');},[page,active,savingSession,savedSession,go]);
-  useEffect(()=>{const viewport=window.visualViewport;if(!viewport)return;const adapt=()=>document.documentElement.style.setProperty('--keyboard-offset',Math.max(0,window.innerHeight-viewport.height-viewport.offsetTop)+'px');viewport.addEventListener('resize',adapt);viewport.addEventListener('scroll',adapt);adapt();return()=>{viewport.removeEventListener('resize',adapt);viewport.removeEventListener('scroll',adapt);document.documentElement.style.removeProperty('--keyboard-offset');};},[]);
   const options=store.programme.options;
   const selectedWorkout=fixedWorkoutForDay((selectedDay+1)%7,options),unit=store.settings.unit;
   const currentIndex=resume.exerciseIndex,totalSets=active?.exercises.reduce((n,e)=>n+e.sets.length,0)??0,completedSets=active?doneSets(active):0;
@@ -155,7 +156,7 @@ export default function App() {
         }
         const spec={...variant,slot:original.slot,
           sets:original.slot==='optional:core'?variant.sets:fixedSetCount(variant,!!session.workout.optional,session.workout.exercises[0].sets===2),
-          rir:variant.role==='core'?'—':weekEffort(FIXED_WORKOUT_WEEK),setup:choice.setup,supportCm:choice.supportCm,coreLevel:choice.coreLevel};
+          rir:variant.role==='core'?'—':weekEffort(FIXED_WORKOUT_WEEK),supportCm:choice.supportCm,coreLevel:choice.coreLevel};
         const resume=sessionResume(session),skippedSets={...resume.skippedSets};
         delete skippedSets[currentIndex];
         const log={...prefillExercise(spec,store.sessions),note:session.exercises[currentIndex].note};
@@ -223,9 +224,9 @@ export default function App() {
       alert('Bodyweight saved.');
     }}/>}
     {dialog==='knee-check'&&(pendingSwap||pendingWorkout)&&<Modal variant="sheet" title="Optional core skill" onClose={()=>{setPendingSwap(null);closeDialog();}}><p className="dialog-description">Supported knee raises are optional. Use them only when symptom-free and able to avoid swinging or excessive spinal movement.</p><label className="check-line"><input type="checkbox" checked={kneeReady} onChange={e=>setKneeReady(e.target.checked)}/><span>I meet these conditions for today’s session.</span></label><button className="primary full-width" disabled={!kneeReady} onClick={()=>pendingSwap?void swapForSession(pendingSwap):beginWorkout(pendingWorkout!)}>{pendingSwap?'Use knee raises this session':'Start with knee raises'}</button><button className="secondary full-width mt" onClick={()=>{
-      if(pendingSwap){void swapForSession({variantId:SATURDAY_CORE['dead-bug'].id,setup:'',supportCm:null,coreLevel:'Basic'});return;}
+      if(pendingSwap){void swapForSession({variantId:SATURDAY_CORE['dead-bug'].id,supportCm:null,coreLevel:'Basic'});return;}
       const adjusted=structuredClone(pendingWorkout!),ex=SATURDAY_CORE['dead-bug'];
-      adjusted.exercises[adjusted.exercises.length-1]={...ex,setup:'',supportCm:null,coreLevel:'Basic'};
+      adjusted.exercises[adjusted.exercises.length-1]={...ex,supportCm:null,coreLevel:'Basic'};
       beginWorkout(adjusted);
     }}>Use dead bugs this session</button></Modal>}
     {dialog==='discard'&&<Modal variant="sheet" title="Discard this workout?" onClose={closeDialog}><p className="dialog-description">This removes the active session and its logged sets.</p><button className="danger full-width" onClick={()=>{setStore(s=>({...s,active:null}));closeDialog();go('today');}}>Discard workout</button><button className="text-button full-width" onClick={closeDialog}>Keep workout</button></Modal>}
@@ -233,13 +234,13 @@ export default function App() {
     {dialog==='options'&&<OptionsModal options={options} onClose={closeDialog} onSave={patch=>{setStore(s=>({...s,programme:{...s.programme,options:{...s.programme.options,...patch}}}));closeDialog();}}/>}
     {dialog==='warmup'&&<PreparationModal kind="warmup" session={page==='workout'?active:null} previewChecks={warmupDrafts.current.get(warmupKey)} onClose={closeDialog} onChange={warmup=>{if(page==='workout')updateSession(s=>({...s,warmup}));else warmupDrafts.current.set(warmupKey,warmup);}}/>}
     {dialog==='guide'&&<TrainingGuide onClose={closeDialog}/>}{dialog==='urgent'&&<UrgentHelp onClose={closeDialog}/>}
-    {swapOpen&&active&&<ExerciseDetails exercise={active.workout.exercises[currentIndex]} forSession onClose={()=>setSwapOpen(false)}
+    {swapOpen&&active&&<ExerciseDetails sessions={store.sessions} unit={unit} exercise={active.workout.exercises[currentIndex]} forSession onClose={()=>setSwapOpen(false)}
       onSave={choice=>{
         if(choice.variantId==='p16-supported-knee-raise'&&active.workout.exercises[currentIndex].id!==choice.variantId){
           setSwapOpen(false);setPendingSwap(choice);setKneeReady(false);setDialog('knee-check');
         }else void swapForSession(choice);
       }}/>}
-    {previewExercise&&<ExerciseDetails exercise={previewExercise} choice={store.programme.options.choices[previewExercise.slot!]} onClose={closeExercise} onSave={choice=>{const key=previewExercise.slot!;setStore(s=>({...s,programme:{...s.programme,options:{...s.programme.options,choices:{...s.programme.options.choices,[key]:choice},...(key==='optional:core'?{saturdayCore:choice.variantId==='p16-dead-bug'?'dead-bug' as const:'knee-raise' as const}:{})}}}));closeExercise();alert('Exercise choice saved for future workouts.');}}/>}
+    {previewExercise&&<ExerciseDetails sessions={store.sessions} unit={unit} exercise={previewExercise} choice={store.programme.options.choices[previewExercise.slot!]} onClose={closeExercise} onSave={choice=>{const key=previewExercise.slot!;setStore(s=>({...s,programme:{...s.programme,options:{...s.programme.options,choices:{...s.programme.options.choices,[key]:choice},...(key==='optional:core'?{saturdayCore:choice.variantId==='p16-dead-bug'?'dead-bug' as const:'knee-raise' as const}:{})}}}));closeExercise();alert('Exercise choice saved for future workouts.');}}/>}
     {detail&&<SessionDetail key={detail.id} session={detail} unit={unit} expandFromHistory={page==='progress/history'} onClose={closeDetail} onSave={async session=>{await saveHistory(session);setDetail(session);alert('Workout updated.');}} onDelete={()=>{setStore(s=>({...s,sessions:s.sessions.filter(x=>x.id!==detail.id)}));closeDetail();alert('Workout deleted.');}}/>}
   </div></ModalTriggerContext.Provider>;
 }

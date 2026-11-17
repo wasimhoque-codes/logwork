@@ -1718,7 +1718,7 @@ input:focus,select:focus,textarea:focus {
 /* The working set remains the largest, clearest control in the room. */
 .workout-shell {
   max-width:720px;
-  padding:0 28px 230px;
+  padding:0 28px calc(230px + var(--keyboard-height, 0px));
   margin:0 auto
 }
 
@@ -1910,6 +1910,13 @@ input:focus,select:focus,textarea:focus {
   min-height:54px;
   font-size:14px;
   border-radius:13px
+}
+
+.workout-dock[data-keyboard-in-flow] {
+  position:static;
+  transform:none;
+  width:100%;
+  margin:16px auto 0;
 }
 
 .rest-timer {
@@ -2123,10 +2130,16 @@ input:focus,select:focus,textarea:focus {
 }
 
 .modal-page {
+  height:100%;
+  max-height:100%;
   border-radius:0;
   background:var(--canvas);
   border:0;
   box-shadow:none
+}
+
+.page-overlay {
+  inset-block:var(--keyboard-viewport-top, 0px) max(0px, calc(var(--keyboard-height, 0px) - var(--keyboard-viewport-top, 0px)));
 }
 
 .modal-page .modal-heading {
@@ -2734,7 +2747,7 @@ input:focus,select:focus,textarea:focus {
   }
 
   .workout-shell {
-    padding:0 22px 225px
+    padding:0 22px calc(225px + var(--keyboard-height, 0px))
   }
 
   .workout-shell .app-header {
@@ -3709,4 +3722,23 @@ input:focus,select:focus,textarea:focus {
     overflow-x: auto;
     padding-bottom: 6px;
   }
+}
+
+.recent-exercise-sets {
+  margin:0 0 20px;
+}
+
+.recent-exercise-sets ul {
+  margin:8px 0 0;
+  padding:0;
+  list-style:none;
+}
+
+.recent-exercise-sets li {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:space-between;
+  gap:4px 12px;
+  padding:8px 0;
+  border-top:1px solid var(--line);
 }

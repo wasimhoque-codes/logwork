@@ -103,9 +103,9 @@ Assisted machines progress through less assistance; push-ups through lower hand 
 
 ## Choices and workout symptoms
 
-Choose variations and equipment/setup in Plan. Defaults are leg press, Tuesday’s hip thrust machine, assisted dips, seated leg curl and Friday’s floor glute bridge. Tuesday’s floor glute bridge remains a selectable alternative. Dumbbell loads are per hand. Complete both sides before logging unilateral sets. Machine assistance is separate from lifted load. Working-load volume excludes assistance, bodyweight-only and timed work and does not double unilateral or per-hand values.
+Choose variations in Programme. Defaults are leg press, Tuesday’s hip thrust machine, assisted dips, seated leg curl and Friday’s floor glute bridge. Tuesday’s floor glute bridge remains a selectable alternative. Dumbbell loads are per hand. Complete both sides before logging unilateral sets. Machine assistance is separate from lifted load. Working-load volume excludes assistance, bodyweight-only and timed work and does not double unilateral or per-hand values.
 
-Each new session snapshots its resolved prescription, variation, setup, support height and core level. Previous-session reuse and charts only match the same identity, setup, height, core level and load mode. Plan changes do not rewrite active or historical sessions.
+Each new session snapshots its resolved prescription, variation, support height and core level. Previous-session reuse and charts only match the same identity, height, core level and load mode. Plan changes do not rewrite active or historical sessions.
 
 Symptoms can be recorded before/after a workout and during the next-day follow-up. Unrecorded observations remain unknown. Late follow-ups can be dated back to the response date.
 

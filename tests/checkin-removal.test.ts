@@ -3,7 +3,7 @@ import { freshStore, newSession, selectedWorkout, currentAttempt, localDate, val
 
 function populatedStore() {
   const store=freshStore();store.settings={name:'Keep me',unit:'lb',autoRest:false};
-  store.programme.options.choices['lower-a:thrust']={variantId:'p16-bridge-12',setup:'Mat',supportCm:null,coreLevel:'Basic'};
+  store.programme.options.choices['lower-a:thrust']={variantId:'p16-bridge-12',supportCm:null,coreLevel:'Basic'};
   const session=newSession(selectedWorkout(store,1)!,store);session.exercises[0].sets[0]={weight:12,reps:10,rir:3,done:true};session.feedback!.before='stable';session.feedback!.after='none';session.feedback!.technique=true;session.endedAt=session.startedAt+60000;store.sessions=[session];
   store.active=newSession(selectedWorkout(store,2)!,store);store.active.feedback!.before='none';
   store.body=[{id:'weight',date:localDate(),kg:61}];

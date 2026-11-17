@@ -1,13 +1,62 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, ChevronRight } from './icons';
 import { Modal } from './components';
 import { ExerciseDemo, MobilityGuide } from './technique-demo';
-import { WARMUP, COOLDOWN, variantsFor, prescription, rirTarget, RECOVERY_CARDIO, type Exercise, type ExerciseChoice, type ProgrammeOptions } from './data';
-import type { Session } from './model';
-export function ExerciseDetails({exercise,choice,forSession=false,onClose,onSave}:{exercise:Exercise;choice?:ExerciseChoice;forSession?:boolean;onClose:()=>void;onSave:(choice:ExerciseChoice)=>void}) {
-  const [draft,setDraft]=useState<ExerciseChoice>(choice??{variantId:exercise.id,setup:exercise.setup??'',supportCm:exercise.supportCm??null,coreLevel:exercise.coreLevel??'Basic'});
-  const variants=variantsFor(exercise),selected=variants.find(ex=>ex.id===draft.variantId)??exercise;
-  return <Modal variant="sheet" title={forSession?'Swap for this session':exercise.name} onClose={onClose}><p className="prescription-detail">{exercise.sets} × {prescription(selected)}</p><div className="detail-chips"><span className="badge">{selected.rest}s rest</span><span className="badge">{rirTarget(exercise)}</span><span className="badge">Tempo {selected.tempo??'Controlled'}</span></div><p className="dialog-description">{selected.note}</p><ExerciseDemo exercise={selected}/><label className="option-field">Exercise variation<select aria-label="Exercise variation" value={draft.variantId} onChange={e=>setDraft({variantId:e.target.value,setup:'',supportCm:null,coreLevel:'Basic'})}>{variants.map(ex=><option key={ex.id} value={ex.id}>{ex.name}</option>)}</select></label><label className="field-label" htmlFor="exercise-setup">Equipment / setup</label><input className="text-input" id="exercise-setup" maxLength={200} placeholder="Machine, seat position, bar or foot setup" value={draft.setup} onChange={e=>setDraft(d=>({...d,setup:e.target.value}))}/>{['pushup','row','range'].includes(selected.method??'')&&<label className="option-field">Support / step height (cm, optional)<input className="text-input" aria-label="Support height in cm" type="number" inputMode="decimal" min={0} max={300} value={draft.supportCm??''} onChange={e=>setDraft(d=>({...d,supportCm:e.target.value===''?null:Number(e.target.value)}))}/></label>}{selected.role==='core'&&<label className="option-field">Core variation<select aria-label="Core variation" value={draft.coreLevel} onChange={e=>setDraft(d=>({...d,coreLevel:e.target.value}))}><option>Basic</option><option>Controlled extension</option><option>Longer lever</option></select></label>}<p className="input-hint">{forSession?'This choice applies to the current workout. Only matching setups share prefills and charts.':'Choices apply to future sessions. History and any active session keep their variation and setup. Only matching setups share prefills and charts.'}</p><button className="primary full-width" disabled={draft.supportCm!==null&&(!Number.isFinite(draft.supportCm)||draft.supportCm<0||draft.supportCm>300)} onClick={()=>onSave(draft)}>{forSession?'Use this exercise':'Save exercise choice'}<Check size={17}/></button></Modal>;
+import { WARMUP, COOLDOWN, variantsFor, prescription, rirTarget, RECOVERY_CARDIO, type Unit, type Exercise, type ExerciseChoice, type ProgrammeOptions } from './data';
+import { dateLabel, fromKg, number, recentExerciseSets, type Session } from './model';
+export function ExerciseDetails({ exercise, choice, sessions, unit, forSession = false, onClose, onSave }: {
+  exercise: Exercise;
+  choice?: ExerciseChoice;
+  sessions: Session[];
+  unit: Unit;
+  forSession?: boolean;
+  onClose: () => void;
+  onSave: (choice: ExerciseChoice) => void;
+}) {
+  const [draft, setDraft] = useState<ExerciseChoice>(choice ?? {
+    variantId: exercise.id, supportCm: exercise.supportCm ?? null, coreLevel: exercise.coreLevel ?? 'Basic',
+  });
+  const variants = variantsFor(exercise);
+  const selected = variants.find(ex => ex.id === draft.variantId) ?? exercise;
+  const recent = useMemo(
+    () => recentExerciseSets(sessions, { ...selected, supportCm: draft.supportCm, coreLevel: draft.coreLevel }),
+    [sessions, selected, draft.supportCm, draft.coreLevel],
+  );
+  return <Modal variant="sheet" title={forSession ? 'Swap for this session' : exercise.name} onClose={onClose}>
+    <p className="prescription-detail">{exercise.sets} × {prescription(selected)}</p>
+    <div className="detail-chips">
+      <span className="badge">{selected.rest}s rest</span>
+      <span className="badge">{rirTarget(exercise)}</span>
+      <span className="badge">Tempo {selected.tempo ?? 'Controlled'}</span>
+    </div>
+    <p className="dialog-description">{selected.note}</p>
+    <ExerciseDemo exercise={selected}/>
+    <label className="option-field">Exercise variation
+      <select aria-label="Exercise variation" value={draft.variantId} onChange={e => setDraft({ variantId: e.target.value, supportCm: null, coreLevel: 'Basic' })}>
+        {variants.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+      </select>
+    </label>
+    {['pushup', 'row', 'range'].includes(selected.method ?? '') && <label className="option-field">Support / step height (cm, optional)
+      <input className="text-input" aria-label="Support height in cm" type="number" inputMode="decimal" min={0} max={300}
+        value={draft.supportCm ?? ''} onChange={e => setDraft(d => ({ ...d, supportCm: e.target.value === '' ? null : Number(e.target.value) }))}/>
+    </label>}
+    {selected.role === 'core' && <label className="option-field">Core variation
+      <select aria-label="Core variation" value={draft.coreLevel} onChange={e => setDraft(d => ({ ...d, coreLevel: e.target.value }))}>
+        <option>Basic</option><option>Controlled extension</option><option>Longer lever</option>
+      </select>
+    </label>}
+    <section className="recent-exercise-sets" aria-label="Last two logged sets">
+      <h3>Last two logged sets</h3>
+      {recent.length ? <ul>{recent.map(({sessionId, date, exerciseIndex, setNumber, set}) => <li key={sessionId + ':' + exerciseIndex + ':' + setNumber}>
+        <span>{dateLabel(date, {day:'numeric', month:'short', year:'numeric'})} · Set {setNumber}</span>
+        <strong>{selected.mode === 'bodyweight' ? 'Bodyweight' : `${number(fromKg(set.weight ?? 0, unit))} ${unit}${selected.mode === 'assistance' ? ' assistance' : ''}`}
+          {' × '}{set.reps} {selected.timed ? 'sec' : 'reps'}{selected.perSide ? ' / side' : ''}{set.rir !== null ? ` · ${set.rir} RIR` : ''}
+        </strong>
+      </li>)}</ul> : <p className="input-hint">No logged sets yet</p>}
+    </section>
+    <button className="primary full-width" disabled={draft.supportCm !== null && (!Number.isFinite(draft.supportCm) || draft.supportCm < 0 || draft.supportCm > 300)}
+      onClick={() => onSave(draft)}>{forSession ? 'Use this exercise' : 'Save exercise choice'}<Check size={17}/></button>
+  </Modal>;
 }
 type UpperCOptions = Pick<ProgrammeOptions, 'saturdayTwoSets' | 'saturdayCore'>;
 export function OptionsModal({options,onClose,onSave}:{options:UpperCOptions;onClose:()=>void;onSave:(v:UpperCOptions)=>void}) {

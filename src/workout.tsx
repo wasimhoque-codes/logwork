@@ -71,7 +71,7 @@ export function WorkoutScreen({session,exerciseIndex,unit,saving,initialSet,prev
     void saveSet(setIndex,set,log.sets[setIndex].done?'edit':'log');
   }
   const last=previousSetAt(previous,setIndex);
-  const focusInput=(event:React.FocusEvent<HTMLInputElement>)=>{event.currentTarget.select();event.currentTarget.scrollIntoView({block:'nearest',behavior:'auto'});};
+  const focusInput=(event:React.FocusEvent<HTMLInputElement>)=>event.currentTarget.select();
   return <>
     <div className="training-topline"><button className="exercise-picker" disabled={saving} onClick={()=>setPicker(true)}>Exercise {exerciseIndex+1} of {session.exercises.length}<ChevronRight size={18}/></button><button className="text-button" disabled={saving} onClick={onWarmup}>Warm-up</button></div>
     <section ref={exerciseRef} className="exercise-heading"><h2>{log.name}</h2><p className="exercise-target">Target {prescription(exercise)}</p><p className="tempo-cue">Tempo {exercise.tempo??'Controlled'} · {rirTarget(exercise)}</p>{exercise.perSide&&<p className="per-side-cue">Complete both sides, then log one set.</p>}{/one dumbbell|one hand/i.test(exercise.note??'')&&<p className="per-side-cue">Weight is per hand.</p>}<div className="exercise-tools"><button className="text-button technique-link" aria-label="More exercise options" disabled={saving} onClick={()=>setMore(true)}>Technique & options<ChevronRight size={17}/></button><button className="text-button exercise-history-link" aria-label={`History for ${log.name}`} onClick={()=>setShowHistory(true)}>History<ChevronRight size={17}/></button></div></section>
@@ -104,7 +104,7 @@ export function WorkoutScreen({session,exerciseIndex,unit,saving,initialSet,prev
     {picker&&<Modal variant="sheet" title="Exercises" onClose={()=>setPicker(false)}><div className="exercise-jump-list">{session.exercises.map((e,i)=><button aria-current={i===exerciseIndex?'step':undefined} className={i===exerciseIndex?'selected':''} key={e.id} onClick={()=>{onIndex(i);setPicker(false);}}><span className="row-number">{i+1}</span><span>{e.name}<small>{e.sets.filter(s=>s.done).length} of {e.sets.length} sets</small></span><ChevronRight size={18}/></button>)}</div></Modal>}
     {showHistory&&<Modal variant="sheet" title="Exercise history" onClose={()=>setShowHistory(false)}>
       <p className="history-exercise-name">{log.name}</p>
-      {history.length?<><p className="input-hint">Latest {history.length} matching {history.length===1?'session':'sessions'} · same exercise and setup</p>
+      {history.length?<><p className="input-hint">Latest {history.length} matching {history.length===1?'session':'sessions'} · same exercise variation</p>
         <div className="exercise-history-list">{history.map(entry=><section className="exercise-history-session" key={entry.sessionId}>
           <h3><time dateTime={entry.date}>{dateLabel(entry.date,{day:'numeric',month:'short',year:'numeric'})} · {new Date(entry.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</time></h3>
           <p className="input-hint">{entry.week!==undefined?`Week ${entry.week} · `:''}{entry.sets.length} logged {entry.sets.length===1?'set':'sets'}</p>
@@ -113,9 +113,9 @@ export function WorkoutScreen({session,exerciseIndex,unit,saving,initialSet,prev
             <span className="history-set-values"><strong>{entry.mode==='bodyweight'?'Bodyweight':`${number(fromKg(value.weight??0,unit))} ${unit}${entry.mode==='assistance'?' assistance':''}`} × {value.reps}{entry.exercise.timed?' sec':' reps'}{entry.exercise.perSide?' / side':''}</strong>{value.rir!==null&&<small>{value.rir} RIR</small>}</span>
           </li>)}</ol>
         </section>)}</div>
-      </>:<p className="input-hint">No previous logged sets for this exercise and setup yet.</p>}
+      </>:<p className="input-hint">No previous logged sets for this exercise variation yet.</p>}
     </Modal>}
-    {more&&<Modal variant="sheet" title="Exercise options" onClose={()=>setMore(false)}><details className="options-details" open><summary>Technique & details</summary><p>{exercise.note??'Use controlled movement and a conservative working load.'}</p><p>{exercise.rest}s rest · {rirTarget(exercise)}</p><p>RIR means how many clean repetitions you could have performed after your set.</p>{exercise.setup&&<p>Setup: {exercise.setup}</p>}{exercise.supportCm!==null&&exercise.supportCm!==undefined&&<p>Support height: {exercise.supportCm} cm</p>}{exercise.role==='core'&&exercise.coreLevel&&<p>Core variation: {exercise.coreLevel}</p>}<p>Change exercise choices in Programme for future sessions.</p></details>
+    {more&&<Modal variant="sheet" title="Exercise options" onClose={()=>setMore(false)}><details className="options-details" open><summary>Technique & details</summary><p>{exercise.note??'Use controlled movement and a conservative working load.'}</p><p>{exercise.rest}s rest · {rirTarget(exercise)}</p><p>RIR means how many clean repetitions you could have performed after your set.</p>{exercise.supportCm!==null&&exercise.supportCm!==undefined&&<p>Support height: {exercise.supportCm} cm</p>}{exercise.role==='core'&&exercise.coreLevel&&<p>Core variation: {exercise.coreLevel}</p>}<p>Change exercise choices in Programme for future sessions.</p></details>
       <ExerciseDemo exercise={exercise}/>
       {onSwap&&done===0&&<button className="secondary full-width" onClick={()=>{setMore(false);onSwap();}}>Swap for this session</button>}
       <button className="secondary full-width" disabled={!previous} onClick={()=>onUpdate(s=>({...s,exercises:s.exercises.map((e,i)=>i===exerciseIndex?{...e,sets:e.sets.map((value,si)=>{const previousSet=previousSetAt(previous,si);return !value.done&&previousSet?{...value,weight:previousSet.weight,reps:previousSet.reps}:value;})}:e)}))}><RotateCcw size={18}/>Copy last session</button>

@@ -7,12 +7,13 @@ export type Change = { key: string; value?: RecordValue; expected: number; posit
 export type EditClock = { editedAt: number; id: string };
 export type Edit = EditClock & {
   changes: Change[];
+  removedSetup?: true;
   activeId?: string;
   attempts?: Programme['attempts'];
 };
 export type Snapshot = { datasetId: string | null; revision: number; versions: Versions; clocks?: Record<string, EditClock>; store: Store | null };
 export type Mutation = Edit & { datasetId: string };
-export const SYNC_PROTOCOL = '3';
+export const SYNC_PROTOCOL = '4';
 
 export function compareEdits(a: EditClock, b?: EditClock) {
   return !b ? 1 : a.editedAt - b.editedAt || (a.id > b.id ? 1 : a.id < b.id ? -1 : 0);

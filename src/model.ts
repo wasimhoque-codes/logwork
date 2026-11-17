@@ -84,7 +84,32 @@ export function coreWorkoutCount(sessions:Session[]) { return new Set(sessions.f
 export function sessionWorkout(s:Session) { return s.workout; }
 export function sessionLabel(s:Session) { return s.workout.prescriptionMode === 'fixed' || s.week === undefined ? '' : 'Week '+s.week; }
 export function volume(s:Session) { return s.exercises.reduce((total,e,i)=>total+(e.mode==='external'&&!s.workout.exercises[i].timed?e.sets.filter(set=>set.done).reduce((n,set)=>n+(set.weight??0)*set.reps,0):0),0); }
-export function exerciseKey(ex:Exercise,mode=ex.mode??'external') { return JSON.stringify([ex.id,mode,(ex.setup??'').trim().toLowerCase(),ex.supportCm??null,ex.coreLevel??'']); }
+export function exerciseKey(ex:Exercise,mode=ex.mode??'external') { return JSON.stringify([ex.id,mode,ex.supportCm??null,ex.coreLevel??'']); }
+export function normalizeExerciseKey(key: string | undefined) {
+  if (!key) return key;
+  try {
+    const parts: unknown = JSON.parse(key);
+    if (Array.isArray(parts) && parts.length === 5) return JSON.stringify([parts[0], parts[1], parts[3], parts[4]]);
+  } catch { /* Leave invalid links to the existing empty state. */ }
+  return key;
+}
+
+export function recentExerciseSets(sessions: Session[], exercise: Exercise) {
+  const key = exerciseKey(exercise);
+  const recent: { sessionId: string; date: string; exerciseIndex: number; setNumber: number; set: SetLog }[] = [];
+  for (const session of sessions.filter(session => session.endedAt !== undefined).sort((a, b) => compareTrainingDates(b, a))) {
+    for (let i = session.exercises.length - 1; i >= 0; i--) {
+      const log = session.exercises[i];
+      if (exerciseKey(session.workout.exercises[i], log.mode) !== key) continue;
+      for (let j = log.sets.length - 1; j >= 0; j--) {
+        if (!log.sets[j].done) continue;
+        recent.push({ sessionId: session.id, date: session.date, exerciseIndex:i, setNumber: j + 1, set: log.sets[j] });
+        if (recent.length === 2) return recent;
+      }
+    }
+  }
+  return recent;
+}
 export type ExerciseHistoryEntry = {
   sessionId:string; date:string; startedAt:number; week?:number;
   exercise:Exercise; mode:LoadMode; sets:(SetLog & {setNumber:number})[];
@@ -144,8 +169,8 @@ export function progression(ex:Exercise,log:ExerciseLog,session:Session):{title:
   if(ex.method==='core')return {title:'Control target reached',description:'Progress hold time or limb/lever length gradually. Keep breathing and trunk control; change one core movement at a time.'};
   if(log.mode==='assistance'&&log.sets[0].weight===0)return {title:'Consider unassisted repetitions',description:'All targets met with zero machine assistance. Consolidate control, then explicitly choose the unassisted variation if appropriate.'};
   if(log.mode==='assistance')return {title:'Consider less assistance',description:'All targets met at the same machine assistance. Consider the smallest assistance reduction while keeping clean repetitions.'};
-  if(ex.method==='pushup')return {title:'Consider the next push-up setup',description:'Lower hand support gradually, then consider standard or feet-elevated push-ups. Record the new setup separately.'};
-  if(ex.method==='row')return {title:'Consider a more horizontal row',description:'Move the feet forward gradually while maintaining trunk control. Record the new setup separately.'};
+  if(ex.method==='pushup')return {title:'Consider the next push-up setup',description:'Lower hand support gradually, then consider standard or feet-elevated push-ups.'};
+  if(ex.method==='row')return {title:'Consider a more horizontal row',description:'Move the feet forward gradually while maintaining trunk control.'};
   if(ex.method==='range')return {title:'Stable range before load',description:'Keep a stable, comfortable range and controlled repetitions before considering the smallest load increase.'};
   if(ex.method==='bridge')return {title:'Pelvic control before resistance',description:'Keep pelvic control, then consider a band or modest resistance. Record the variation separately.'};
   if(log.mode==='bodyweight')return {title:'Unassisted target reached',description:'Consolidate clean unassisted repetitions. There is no requirement to add weight or train to failure.'};
@@ -198,7 +223,7 @@ function validNewSession(value:unknown):boolean {
   for(let i=0;i<specs.length;i++) {
     const spec=specs[i] as Exercise,base=template.exercises[i],allowed=base?VARIANTS[base.slot!]??[base]:VARIANTS['optional:core'];
     const original=allowed.find(ex=>ex.id===spec.id);
-    if(!original||spec.slot!==(base?.slot??'optional:core')||spec.min!==original.min||spec.max!==original.max||spec.rest!==original.rest||spec.tempo!==original.tempo||spec.role!==original.role||spec.method!==original.method||spec.kind!==original.kind||spec.timed!==original.timed||spec.perSide!==original.perSide||spec.mode!==original.mode||!string(spec.setup,200)||!(spec.supportCm===null||finite(spec.supportCm,0,300))||!['Basic','Controlled extension','Longer lever'].includes(String(spec.coreLevel)))return false;
+    if(!original||spec.slot!==(base?.slot??'optional:core')||spec.min!==original.min||spec.max!==original.max||spec.rest!==original.rest||spec.tempo!==original.tempo||spec.role!==original.role||spec.method!==original.method||spec.kind!==original.kind||spec.timed!==original.timed||spec.perSide!==original.perSide||spec.mode!==original.mode||!(spec.supportCm===null||finite(spec.supportCm,0,300))||!['Basic','Controlled extension','Longer lever'].includes(String(spec.coreLevel)))return false;
     if (spec.rir !== (spec.role === 'core' ? '—' : weekEffort(week))) return false;
     if (fixed) {
       const expected = base ? fixedSetCount(original, !!template.optional, specs[0].sets === 2) : original.sets;
@@ -238,6 +263,28 @@ function validNewSession(value:unknown):boolean {
   }
   return true;
 }
+function stripSetup(values: object[]) {
+  let removed = false;
+  for (const value of values) {
+    if (Object.hasOwn(value, 'setup')) {
+      Reflect.deleteProperty(value, 'setup');
+      removed = true;
+    }
+  }
+  return removed;
+}
+export function stripProgrammeSetup(programme: Programme) {
+  return stripSetup(Object.values(programme.options.choices));
+}
+export function stripSessionSetup(session: Session) {
+  return stripSetup(session.workout.exercises);
+}
+export function stripStoreSetup(store: Store) {
+  stripProgrammeSetup(store.programme);
+  if (store.active) stripSessionSetup(store.active);
+  store.sessions.forEach(stripSessionSetup);
+}
+
 export function validateStore(value:unknown):Store {
   if(!record(value))invalid();
   if(value.version===1||value.version===2||value.version===3)throw new Error('This fresh-start release accepts only version-4 backups. Older backups cannot be restored.');
@@ -249,14 +296,16 @@ export function validateStore(value:unknown):Store {
   if(last.week!==p.week||p.status==='complete'&&(p.week!==16||last.decision!=='complete')||p.status==='active'&&(last.ended!==undefined||last.decision!==undefined))invalid();
   const options=p.options;
   if(typeof options.saturdayTwoSets!=='boolean'||!['none','dead-bug','knee-raise'].includes(String(options.saturdayCore))||!record(options.choices)||Object.keys(options.choices).length>100||!(options.extraSlot===null||WORKOUTS.filter(w=>w.category==='strength').flatMap(w=>w.exercises).some(ex=>ex.slot===options.extraSlot&&ex.role!=='core')))invalid();
-  for(const [key,choice] of Object.entries(options.choices)) { const base=WORKOUTS.flatMap(w=>w.exercises).find(ex=>ex.slot===key),allowed=VARIANTS[key]??(base?[base]:[]);if(!record(choice)||!allowed.some(ex=>ex.id===choice.variantId)||!string(choice.setup,200)||!(choice.supportCm===null||finite(choice.supportCm,0,300))||!['Basic','Controlled extension','Longer lever'].includes(String(choice.coreLevel)))invalid(); }
+  for(const [key,choice] of Object.entries(options.choices)) { const base=WORKOUTS.flatMap(w=>w.exercises).find(ex=>ex.slot===key),allowed=VARIANTS[key]??(base?[base]:[]);if(!record(choice)||!allowed.some(ex=>ex.id===choice.variantId)||!(choice.supportCm===null||finite(choice.supportCm,0,300))||!['Basic','Controlled extension','Longer lever'].includes(String(choice.coreLevel)))invalid(); }
   const all=[...value.sessions,...(value.active===null?[]:[value.active])];
   for(const s of all) {if(!validNewSession(s)||!record(s)||!(p.attempts as unknown[]).some(a=>record(a)&&a.id===s.attemptId&&a.week===s.week))invalid();}
   if(!value.sessions.every(s=>record(s)&&typeof s.endedAt==='number'&&(s.exercises as ExerciseLog[]).some(ex=>ex.sets.some(set=>set.done)))||value.active!==null&&(!record(value.active)||value.active.endedAt!==undefined)||!unique(all,'id'))invalid();
   if(!value.body.every(b=>record(b)&&string(b.id,100)&&date(b.date)&&finite(b.kg,20,500))||!unique(value.body,'id')||!unique(value.body,'date'))invalid();
   if(!value.recovery.every(r=>record(r)&&string(r.id,100)&&date(r.date)&&r.date<=localDate()&&['walking','cycling'].includes(String(r.activity))&&integer(r.cardio,0,300)&&integer(r.mobility,0,300)&&Number(r.cardio)+Number(r.mobility)>0&&string(r.note)&&integer(r.week,1,16)&&(p.attempts as unknown[]).some(a=>record(a)&&a.id===r.attemptId&&a.week===r.week))||!unique(value.recovery,'id'))invalid();
   // Retired check-ins are discarded on load and import, including old-client writes.
-  return {...structuredClone(value),daily:[]} as unknown as Store;
+  const store = {...structuredClone(value),daily:[]} as unknown as Store;
+  stripStoreSetup(store);
+  return store;
 }
 export function savedRaw() { return localStorage.getItem(STORAGE_KEY); }
 export function saveStore(store:Store) {

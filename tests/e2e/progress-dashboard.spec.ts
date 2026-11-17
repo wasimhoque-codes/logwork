@@ -55,17 +55,17 @@ test('Overview stays focused and Exercises shows every recorded identity alphabe
 });
 test('search, role filters, clear and detail return preserve place and focus', async ({ page }) => {
   await seed(page, fixture()); await openGrid(page);
-  await page.getByRole('button', { name: 'Main', exact: true }).click(); await page.getByLabel('Search exercises and setups').fill('Basic');
+  await page.getByRole('button', { name: 'Main', exact: true }).click(); await page.getByLabel('Search exercises').fill('Basic');
   const trigger = page.getByRole('button', { name: /View details for/ }).last(); await trigger.scrollIntoViewIfNeeded(); const scroll = await page.evaluate(() => scrollY), name = await trigger.getAttribute('aria-label');
   await trigger.click(); await expect(page.locator('.exercise-detail')).toBeVisible(); await expect(page.getByLabel('Select exercise for strength chart')).toHaveCount(0);
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
-  await expect(page.getByLabel('Search exercises and setups')).toHaveValue('Basic'); await expect(page.getByRole('button', { name: 'Main', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Search exercises')).toHaveValue('Basic'); await expect(page.getByRole('button', { name: 'Main', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: name! })).toBeFocused(); await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
-  await trigger.click(); await page.goBack(); await expect(page.getByLabel('Search exercises and setups')).toHaveValue('Basic');
+  await trigger.click(); await page.goBack(); await expect(page.getByLabel('Search exercises')).toHaveValue('Basic');
   await expect(page.getByRole('button', { name: name! })).toBeFocused();
   await page.getByRole('tab', { name: /History/ }).evaluate(el => (el as HTMLButtonElement).click()); await openGrid(page); await expect(page.getByRole('tab', { name: 'Exercises', exact: true })).toBeFocused();
   await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
-  await page.getByLabel('Search exercises and setups').fill('not found'); await expect(page.getByRole('heading', { name: 'No matching exercises' })).toBeVisible();
+  await page.getByLabel('Search exercises').fill('not found'); await expect(page.getByRole('heading', { name: 'No matching exercises' })).toBeVisible();
   await page.getByRole('button', { name: 'Clear filters' }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
 });
 test('interactive details preserve exact identity on reload and support keyboard point selection', async ({ page }) => {
@@ -94,14 +94,15 @@ test('Overview includes inline bodyweight and all-time volume across attempts', 
   const chest = distribution.muscles.find(muscle => muscle.label === 'Chest')!;
   await expect(muscles.locator('.distribution-row').filter({ hasText: 'Chest' })).toContainText(chest.volume.toLocaleString('en-GB', { maximumFractionDigits: 2 }) + ' kg × reps');
 });
-test('old setups and latest-five comparisons survive new attempts and mixed workouts', async ({ page, isMobile }) => {
+test('old links and latest-five comparisons survive new attempts and mixed workouts', async ({ page, isMobile }) => {
   const store = fixture(), first = structuredClone(store.sessions[0]), lower = structuredClone(store.sessions[1]); store.sessions = [];
   for (let i = 0; i < 7; i++) { const s = structuredClone(first); s.id = 'old-' + i; s.date = i === 0 ? '2025-01-01' : `2026-10-0${i + 1}`; s.startedAt = Date.parse(s.date + 'T10:00:00Z'); s.endedAt = s.startedAt + 60000; s.exercises.forEach(log => log.sets.forEach(set => set.weight = log.mode === 'bodyweight' ? 0 : 10 + i * 5)); store.sessions.push(s); const mixed = structuredClone(lower); mixed.id = 'lower-' + i; mixed.date = s.date; mixed.startedAt = s.startedAt + 3600000; mixed.endedAt = mixed.startedAt + 60000; store.sessions.push(mixed); }
-  const alternate = structuredClone(first); alternate.id = 'other'; alternate.workout.exercises[0].setup = 'Different bench'; store.sessions.push(alternate);
+  const alternate = structuredClone(store.sessions[0]); alternate.id = 'other'; Object.assign(alternate.workout.exercises[0], { setup: 'Different bench' }); store.sessions.push(alternate);
   await seed(page, validateStore(reviewWeek(store, 'repeat'))); await expect(page.locator('.journey-subtitle')).toContainText('1 Jan 2025'); await openGrid(page);
-  await expect(page.locator('.exercise-tile')).toHaveCount(15); await page.getByLabel('Search exercises and setups').fill('Different bench'); await expect(page.locator('.exercise-tile')).toHaveCount(1);
-  await expect(page.locator('.exercise-tile-heading p')).toHaveText('Different bench');
-  await page.getByLabel('Search exercises and setups').fill(''); await openKey(page, exerciseKey(first.workout.exercises[0], first.exercises[0].mode));
+  await expect(page.locator('.exercise-tile')).toHaveCount(14);
+  const legacyKey = JSON.parse(exerciseKey(first.workout.exercises[0], first.exercises[0].mode));
+  legacyKey.splice(2, 0, 'different bench');
+  await page.goto('/#progress/movement?exercise=' + encodeURIComponent(JSON.stringify(legacyKey)));
   const points = page.locator('[data-point]');
   await expect(points).toHaveCount(5);
   await expect(page.locator('.selected-workout h3')).toHaveText('7 Oct 2026');

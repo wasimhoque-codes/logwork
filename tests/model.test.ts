@@ -69,14 +69,14 @@ describe('attempts and prescriptions',()=>{
   it('uses the extra weekly set only once even if the workout is repeated',()=>{
     const store=atWeek(13);store.programme.options.extraSlot='upper-a:press';const w=selectedWorkout(store,1)!,session=newSession(w,store);session.exercises[0].sets.forEach(set=>Object.assign(set,{weight:10,reps:12,done:true}));session.endedAt=session.startedAt+1000;store.sessions=[session];expect(w.exercises[0].sets).toBe(4);expect(selectedWorkout(store,1)!.exercises[0].sets).toBe(3);store.programme.options.extraSlot='lower-a:squat';expect(selectedWorkout(store,2)!.exercises[0].sets).toBe(3);
   });
-  it('snapshots saved variation and setup; units never alter stored loads',()=>{
-    const s=atWeek(5);s.programme.options.choices['lower-a:squat']={variantId:VARIANTS['lower-a:squat'][1].id,setup:'Belt station',supportCm:null,coreLevel:'Basic'};
-    const session=newSession(selectedWorkout(s,2)!,s);s.programme.options.choices['lower-a:squat'].setup='Different station';expect(session.workout.exercises[0].setup).toBe('Belt station');expect(session.workout.exercises[0].name).toBe('Belt Squat');expect(toKg(fromKg(20,'lb'),'lb')).toBeCloseTo(20,9);expect(validateStore({...s,active:session}).active).toEqual(session);
+  it('snapshots saved variation; units never alter stored loads',()=>{
+    const s=atWeek(5);s.programme.options.choices['lower-a:squat']={variantId:VARIANTS['lower-a:squat'][1].id,supportCm:null,coreLevel:'Basic'};
+    const session=newSession(selectedWorkout(s,2)!,s);s.programme.options.choices['lower-a:squat'].variantId=VARIANTS['lower-a:squat'][0].id;expect(session.workout.exercises[0].name).toBe('Belt Squat');expect(toKg(fromKg(20,'lb'),'lb')).toBeCloseTo(20,9);expect(validateStore({...s,active:session}).active).toEqual(session);
   });
-  it('prefills only the same variation, setup, height, core level and load mode',()=>{
+  it('prefills only the same variation, height, core level and load mode',()=>{
     const s=atWeek(5),old=completed();s.sessions=[old];expect(newSession(selectedWorkout(s,1)!,s).exercises[0].sets[0].weight).toBe(20);
-    const ex=old.workout.exercises[0];expect(previousExercise(s.sessions,{...ex,setup:'other'})).toBeUndefined();expect(previousExercise(s.sessions,{...ex,supportCm:50})).toBeUndefined();expect(previousExercise(s.sessions,{...ex,coreLevel:'Longer lever'})).toBeUndefined();expect(previousExercise(s.sessions,ex,'assistance')).toBeUndefined();
-    s.programme.options.choices['upper-a:press']={variantId:VARIANTS['upper-a:press'][1].id,setup:'',supportCm:null,coreLevel:'Basic'};expect(newSession(selectedWorkout(s,1)!,s).exercises[0].sets[0].weight).toBeNull();
+    const ex=old.workout.exercises[0];expect(previousExercise(s.sessions,{...ex,supportCm:50})).toBeUndefined();expect(previousExercise(s.sessions,{...ex,coreLevel:'Longer lever'})).toBeUndefined();expect(previousExercise(s.sessions,ex,'assistance')).toBeUndefined();
+    s.programme.options.choices['upper-a:press']={variantId:VARIANTS['upper-a:press'][1].id,supportCm:null,coreLevel:'Basic'};expect(newSession(selectedWorkout(s,1)!,s).exercises[0].sets[0].weight).toBeNull();
   });
 });
 describe('progression and recovery',()=>{
@@ -113,7 +113,7 @@ describe('v4 fresh-start storage and backups',()=>{
   });
   it('rejects malformed fields, identity mismatches, duplicates and future followups',()=>{
     const s=atWeek(9);s.active=newSession(selectedWorkout(s,4)!,s);
-    for(const mutate of [(v:typeof s)=>v.active!.workout.exercises[0].tempo='bad',(v:typeof s)=>v.active!.exercises[0].mode='external',(v:typeof s)=>v.active!.exercises[0].sets.pop(),(v:typeof s)=>v.active!.feedback!.nextDay='none',(v:typeof s)=>v.programme.attempts.push({...v.programme.attempts[0]}),(v:typeof s)=>v.programme.options.choices['bad']={variantId:'bad',setup:'',supportCm:null,coreLevel:'Basic'}]){const copy=structuredClone(s);mutate(copy);expect(()=>validateStore(copy)).toThrow();}
+    for(const mutate of [(v:typeof s)=>v.active!.workout.exercises[0].tempo='bad',(v:typeof s)=>v.active!.exercises[0].mode='external',(v:typeof s)=>v.active!.exercises[0].sets.pop(),(v:typeof s)=>v.active!.feedback!.nextDay='none',(v:typeof s)=>v.programme.attempts.push({...v.programme.attempts[0]}),(v:typeof s)=>v.programme.options.choices['bad']={variantId:'bad',supportCm:null,coreLevel:'Basic'}]){const copy=structuredClone(s);mutate(copy);expect(()=>validateStore(copy)).toThrow();}
   });
   it('rejects internally consistent sets that violate foundation, consolidation or deload rules',()=>{
     for(const week of [1,5,13,16]){

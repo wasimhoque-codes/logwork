@@ -61,7 +61,7 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
         const exercise = listRef.current?.querySelector(`[data-exercise-index="${target.exercise}"]`);
         const control = exercise?.querySelector<HTMLElement>(target.set === null ? '.add-set' : `[data-set-index="${target.set}"] input:not(:disabled)`);
         control?.focus({ preventScroll: true });
-        control?.scrollIntoView({ block: 'nearest' });
+        if (control instanceof HTMLButtonElement) control.scrollIntoView({ block: 'nearest' });
     }, [draft]);
     async function save() {
         if(pendingSave.current)return;
@@ -118,7 +118,6 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
             const limitId = `${id}-set-limit-${ei}`;
             return <div className="detail-exercise" data-exercise-index={ei} key={e.id}>
                 <h3>{e.name}<span>{e.mode === 'assistance' ? 'Assistance' : e.mode === 'bodyweight' ? 'Bodyweight' : unit}</span></h3>
-                {spec.setup && <p className="input-hint">Setup: {spec.setup}</p>}
                 {spec.supportCm !== null && spec.supportCm !== undefined && <p className="input-hint">Support: {spec.supportCm} cm</p>}
                 {spec.role === 'core' && spec.coreLevel && <p className="input-hint">Core variation: {spec.coreLevel}</p>}
                 {e.sets.map((s, si) => <div className={`detail-set ${!s.done ? 'not-logged' : ''}`} data-set-index={si} key={si}>
@@ -126,7 +125,7 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
                     {editing ? <>
                         <input type="number" min="0" inputMode="decimal" step="any" aria-label={`${e.name} set ${si + 1} weight`} disabled={e.mode === 'bodyweight'} value={s.weight === null ? '' : Math.round(fromKg(s.weight, unit) * 100) / 100} onChange={event => patch(ei, si, { weight: event.target.value === '' ? null : Math.max(0, Math.min(2000, toKg(Number(event.target.value), unit))) })}/>
                         <span>×</span>
-                        <input type="number" min="1" step="1" aria-label={`${e.name} set ${si + 1} ${spec.timed ? 'seconds' : 'reps'}`} value={s.reps || ''} onChange={event => patch(ei, si, { reps: Math.max(0, Math.min(1000, Math.trunc(Number(event.target.value)))) })}/>
+                        <input type="number" min="1" step="1" inputMode="numeric" aria-label={`${e.name} set ${si + 1} ${spec.timed ? 'seconds' : 'reps'}`} value={s.reps || ''} onChange={event => patch(ei, si, { reps: Math.max(0, Math.min(1000, Math.trunc(Number(event.target.value)))) })}/>
                         <label className="completion-checkbox"><input type="checkbox" aria-label={`${e.name} set ${si + 1} logged`} checked={s.done} onChange={event => patch(ei, si, { done: event.target.checked })}/></label>
                         <RirInput label={`${e.name} set ${si + 1} RIR`} value={s.rir} onChange={rir=>patch(ei,si,{rir})}/>
                         {si >= spec.sets && si === e.sets.length - 1 && !s.done && <button className="text-button detail-remove-set" aria-label={`Remove extra set ${si + 1} from ${e.name}`} onClick={() => removeSet(ei)}>Remove extra set</button>}

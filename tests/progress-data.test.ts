@@ -64,9 +64,9 @@ describe('strength spotlight', () => {
     const future = structuredClone(latest); future.id = 'future'; future.attemptId = 'other'; future.startedAt += 100000; future.exercises[0].sets.forEach(s => s.weight = 99); store.sessions.push(future);
     expect(strengthSpotlight(store).cards[0].loadPR).toBe(true);
   });
-  it('matches exact setup identities and does not treat the first recorded load as a PR', () => {
+  it('matches exact support heights and does not treat the first recorded load as a PR', () => {
     const store = fixture(); save(store, 1, 15); const latest = save(store, 1, 20);
-    latest.workout.exercises[0].setup = 'Different bench';
+    latest.workout.exercises[0].supportCm = 40;
     expect(strengthSpotlight(store).cards[0]).toMatchObject({ previousBest: undefined, loadPR: false });
   });
   it('does not label a gain against baseline as an all-time load record', () => {

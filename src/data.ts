@@ -6,10 +6,10 @@ export type Exercise = {
   note?: string; mode?: LoadMode; timed?: boolean; perSide?: boolean; recovery?: boolean;
   slot?: string; role?: 'main' | 'accessory' | 'core'; tempo?: string;
   method?: 'load' | 'assistance' | 'pushup' | 'row' | 'core' | 'range' | 'bridge';
-  setup?: string; supportCm?: number | null; coreLevel?: string;
+  supportCm?: number | null; coreLevel?: string;
 };
 export type Workout = { id: string; name: string; subtitle: string; focus: string; days: number[]; label: string; exercises: Exercise[]; optional?: boolean; category: 'strength' | 'recovery' | 'optional'; prescriptionMode?: 'fixed' };
-export type ExerciseChoice = { variantId: string; setup: string; supportCm: number | null; coreLevel: string };
+export type ExerciseChoice = { variantId: string; supportCm: number | null; coreLevel: string };
 export type ProgrammeOptions = { choices: Record<string, ExerciseChoice>; saturdayTwoSets: boolean; saturdayCore: 'none' | 'dead-bug' | 'knee-raise'; extraSlot: string | null };
 export const DEFAULT_OPTIONS: ProgrammeOptions = { choices: {}, saturdayTwoSets: false, saturdayCore: 'none', extraSlot: null };
 export const SOURCE_URL = 'https://chatgpt.com/s/t_6ac8e755a9188191a08cf1a3ae3211f9';
@@ -60,7 +60,7 @@ export const WORKOUTS: Workout[] = [
   ]),
   make('optional','Upper C','Calisthenics, shoulders and arms',6,[
     ['pushup',e('incline-pushup','Incline Push-Ups','Chest',2,8,15,75,'2-0-1','main',{mode:'bodyweight',method:'pushup',note:'Choose a controlled push-up variation. Align ribs and pelvis.'})],
-    ['row',e('inverted-row','Inverted Bodyweight Rows','Back',2,8,12,75,'2-1-1','main',{mode:'bodyweight',method:'row',note:'Move your feet forward to become more horizontal only while maintaining trunk control. Record the bar and foot setup.'})],
+    ['row',e('inverted-row','Inverted Bodyweight Rows','Back',2,8,12,75,'2-1-1','main',{mode:'bodyweight',method:'row',note:'Move your feet forward to become more horizontal only while maintaining trunk control.'})],
     ['fly',e('cable-fly','Cable Chest Fly','Chest',2,12,15,60,'2-0-1','accessory',{note:'Use a comfortable range and avoid lumbar extension.'})],
     ['lateral',e('cable-lateral','Cable Lateral Raise','Shoulders',2,12,20,60,'2-1-1','accessory',{note:'Raise without momentum.'})],
     ['curl',e('hammer-curl','Hammer Curls','Biceps',2,10,15,60,'2-0-1','accessory',{note:oneHand + ' Keep your trunk steady.'})],
@@ -77,7 +77,7 @@ export const VARIANTS: Record<string,Exercise[]> = {
   'upper-b:pullup':[baseSlot('upper-b:pullup'),alt('upper-b:pullup','pullup','Unassisted Pull-Ups',{mode:'bodyweight',note:'Use controlled unassisted reps without swinging. Reduce machine assistance before choosing this variation.'})],
   'upper-b:dip':[baseSlot('upper-b:dip'),alt('upper-b:dip','dip','Unassisted Dips',{mode:'bodyweight'}),alt('upper-b:dip','supported-chest-10','Chest Press Machine',{mode:'external',method:'load',note:'Keep your back supported and use a comfortable range.'})],
   'lower-b:curl':[baseSlot('lower-b:curl'),alt('lower-b:curl','lying-curl','Lying Leg Curl',{note:'Control the return without lifting your hips or arching your back.'})],
-  'lower-b:bridge':[baseSlot('lower-b:bridge'),alt('lower-b:bridge','band-bridge','Banded Glute Bridge',{mode:'bodyweight',note:'Use modest band resistance only after controlling pelvic position. Record the band in Setup.'}),alt('lower-b:bridge','resisted-bridge','Glute Bridge with Modest Resistance',{mode:'external',note:'Add modest resistance only after controlling pelvic position; avoid lumbar arching.'})],
+  'lower-b:bridge':[baseSlot('lower-b:bridge'),alt('lower-b:bridge','band-bridge','Banded Glute Bridge',{mode:'bodyweight',note:'Use modest band resistance only after controlling pelvic position.'}),alt('lower-b:bridge','resisted-bridge','Glute Bridge with Modest Resistance',{mode:'external',note:'Add modest resistance only after controlling pelvic position; avoid lumbar arching.'})],
   'upper-a:pushup':pushupVariants('upper-a:pushup'), 'optional:pushup':pushupVariants('optional:pushup'),
 };
 export const SATURDAY_CORE = {
@@ -115,11 +115,11 @@ export function resolveWorkout(w:Workout, prescription:number|'fixed', options:P
     else if(w.optional) sets=week===5?1:options.saturdayTwoSets?2:1;
     else if(week<=4) sets=variant.role==='core'?Math.min(2,sets):Math.min(variant.role==='main'?(week<=2?2:3):(week===1?1:2),sets);
     else if(week>=13&&week<=15&&options.extraSlot===ex.slot) sets++;
-    return {...variant,slot:ex.slot,sets,rir:variant.role==='core'?'—':weekEffort(week),setup:choice?.setup??'',supportCm:choice?.supportCm??null,coreLevel:choice?.coreLevel??'Basic'};
+    return {...variant,slot:ex.slot,sets,rir:variant.role==='core'?'—':weekEffort(week),supportCm:choice?.supportCm??null,coreLevel:choice?.coreLevel??'Basic'};
   });
   if(w.optional&&(fixed||week>=9)&&options.saturdayCore!=='none') {
     const ex=SATURDAY_CORE[options.saturdayCore], choice=options.choices['optional:core'];
-    exercises.push({...ex,setup:choice?.setup??'',supportCm:choice?.supportCm??null,coreLevel:choice?.coreLevel??'Basic'});
+    exercises.push({...ex,supportCm:choice?.supportCm??null,coreLevel:choice?.coreLevel??'Basic'});
   }
   if(week===16&&exercises.length) {
     const total=Math.ceil(exercises.reduce((n,ex)=>n+ex.sets,0)/2);

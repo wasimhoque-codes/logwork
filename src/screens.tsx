@@ -214,7 +214,7 @@ export function History({store,onDetail,onStart}:{store:Store;onDetail:(s:Sessio
   const [status,setStatus]=useState('all'),[from,setFrom]=useState(''),[to,setTo]=useState('');
   const currentYear=localDate().slice(0,4);
   const sessions=store.sessions.filter(s=>(filter==='all'||filter===s.workoutId)&&
-    (status==='all'||completeSession(s)===(status==='complete'))&&(!from||s.date>=from)&&(!to||s.date<=to)&&[s.workout.name,s.date,s.note,sessionLabel(s),...s.exercises.map((e,i)=>e.name+' '+e.note+' '+(s.workout.exercises[i].setup??''))].join(' ').toLowerCase().includes(search.trim().toLowerCase()));
+    (status==='all'||completeSession(s)===(status==='complete'))&&(!from||s.date>=from)&&(!to||s.date<=to)&&[s.workout.name,s.date,s.note,sessionLabel(s),...s.exercises.map(e=>e.name+' '+e.note)].join(' ').toLowerCase().includes(search.trim().toLowerCase()));
   const dates=[...new Set(sessions.map(s=>s.date))].sort((a,b)=>b.localeCompare(a));
   return <><div className="filter-bar"><label className="search-field"><Search size={18}/><input aria-label="Search workout history" placeholder="Search workouts" value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Filter workout history" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All workouts</option>{WORKOUTS.filter(w=>w.category!=='recovery').map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
     <div className="history-filters">

@@ -12,7 +12,7 @@ const bestLabel = (s: MovementSeries) => s.exercise.timed ? 'Longest hold' : s.m
 function ComparisonHelp() {
   return <details className="comparison-help">
     <summary>How comparisons work</summary>
-    <p>Each date shows one set from the saved workouts for this exact variation and setup. Recent change compares the first and last of up to five training dates.</p>
+    <p>Each date shows one set from the saved workouts for this exact exercise variation. Recent change compares the first and last of up to five training dates.</p>
     <p>For loaded exercises, the chart uses the heaviest set. For assisted exercises, it uses the least assistance. When load or assistance ties, it uses the set with more reps. Bodyweight exercises use most reps and timed exercises use the longest hold.</p>
     <p>Volume adds up external load × reps. Per-hand and per-side values are recorded as entered. Estimated 1RM uses the highest estimate from sets of 1–12 reps on each date.</p>
   </details>;
@@ -33,8 +33,8 @@ function ExerciseMetrics({ series, days, unit }: { series: MovementSeries; days:
   </details>;
 }
 function tileSetupLabel(series: MovementSeries, catalogue: MovementSeries[]) {
-  const ex = series.exercise, setup = ex.setup?.trim();
-  const parts = [setup && setup.toLowerCase() !== 'basic' ? setup : '', ex.supportCm != null ? `${ex.supportCm} cm support` : '', ex.coreLevel && ex.coreLevel !== 'Basic' ? ex.coreLevel : ''].filter(Boolean);
+  const ex = series.exercise;
+  const parts = [ex.supportCm != null ? `${ex.supportCm} cm support` : '', ex.coreLevel && ex.coreLevel !== 'Basic' ? ex.coreLevel : ''].filter(Boolean);
   if (parts.length) return parts.join(' · ');
   return catalogue.some(other => other.key !== series.key && other.exercise.name === ex.name)
     ? series.mode === 'bodyweight' ? 'Bodyweight' : series.mode === 'assistance' ? 'Assisted' : 'Standard setup' : '';
@@ -55,7 +55,7 @@ export function ExerciseGrid({ store, state, onState, onOpen, onStart }: { store
   }, []);
   return <div className="exercise-dashboard" ref={gridRef}>
     <div className="exercise-page-heading"><h2>Exercise progress</h2></div>
-    {series.length ? <><label className="exercise-search"><Search size={18}/><span className="sr-only">Search exercises and setups</span><input type="search" value={state.query} placeholder="Search exercises or setups" onChange={event => onState({ ...state, query: event.target.value, scroll: 0, focusKey: undefined })}/></label><div className="exercise-filters" role="group" aria-label="Exercise role">{[['all', 'All'], ['main', 'Main'], ['accessory', 'Accessory'], ['core', 'Core']].map(([value, label]) => <button key={value} aria-pressed={state.filter === value} onClick={() => onState({ ...state, filter: value, scroll: 0, focusKey: undefined })}>{label}</button>)}</div><div className="exercise-grid-toolbar">
+    {series.length ? <><label className="exercise-search"><Search size={18}/><span className="sr-only">Search exercises</span><input type="search" value={state.query} placeholder="Search exercises" onChange={event => onState({ ...state, query: event.target.value, scroll: 0, focusKey: undefined })}/></label><div className="exercise-filters" role="group" aria-label="Exercise role">{[['all', 'All'], ['main', 'Main'], ['accessory', 'Accessory'], ['core', 'Core']].map(([value, label]) => <button key={value} aria-pressed={state.filter === value} onClick={() => onState({ ...state, filter: value, scroll: 0, focusKey: undefined })}>{label}</button>)}</div><div className="exercise-grid-toolbar">
       <p className="exercise-result-count" role="status">{visible.length} of {series.length} exercises</p>
       <select aria-label="Sort exercises" value={state.sort} onChange={event=>onState({...state,sort:event.target.value as ExerciseGridState['sort'],scroll:0,focusKey:undefined})}>
         <option value="recent">Recently trained</option><option value="alphabetical">A–Z</option>

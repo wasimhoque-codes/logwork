@@ -30,7 +30,7 @@ export async function readDataset(db: Database, datasetId: string): Promise<Snap
   if(!dataset[0]||!settings[0]||!programme[0])throw new Error('Dataset is incomplete.');
   const p=programme[0], r: ReturnType<typeof records> = {
     settings:{name:String(settings[0].name),unit:settings[0].unit as 'kg'|'lb',autoRest:!!settings[0].auto_rest},
-    programme:{week:Number(p.week),status:p.status as 'active'|'complete',attempts:attempts.map(a=>({id:String(a.id),week:Number(a.week),started:String(a.started),...(a.ended===null?{}:{ended:String(a.ended)}),...(a.decision===null?{}:{decision:a.decision as Store['programme']['attempts'][number]['decision']})})),options:{saturdayTwoSets:!!p.saturday_two_sets,saturdayCore:p.saturday_core as Store['programme']['options']['saturdayCore'],extraSlot:p.extra_slot as string|null,choices:Object.fromEntries(choices.map(c=>[c.slot,{variantId:c.variant_id,setup:c.setup,supportCm:c.support_cm,coreLevel:c.core_level}]))}},
+    programme:{week:Number(p.week),status:p.status as 'active'|'complete',attempts:attempts.map(a=>({id:String(a.id),week:Number(a.week),started:String(a.started),...(a.ended===null?{}:{ended:String(a.ended)}),...(a.decision===null?{}:{decision:a.decision as Store['programme']['attempts'][number]['decision']})})),options:{saturdayTwoSets:!!p.saturday_two_sets,saturdayCore:p.saturday_core as Store['programme']['options']['saturdayCore'],extraSlot:p.extra_slot as string|null,choices:Object.fromEntries(choices.map(c=>[c.slot,{variantId:c.variant_id,supportCm:c.support_cm,coreLevel:c.core_level}]))}},
     active:null,
   };
   for(const s of sessions) {
@@ -72,7 +72,7 @@ export function writeRecords(dataset: string, changes: Change[], store: Store, c
       append('UPDATE week_attempts SET position=-position-1 WHERE dataset_id=?',dataset);
       p.attempts.forEach((a,i)=>append('INSERT INTO week_attempts VALUES(?,?,?,?,?,?,?) ON CONFLICT(dataset_id,id) DO UPDATE SET position=excluded.position,week=excluded.week,started=excluded.started,ended=excluded.ended,decision=excluded.decision',dataset,a.id,i,a.week,a.started,a.ended??null,a.decision??null));
       append('DELETE FROM exercise_choices WHERE dataset_id=?',dataset);
-      for(const [slot,c] of Object.entries(o.choices))append('INSERT INTO exercise_choices VALUES(?,?,?,?,?,?)',dataset,slot,c.variantId,c.setup,c.supportCm,c.coreLevel);
+      for(const [slot,c] of Object.entries(o.choices))append('INSERT INTO exercise_choices (dataset_id,slot,variant_id,support_cm,core_level) VALUES(?,?,?,?,?)',dataset,slot,c.variantId,c.supportCm,c.coreLevel);
     } else if(key==='active'||key.startsWith('session:')) {
       if(key==='active')append('DELETE FROM sessions WHERE dataset_id=? AND ended_at IS NULL',dataset);
       else append('DELETE FROM sessions WHERE dataset_id=? AND id=?',dataset,key.slice(8));
@@ -121,7 +121,12 @@ export async function mutate(db: Database, input: Mutation): Promise<Snapshot> {
     const before = await snapshot(db);
     if (before.datasetId !== input.datasetId || !before.store) throw new Conflict(['dataset'],before);
     if (previous) {
-      if (previous.payload_hash !== digest) throw new Error('Mutation ID was reused.');
+      const storedHash = String(previous.payload_hash);
+      const legacy = storedHash.startsWith('legacy:');
+      // A pre-migration acknowledgement cannot be replayed as a write.
+      if (storedHash.replace(/^legacy:/, '') !== digest && !(legacy && input.removedSetup === true)) {
+        throw new Error('Mutation ID was reused.');
+      }
       return before;
     }
 

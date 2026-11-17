@@ -47,8 +47,8 @@ describe('shared movement series', () => {
     const result = movementSeries(store.sessions).find(s => s.key === exerciseKey(store.sessions[0].workout.exercises[0]))!;
     expect(result.records).toHaveLength(7); expect(result.records.slice(-5).map(r => r.value)).toEqual([15, 20, 25, 30, 35]);
     expect(changeLabel(result, result.records.at(-5)!, result.records.at(-1)!, 'kg')).toBe('+20 kg load');
-    const changed = save(store, '2026-10-20'); changed.workout.exercises[0].setup = 'New bench';
-    expect(movementSeries(store.sessions).filter(s => s.exercise.id === result.exercise.id)).toHaveLength(2);
+    const changed = save(store, '2026-10-20'); Object.assign(changed.workout.exercises[0], { setup: 'New bench' });
+    expect(movementSeries(store.sessions).filter(s => s.exercise.id === result.exercise.id)).toHaveLength(1);
   });
   it('pairs reps with heaviest load, breaks ties by reps and ignores unlogged values', () => {
     const store = freshStore(), s = save(store, '2026-10-01'), log = s.exercises[0];

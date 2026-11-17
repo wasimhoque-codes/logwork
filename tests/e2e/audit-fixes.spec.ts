@@ -71,7 +71,7 @@ test('carry warm-up, substitute one exercise, skip a set, and edit the saved bac
   await page.getByRole('button',{name:'More exercise options'}).click();
   await page.getByRole('button',{name:'Swap for this session'}).click();
   await page.getByLabel('Exercise variation').selectOption('p16-belt-squat');
-  await page.getByLabel('Equipment / setup').fill('Station 2');
+  await expect(page.getByRole('region',{name:'Last two logged sets'})).toContainText('No logged sets yet');
   await page.getByRole('button',{name:'Use this exercise'}).click();
   await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();
   await page.reload();

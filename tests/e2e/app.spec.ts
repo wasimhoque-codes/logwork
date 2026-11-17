@@ -248,7 +248,7 @@ test('another day’s programme never silently resumes the active session',async
   await startMonday(page);await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('tab',{name:'Tue Lower A',exact:true}).click();await expect(page.getByRole('button',{name:'Train this session today',exact:true})).toBeDisabled();await expect(page.locator('.active-banner')).toContainText('Upper A is in progress');await page.getByRole('button',{name:'Resume Upper A',exact:true}).click();await expect(page.getByRole('heading',{name:'Incline Dumbbell Press, Neutral Grip',exact:true})).toBeVisible();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:'Today',exact:true}).click();await expect(page.getByRole('tablist',{name:'Weekly programme'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Resume Upper A',exact:true})).toBeVisible();
 });
 test('saved alternatives keep active and historical prescriptions intact',async({page})=>{
-  await seed(page,atWeek(5));await go(page,'programme');await page.getByRole('tab',{name:'Tue Lower A',exact:true}).click();await page.getByRole('button',{name:/Leg Press/}).click();await page.getByLabel('Exercise variation').selectOption('p16-belt-squat');await page.getByLabel('Equipment / setup').fill('Station A');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Train this session today'}).click();await page.getByLabel('Set 1 weight in kg').fill('20');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:/Belt Squat/}).click();await page.getByLabel('Exercise variation').selectOption('p16-leg-press');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Resume Lower A',exact:true}).click();await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();await save(page);await page.getByRole('button',{name:'View workout',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Station A');await page.getByRole('button',{name:'Edit workout',exact:true}).click();await page.getByLabel('Belt Squat set 1 weight',{exact:true}).fill('22');await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(22);validateStore(data);
+  await seed(page,atWeek(5));await go(page,'programme');await page.getByRole('tab',{name:'Tue Lower A',exact:true}).click();await page.getByRole('button',{name:/Leg Press/}).click();await page.getByLabel('Exercise variation').selectOption('p16-belt-squat');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Train this session today'}).click();await page.getByLabel('Set 1 weight in kg').fill('20');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:/Belt Squat/}).click();await page.getByLabel('Exercise variation').selectOption('p16-leg-press');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Resume Lower A',exact:true}).click();await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();await save(page);await page.getByRole('button',{name:'View workout',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Belt Squat');await page.getByRole('button',{name:'Edit workout',exact:true}).click();await page.getByLabel('Belt Squat set 1 weight',{exact:true}).fill('22');await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(22);validateStore(data);
 });
 for (const week of [1, 2, 16]) test(`Week ${week} data can train the fixed schedule`, async ({ page }) => {
   const previous = atWeek(week);
@@ -430,4 +430,49 @@ test('rest suggestions and Progress fit phone, tablet and desktop layouts',async
       await page.screenshot({path:`artifacts/recovery-removal/${route}-${width}.png`,fullPage:true});
     }
   }
+});
+
+test('exercise details show the last two logged sets for the selected variation', async ({ page }) => {
+  const store = atWeek(5);
+  const older = savedWorkout(store, 2), newer = savedWorkout(store, 2);
+  older.date = '2026-10-01';
+  newer.date = '2026-10-02';
+  newer.exercises[0].sets.forEach(set => { set.done = false; });
+  Object.assign(newer.exercises[0].sets[0], { done: true, weight: 50, reps: 8, rir: 2 });
+  const beltStore = structuredClone(store);
+  beltStore.programme.options.choices['lower-a:squat'] = { variantId:'p16-belt-squat', supportCm:null, coreLevel:'Basic' };
+  const belt = savedWorkout(beltStore, 2);
+  belt.date = '2026-10-03';
+  belt.exercises[0].sets.forEach(set => { set.done = false; });
+  Object.assign(belt.exercises[0].sets[0], { done: true, weight: 60, reps: 9 });
+  store.sessions = [older, newer, belt];
+  await seed(page, store);
+  await go(page, 'programme');
+  await page.getByRole('tab', { name:'Tue Lower A', exact:true }).click();
+  await page.getByRole('button', { name:/Leg Press/ }).click();
+
+  const details = page.getByRole('dialog');
+  const recent = details.getByRole('region', { name:'Last two logged sets' });
+  await expect(details.getByLabel('Equipment / setup')).toHaveCount(0);
+  await expect(recent.getByRole('listitem')).toHaveCount(2);
+  await expect(recent.getByRole('listitem').first()).toContainText('50 kg × 8 reps · 2 RIR');
+  await expect(recent.getByRole('listitem').last()).toContainText('1 Oct 2026');
+  await details.getByLabel('Exercise variation').selectOption('p16-belt-squat');
+  await expect(recent.getByRole('listitem')).toHaveCount(1);
+  await expect(recent.getByRole('listitem')).toContainText('60 kg × 9 reps');
+});
+
+test('recent sets label assistance and timed bodyweight in the exercise sheet', async ({ page }) => {
+  const store = atWeek(5);
+  store.sessions = [savedWorkout(store, 4)];
+  await seed(page, store);
+  await go(page, 'programme');
+  await page.getByRole('tab', { name:'Thu Upper B', exact:true }).click();
+  await page.getByRole('button', { name:/Assisted Pull-Ups/ }).click();
+
+  const recent = page.getByRole('region', { name:'Last two logged sets' });
+  await expect(recent.getByRole('listitem').first()).toContainText('12 kg assistance');
+  await close(page);
+  await page.getByRole('button', { name:/Side Plank/ }).click();
+  await expect(recent.getByRole('listitem').first()).toContainText(/Bodyweight × \d+ sec \/ side/);
 });

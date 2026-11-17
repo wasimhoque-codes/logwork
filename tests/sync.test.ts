@@ -80,3 +80,27 @@ it('detects a remote edit after an acknowledged write whose response was lost',a
   await edit(e,s=>{s.settings.name='Later local edit';});await e.sync();
   expect(e.status).toBe('synced');expect(e.current!.store.settings.name).toBe('Later local edit');expect((await snapshot(db)).store!.settings.name).toBe('Later local edit');
 });
+
+it('cleans an offline edit and recovery copy before syncing a legacy setup record', async () => {
+  await seed();
+  const base = await snapshot(db);
+  const store = structuredClone(base.store!);
+  const choice = { variantId: 'p16-leg-press', setup: 'Old machine', supportCm: null, coreLevel: 'Basic' };
+  store.programme.options.choices['lower-a:squat'] = choice;
+  const local = new LocalDatabase(crypto.randomUUID());
+  await local.update(() => ({
+    store, base, blocked: false, recovered: [store],
+    queue: [{ id: 'offline-setup', editedAt: Date.now(), changes: changesBetween(base.store!, store) }],
+  }));
+  const engine = new SyncEngine(local, transport);
+  engines.push(engine);
+  await engine.open(freshStore());
+  expect(engine.current?.queue?.[0]).toMatchObject({ id: 'offline-setup', removedSetup: true });
+  await engine.sync();
+  const current = await snapshot(db);
+  expect(current.store?.programme.options.choices['lower-a:squat']).toEqual({
+    variantId: choice.variantId, supportCm: null, coreLevel: 'Basic',
+  });
+  expect(JSON.stringify(engine.current)).not.toContain('Old machine');
+  expect(engine.current?.queue).toEqual([]);
+});

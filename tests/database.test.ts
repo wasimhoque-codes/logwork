@@ -16,9 +16,9 @@ function mutation(base: Snapshot, store: NonNullable<Snapshot['store']>, editedA
 }
 
 describe('D1 relational persistence',()=>{
-  it('round-trips setup snapshots, extras, incomplete sets, feedback and resume state',async()=>{
+  it('round-trips prescription snapshots, extras, incomplete sets, feedback and resume state',async()=>{
     const db=database(),store=freshStore();
-    store.programme.options.choices['upper-a:press']={variantId:'p16-incline-db',setup:'Bench 2',supportCm:42,coreLevel:'Basic'};
+    store.programme.options.choices['upper-a:press']={variantId:'p16-incline-db',supportCm:42,coreLevel:'Basic'};
     store.active=addSessionSet(newSession(selectedWorkout(store,1)!,store),0);
     store.active.exercises[0].sets[0]={weight:14.235,reps:10,rir:null,done:true};
     store.active.resume={exerciseIndex:2,restEnd:null,restPaused:87,origin:'programme'};

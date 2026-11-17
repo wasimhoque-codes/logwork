@@ -19,7 +19,7 @@ export function changeLabel(series: MovementSeries, first: MovementRecord, last:
 }
 export function setupLabel(series: MovementSeries) {
   const ex = series.exercise;
-  return [series.mode === 'assistance' ? 'Assisted' : series.mode === 'bodyweight' ? 'Bodyweight' : '', ex.setup, ex.supportCm != null ? `${ex.supportCm} cm support` : '', ex.coreLevel].filter(Boolean).join(' · ');
+  return [series.mode === 'assistance' ? 'Assisted' : series.mode === 'bodyweight' ? 'Bodyweight' : '', ex.supportCm != null ? `${ex.supportCm} cm support` : '', ex.coreLevel].filter(Boolean).join(' · ');
 }
 function usePlotWidth() {
   const ref = useRef<HTMLDivElement>(null), [width, setWidth] = useState(320);

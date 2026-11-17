@@ -25,17 +25,16 @@ describe('exercise history',()=>{
     expect(exerciseHistory([current,sameId,equal,future,unfinished,empty],current,0)).toEqual([]);
     expect(exerciseHistory([saved(current)],current,-1)).toEqual([]);expect(exerciseHistory([],current,99)).toEqual([]);
   });
-  it.each(['variation','mode','setup','height','core level'])('requires matching %s',difference=>{
+  it.each(['variation','mode','height','core level'])('requires matching %s',difference=>{
     const current=fixture(),old=saved(current),spec=old.workout.exercises[0];
     if(difference==='variation')spec.id='other';
     if(difference==='mode')old.exercises[0].mode='assistance';
-    if(difference==='setup')spec.setup='Other station';
     if(difference==='height')spec.supportCm=99;
     if(difference==='core level')spec.coreLevel='Longer lever';
     expect(exerciseHistory([old],current,0)).toEqual([]);
   });
-  it('normalizes setup whitespace/case and finds matching exercises across workout days, positions and weeks',()=>{
-    const current=fixture(),old=saved(current);current.workout.exercises[0].setup='  Bench A  ';old.workout.exercises[0].setup='bench a';old.week=5;old.workoutId='other-day';
+  it('finds matching exercises across workout days, positions and weeks',()=>{
+    const current=fixture(),old=saved(current);old.week=5;old.workoutId='other-day';
     old.exercises.reverse();old.workout.exercises.reverse();
     expect(exerciseHistory([old],current,0)[0].week).toBe(5);
   });
