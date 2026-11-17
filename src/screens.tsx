@@ -8,6 +8,7 @@ import { recordedSessions, volumeDistribution } from './progress-data';
 import { motionPreference, useContentFade } from './motion';
 import { MobilityGuide } from './technique-demo';
 import { MuscleVolume } from './muscle-volume';
+import { createTodayArtPlayback, TodayIllustration } from './today-art';
 export { ExerciseDetails } from './programme-ui';
 export function WeekPicker({day,onDay}:{day:number;onDay:(day:number)=>void}) {
   const stripRef=useRef<HTMLDivElement>(null),firstReveal=useRef(true);
@@ -66,16 +67,15 @@ const countLabel = (count: number, label: string) => `${count} ${label}${count =
 const prescription = (workout: Workout) =>
   `${countLabel(workout.exercises.length, 'exercise')} · ${countLabel(workout.exercises.reduce((total, exercise) => total + exercise.sets, 0), 'working set')}`;
 
-function TodayGraphic({done, training, progress}: {done: boolean; training: boolean; progress?: number}) {
-  const Icon = training ? Dumbbell : Footprints;
-  return <span className="today-graphic" aria-hidden="true">
+function TodayStatusGraphic({progress}: {progress?: number}) {
+  const done = progress === undefined;
+  return <span className={done ? 'today-graphic' : 'today-graphic today-active-ring'} aria-hidden="true">
     <svg viewBox="0 0 96 96" fill="none">
       <circle className="today-ring-track" cx="48" cy="48" r="43"/>
       <circle className="today-ring-inner" cx="48" cy="48" r="34"/>
-      {(done || progress !== undefined) && <circle className="today-ring-progress" cx="48" cy="48" r="43" pathLength="100" strokeDasharray="100 100" strokeDashoffset={done ? 0 : 100 - (progress ?? 0)}/>}
+      <circle className="today-ring-progress" cx="48" cy="48" r="43" pathLength="100" strokeDasharray="100 100" strokeDashoffset={100 - (progress ?? 100)}/>
       {done && <path className="today-check" d="M34 48l9 9 19-19" pathLength="1"/>}
     </svg>
-    {!done && <Icon className="today-graphic-icon" size={34} strokeWidth={1.5}/>}
   </span>;
 }
 
@@ -110,6 +110,7 @@ type TodayProps = {
 };
 
 export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onProgress, onHistory}: TodayProps) {
+  const [registerIllustration] = useState(createTodayArtPlayback);
   const today = useTodayDate();
   const date = localDate(today);
   const tomorrow = new Date(today);
@@ -138,7 +139,7 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
       <time className="today-date" dateTime={date}><CalendarDays size={15} aria-hidden="true"/>{dateLabel(date, {weekday:'short', day:'numeric', month:'long'})}</time>
     </div>
     <section className="today-card" data-state={statusClass} data-handoff={saved && saved.id === handoffId ? completeSession(saved) ? 'complete' : 'partial' : undefined} aria-label="Today’s workout">
-      <div className="today-card-summary">
+      <div className={saved ? 'today-card-summary' : 'today-card-summary has-art'}>
         <div className="today-card-status" role="status" aria-atomic="true">
           <span className="badge">{status}</span>
           {!saved && !active && training && workout.optional && <span className="today-optional">Optional</span>}
@@ -150,7 +151,10 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
             : <><p className="workout-meta">{workout?.focus ?? 'Optional movement, at your own pace.'}</p>
               {training && <p className="today-prescription">{prescription(workout)}</p>}</>}
         </div>
-        <TodayGraphic done={!!saved} training={training} progress={active ? activeSets / Math.max(totalSets, 1) * 100 : undefined}/>
+        {saved ? <TodayStatusGraphic/> : <span className="today-card-visual" aria-hidden="true">
+          <TodayIllustration kind={training || active ? 'strength' : 'recovery'} register={registerIllustration}/>
+          {active && <TodayStatusGraphic progress={activeSets / Math.max(totalSets, 1) * 100}/>}
+        </span>}
       </div>
       {saved ? <>
         <div className="today-saved-actions">
@@ -162,8 +166,26 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
         : <><RestDaySuggestions/><button className="today-card-link" onClick={() => onPlan(today.getDay())}>View your programme<ArrowUpRight size={16} aria-hidden="true"/></button></>}
     </section>
     <div className="today-section-title"><h3>Your daily rhythm</h3><span>Small steps. Lasting change.</span></div>
-    <button className="daily-card daily-body" onClick={onBody} aria-label="Log bodyweight"><span className="daily-icon"><Scale size={21}/></span><span className="daily-card-copy"><span className="eyebrow">BODYWEIGHT</span><strong>{latestBody?<>{number(fromKg(latestBody.kg,store.settings.unit))}<small> {store.settings.unit}</small></>:'Find your baseline'}</strong><small>{latestBody?'Last recorded '+dateLabel(latestBody.date):'Start with your first weigh-in'}</small></span><span className="daily-card-action"><Plus size={18}/><span>Log weight</span></span></button>
-    <button className="daily-card daily-progress" onClick={onProgress}><span className="daily-icon"><TrendingUp size={21}/></span><span className="daily-card-copy"><span className="eyebrow">YOUR PROGRESS</span><strong>{store.sessions.length} <small>{store.sessions.length===1?'workout':'workouts'} logged</small></strong><small>See the bigger picture</small></span><ArrowUpRight size={20}/></button>
+    <button className="daily-card daily-body" onClick={onBody} aria-label="Log bodyweight">
+      <span className="daily-icon" aria-hidden="true"><Scale size={21}/></span>
+      <span className="daily-card-action" aria-hidden="true"><Plus size={18}/><span>Log weight</span></span>
+      <span className="daily-card-copy">
+        <span className="eyebrow">BODYWEIGHT</span>
+        <strong>{latestBody ? <>{number(fromKg(latestBody.kg, store.settings.unit))}<small> {store.settings.unit}</small></> : 'Find your baseline'}</strong>
+        <small>{latestBody ? 'Last recorded ' + dateLabel(latestBody.date) : 'Start with your first weigh-in'}</small>
+      </span>
+      <TodayIllustration kind="bodyweight" register={registerIllustration}/>
+    </button>
+    <button className="daily-card daily-progress" onClick={onProgress}>
+      <span className="daily-icon" aria-hidden="true"><TrendingUp size={21}/></span>
+      <span className="daily-card-action" aria-hidden="true"><ArrowUpRight size={20}/></span>
+      <span className="daily-card-copy">
+        <span className="eyebrow">YOUR PROGRESS</span>
+        <strong>{store.sessions.length} <small>{store.sessions.length === 1 ? 'workout' : 'workouts'} logged</small></strong>
+        <small>See the bigger picture</small>
+      </span>
+      <TodayIllustration kind="progress" register={registerIllustration}/>
+    </button>
     <button className="today-history" onClick={onHistory}><span>Every session, in one place.</span><strong>View workout history<ArrowRight size={17}/></strong></button>
   </div>;
 }
