@@ -1,5 +1,5 @@
 import { exerciseKey, freshStore, validateStore, type Store, type Session, type ExerciseLog } from '../model';
-import { type Change, type Snapshot, type Mutation, records, fromRecords, overlay, validRecordKey, equal, canonical } from '../persistence/records';
+import { type Change, type Snapshot, type Mutation, type EditClock, records, fromRecords, overlay, validRecordKey, equal, canonical, mergeEdit } from '../persistence/records';
 
 export type Sql = { sql: string; params: (string | number | null)[] };
 export interface Statement {
@@ -43,7 +43,7 @@ export async function readDataset(db: Database, datasetId: string): Promise<Snap
   }
   for(const b of body)r['body:'+b.date]={id:String(b.id),date:String(b.date),kg:Number(b.kg)};
   for(const e of recovery)r['recovery:'+e.id]={id:String(e.id),date:String(e.date),activity:e.activity as 'walking'|'cycling',cardio:Number(e.cardio),mobility:Number(e.mobility),note:String(e.note),week:Number(e.week),attemptId:String(e.attempt_id)};
-  return {datasetId,revision:Number(dataset[0].revision),versions:Object.fromEntries(versions.map(v=>[v.record_key,Number(v.revision)])),store:fromRecords(r)};
+  return {datasetId,revision:Number(dataset[0].revision),versions:Object.fromEntries(versions.map(v=>[v.record_key,Number(v.revision)])),clocks:Object.fromEntries(versions.map(v=>[v.record_key,{editedAt:Number(v.edited_at),id:String(v.edit_id)}])),store:fromRecords(r)};
 }
 export async function snapshot(db: Database): Promise<Snapshot> {
   // Retry if an import switched datasets while the old dataset was being read.
@@ -57,7 +57,7 @@ export async function snapshot(db: Database): Promise<Snapshot> {
   throw new Error('Dataset changed repeatedly. Please retry.');
 }
 
-export function writeRecords(dataset: string, changes: Change[], store: Store): Sql[] {
+export function writeRecords(dataset: string, changes: Change[], store: Store, clocks: Record<string, EditClock> = {}): Sql[] {
   const result:Sql[]=[];
   const append=(sql:string,...params:Sql['params'])=>result.push(q(sql,...params));
   // Programme first, active removal before saved insertion: finishing is one transaction.
@@ -69,7 +69,8 @@ export function writeRecords(dataset: string, changes: Change[], store: Store): 
     } else if(key==='programme') {
       const p=store.programme,o=p.options;
       append('INSERT INTO programmes VALUES(?,?,?,?,?,?) ON CONFLICT(dataset_id) DO UPDATE SET week=excluded.week,status=excluded.status,saturday_two_sets=excluded.saturday_two_sets,saturday_core=excluded.saturday_core,extra_slot=excluded.extra_slot',dataset,p.week,p.status,+o.saturdayTwoSets,o.saturdayCore,o.extraSlot);
-      p.attempts.forEach((a,i)=>append('INSERT INTO week_attempts VALUES(?,?,?,?,?,?,?) ON CONFLICT(dataset_id,id) DO UPDATE SET week=excluded.week,started=excluded.started,ended=excluded.ended,decision=excluded.decision',dataset,a.id,i,a.week,a.started,a.ended??null,a.decision??null));
+      append('UPDATE week_attempts SET position=-position-1 WHERE dataset_id=?',dataset);
+      p.attempts.forEach((a,i)=>append('INSERT INTO week_attempts VALUES(?,?,?,?,?,?,?) ON CONFLICT(dataset_id,id) DO UPDATE SET position=excluded.position,week=excluded.week,started=excluded.started,ended=excluded.ended,decision=excluded.decision',dataset,a.id,i,a.week,a.started,a.ended??null,a.decision??null));
       append('DELETE FROM exercise_choices WHERE dataset_id=?',dataset);
       for(const [slot,c] of Object.entries(o.choices))append('INSERT INTO exercise_choices VALUES(?,?,?,?,?,?)',dataset,slot,c.variantId,c.setup,c.supportCm,c.coreLevel);
     } else if(key==='active'||key.startsWith('session:')) {
@@ -92,7 +93,8 @@ export function writeRecords(dataset: string, changes: Change[], store: Store): 
       const r=value as Store['recovery'][number]|undefined;
       if(r)append('INSERT INTO recovery_entries VALUES(?,?,?,?,?,?,?,?,?,?)',dataset,r.id,position??store.recovery.findIndex(x=>x.id===r.id),r.date,r.activity,r.cardio,r.mobility,r.note,r.week,r.attemptId);
     }
-    append('INSERT INTO record_versions VALUES(?,?,1,?) ON CONFLICT(dataset_id,record_key) DO UPDATE SET revision=revision+1,deleted=excluded.deleted',dataset,key,+(value===undefined));
+    const clock = clocks[key];
+    append('INSERT INTO record_versions(dataset_id,record_key,revision,deleted,edited_at,edit_id) VALUES(?,?,1,?,?,?) ON CONFLICT(dataset_id,record_key) DO UPDATE SET revision=revision+1,deleted=excluded.deleted,edited_at=excluded.edited_at,edit_id=excluded.edit_id',dataset,key,+(value===undefined || key==='active' && value===null),clock?.editedAt??0,clock?.id??'');
   }
   return result;
 }
@@ -101,32 +103,55 @@ export async function hash(value: unknown) {
   return Array.from(new Uint8Array(bytes),v=>v.toString(16).padStart(2,'0')).join('');
 }
 export async function mutate(db: Database, input: Mutation): Promise<Snapshot> {
-  if(!input||typeof input.id!=='string'||input.id.length>100||typeof input.datasetId!=='string'||!Array.isArray(input.changes)||input.changes.length<1||input.changes.length>250||!Number.isInteger(input.programmeVersion)||new Set(input.changes.map(c=>c.key)).size!==input.changes.length||input.changes.some(c=>!validRecordKey(c.key)||!Number.isInteger(c.expected)||c.expected<0||(['programme','settings','active'].includes(c.key)&&c.value===undefined)))throw new Error('Invalid mutation.');
-  const digest=await hash(input);
-  const receipt=()=>db.prepare('SELECT payload_hash FROM mutation_receipts WHERE dataset_id=? AND mutation_id=?').bind(input.datasetId,input.id).first();
-  const previous=await receipt();
-  if(previous) {if(previous.payload_hash!==digest)throw new Error('Mutation ID was reused.');const current=await snapshot(db);if(current.datasetId!==input.datasetId)throw new Conflict(['dataset'],current);return current;}
-  const before=await snapshot(db);
-  const conflicts=input.changes.filter(c=>(before.versions[c.key]??0)!==c.expected).map(c=>c.key);
-  if(before.datasetId!==input.datasetId||!before.store)throw new Conflict(['dataset'],before);
-  if(input.changes.some(c=>c.key==='active'||c.key.startsWith('session:'))&&input.programmeVersion!==(before.versions.programme??0))conflicts.push('programme');
-  if(conflicts.length)throw new Conflict([...new Set(conflicts)],before);
-  const after=overlay(before.store,input.changes);
-  // Keys must identify the same records as their values, and always validate the full result.
-  const afterRecords=records(after);
-  for(const c of input.changes)if(c.value!==undefined&&!equal(afterRecords[c.key],c.value))throw new Error('Record key does not match its value.');
-  // Separate guards stay below D1's bound-parameter limit even for a large mutation.
-  const guards=[q("INSERT INTO write_guards VALUES(?,CASE WHEN (SELECT active_dataset_id FROM owner_profile WHERE id='owner')=? AND (SELECT revision FROM datasets WHERE id=?)=? THEN 1 ELSE 0 END)",input.id,input.datasetId,input.datasetId,before.revision),...input.changes.map((c,i)=>q('INSERT INTO write_guards VALUES(?,CASE WHEN COALESCE((SELECT revision FROM record_versions WHERE dataset_id=? AND record_key=?),0)=? THEN 1 ELSE 0 END)',input.id+':'+i,input.datasetId,c.key,c.expected))];
-  const cleanup=[input.id,...input.changes.map((_,i)=>input.id+':'+i)].map(id=>q('DELETE FROM write_guards WHERE id=?',id));
-  const statements=[...guards,...writeRecords(input.datasetId,input.changes,after),q('UPDATE datasets SET revision=revision+1 WHERE id=?',input.datasetId),q('INSERT INTO mutation_receipts SELECT ?,?,?,revision FROM datasets WHERE id=?',input.datasetId,input.id,digest,input.datasetId),...cleanup];
-  try {await runBatch(db,statements);}catch(error) {
-    const duplicate=await receipt();
-    if(duplicate?.payload_hash===digest){const current=await snapshot(db);if(current.datasetId!==input.datasetId)throw new Conflict(['dataset'],current);return current;}
-    const current=await snapshot(db);
-    if(current.revision!==before.revision||current.datasetId!==before.datasetId)throw new Conflict(input.changes.filter(c=>(current.versions[c.key]??0)!==c.expected).map(c=>c.key),current);
-    throw error;
+  if (!input || typeof input.id !== 'string' || !input.id || input.id.length > 100 ||
+    typeof input.datasetId !== 'string' || !Number.isSafeInteger(input.editedAt) || input.editedAt < 0 ||
+    !Array.isArray(input.changes) || !input.changes.length || input.changes.length > 250 ||
+    input.activeId !== undefined && (typeof input.activeId !== 'string' || input.activeId.length > 100) ||
+    input.attempts !== undefined && (!Array.isArray(input.attempts) || input.attempts.length > 250) ||
+    input.changes.some(change => !change || typeof change.key !== 'string' || !validRecordKey(change.key) ||
+      (['programme','settings','active'].includes(change.key) ? change.value === undefined : change.value === null)) ||
+    new Set(input.changes.map(change => change.key)).size !== input.changes.length) {
+    throw new Error('Invalid mutation.');
   }
-  return snapshot(db);
+  const digest = await hash(input);
+  const receipt = () => db.prepare('SELECT payload_hash FROM mutation_receipts WHERE dataset_id=? AND mutation_id=?').bind(input.datasetId,input.id).first();
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const previous = await receipt();
+    const before = await snapshot(db);
+    if (before.datasetId !== input.datasetId || !before.store) throw new Conflict(['dataset'],before);
+    if (previous) {
+      if (previous.payload_hash !== digest) throw new Error('Mutation ID was reused.');
+      return before;
+    }
+
+    const eligible = input.editedAt !== 0 || input.changes.every(change =>
+      change.expected === (before.versions[change.key] ?? 0));
+    const merged = mergeEdit(before.store,before.clocks??{},eligible ? input : {...input,changes:[]});
+    const values = records(merged.store);
+    for (const change of merged.changes) {
+      if (change.value !== undefined && !equal(values[change.key],change.value)) throw new Error('Record key does not match its value.');
+    }
+    const statements = [
+      q("INSERT INTO write_guards VALUES(?,CASE WHEN (SELECT active_dataset_id FROM owner_profile WHERE id='owner')=? AND (SELECT revision FROM datasets WHERE id=?)=? THEN 1 ELSE 0 END)",input.id,input.datasetId,input.datasetId,before.revision),
+      ...writeRecords(input.datasetId,merged.changes,merged.store,merged.clocks),
+      ...(merged.changes.length ? [q('UPDATE datasets SET revision=revision+1 WHERE id=?',input.datasetId)] : []),
+      q('INSERT INTO mutation_receipts SELECT ?,?,?,revision FROM datasets WHERE id=?',input.datasetId,input.id,digest,input.datasetId),
+      q('DELETE FROM write_guards WHERE id=?',input.id),
+    ];
+    try {
+      await runBatch(db,statements);
+    } catch (error) {
+      const current = await snapshot(db);
+      if (current.datasetId !== input.datasetId) throw new Conflict(['dataset'],current);
+      if (current.revision !== before.revision || await receipt()) continue;
+      throw error;
+    }
+    const current = await snapshot(db);
+    if (current.datasetId !== input.datasetId) throw new Conflict(['dataset'],current);
+    return current;
+  }
+  throw new Conflict([],await snapshot(db));
 }
 
 export function initialRecords(store:Store):Change[] {return Object.entries(records(store)).map(([key,value])=>({key,value,expected:0}));}
@@ -149,15 +174,15 @@ export async function stageChunk(db:Database,id:string,header:Pick<Store,'settin
   const guardId=crypto.randomUUID();
   await runBatch(db,[q('INSERT INTO write_guards VALUES(?,CASE WHEN (SELECT activated FROM import_stages WHERE id=?)=0 THEN 1 ELSE 0 END)',guardId,id),...writeRecords(id,[{key:'settings',value:partial.settings,expected:0},{key:'programme',value:partial.programme,expected:0},...changes.filter(c=>!['settings','programme'].includes(c.key))],partial),q('DELETE FROM write_guards WHERE id=?',guardId)]);
 }
-export async function activateStage(db:Database,id:string,email:string) {
+export async function activateStage(db:Database,id:string) {
   const stage=await db.prepare('SELECT * FROM import_stages WHERE id=?').bind(id).first();
   if(!stage)throw new Error('Import stage was not found.');
   if(stage.activated){const current=await snapshot(db);if(current.datasetId!==id)throw new Conflict(['dataset'],current);return current;}
   await readDataset(db,id); // Full domain validation before the pointer can switch.
-  const statements=activationSql(id,stage.expected_dataset_id as string|null,Number(stage.expected_revision),email);
+  const statements=activationSql(id,stage.expected_dataset_id as string|null,Number(stage.expected_revision));
   try {await runBatch(db,statements);}catch {throw new Conflict(['dataset'],await snapshot(db));}
   return snapshot(db);
 }
-export function activationSql(id:string,expectedId:string|null,expectedRevision:number,email:string):Sql[] {
-  return [q("INSERT INTO write_guards VALUES(?,CASE WHEN (SELECT active_dataset_id FROM owner_profile WHERE id='owner') IS ? AND COALESCE((SELECT revision FROM datasets WHERE id=?),0)=? AND (SELECT activated FROM import_stages WHERE id=?)=0 THEN 1 ELSE 0 END)",id,expectedId,expectedId,expectedRevision,id),q("UPDATE datasets SET state='archived' WHERE id=?",expectedId),q("UPDATE datasets SET state='active',revision=1 WHERE id=?",id),q("INSERT INTO owner_profile VALUES('owner',?,?) ON CONFLICT(id) DO UPDATE SET active_dataset_id=excluded.active_dataset_id,email=excluded.email",id,email),q('UPDATE import_stages SET activated=1 WHERE id=?',id),q('DELETE FROM write_guards WHERE id=?',id)];
+export function activationSql(id:string,expectedId:string|null,expectedRevision:number):Sql[] {
+  return [q("INSERT INTO write_guards VALUES(?,CASE WHEN (SELECT active_dataset_id FROM owner_profile WHERE id='owner') IS ? AND COALESCE((SELECT revision FROM datasets WHERE id=?),0)=? AND (SELECT activated FROM import_stages WHERE id=?)=0 THEN 1 ELSE 0 END)",id,expectedId,expectedId,expectedRevision,id),q("UPDATE datasets SET state='archived' WHERE id=?",expectedId),q("UPDATE datasets SET state='active',revision=1 WHERE id=?",id),q("INSERT INTO owner_profile VALUES('owner',?,'') ON CONFLICT(id) DO UPDATE SET active_dataset_id=excluded.active_dataset_id",id),q('UPDATE import_stages SET activated=1 WHERE id=?',id),q('DELETE FROM write_guards WHERE id=?',id)];
 }

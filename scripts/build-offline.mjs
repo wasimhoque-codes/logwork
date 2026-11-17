@@ -18,7 +18,7 @@ self.addEventListener('install',e=>e.waitUntil((async()=>{
 self.addEventListener('activate',e=>e.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('gym-hawk-')&&key!==CACHE)await caches.delete(key);await self.clients.claim();})()));
 self.addEventListener('fetch',e=>{
  const url=new URL(e.request.url);
- if(e.request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname.startsWith('/cdn-cgi/'))return;
+ if(e.request.method!=='GET'||url.origin!==self.location.origin||(url.pathname==='/api'||url.pathname.startsWith('/api/'))||url.pathname.startsWith('/cdn-cgi/'))return;
  if(e.request.mode==='navigate'){e.respondWith((async()=>{
    try{const response=await fetch(e.request);if(response.ok&&!response.redirected&&response.headers.get('content-type')?.includes('text/html')&&(await response.clone().text()).includes('gym-hawk-shell')){const cache=await caches.open(CACHE);await cache.put('/',response.clone());}return response;}
    catch{const cached=await caches.match('/');return cached||new Response('Open Gym Hawk online once before using it offline.',{status:503,headers:{'Content-Type':'text/plain'}});}

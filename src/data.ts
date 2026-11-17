@@ -8,7 +8,7 @@ export type Exercise = {
   method?: 'load' | 'assistance' | 'pushup' | 'row' | 'core' | 'range' | 'bridge';
   setup?: string; supportCm?: number | null; coreLevel?: string;
 };
-export type Workout = { id: string; name: string; subtitle: string; focus: string; days: number[]; label: string; exercises: Exercise[]; optional?: boolean; category: 'strength' | 'recovery' | 'optional' };
+export type Workout = { id: string; name: string; subtitle: string; focus: string; days: number[]; label: string; exercises: Exercise[]; optional?: boolean; category: 'strength' | 'recovery' | 'optional'; prescriptionMode?: 'fixed' };
 export type ExerciseChoice = { variantId: string; setup: string; supportCm: number | null; coreLevel: string };
 export type ProgrammeOptions = { choices: Record<string, ExerciseChoice>; saturdayTwoSets: boolean; saturdayCore: 'none' | 'dead-bug' | 'knee-raise'; extraSlot: string | null };
 export const DEFAULT_OPTIONS: ProgrammeOptions = { choices: {}, saturdayTwoSets: false, saturdayCore: 'none', extraSlot: null };
@@ -95,18 +95,29 @@ export function phaseGoal(week:number) {
 }
 export function weekEffort(week:number) { return week===1?'4':week===2?'3–4':week===16?'4+':'2–3'; }
 export function workoutForDay(day:number) { return WORKOUTS.find(w=>w.days.includes(day)); }
-export function resolveWorkout(w:Workout, week:number, options:ProgrammeOptions):Workout {
-  if(w.optional && (week<5||week===16)) return {...w,category:'recovery',exercises:[],focus:'Walking or mobility only',subtitle:week===16?'Skip optional resistance work during the deload.':'Upper C becomes optional from Week 5.'};
+export const FIXED_WORKOUT_WEEK = 2;
+export function fixedWorkoutForDay(day: number, options: ProgrammeOptions) {
+  const workout = workoutForDay(day);
+  return workout && resolveWorkout(workout, 'fixed', options);
+}
+export function fixedSetCount(exercise: Exercise, optional: boolean, saturdayTwoSets: boolean) {
+  return optional ? saturdayTwoSets ? 2 : 1 : Math.min(2, exercise.sets);
+}
+export function resolveWorkout(w:Workout, prescription:number|'fixed', options:ProgrammeOptions):Workout {
+  const fixed = prescription === 'fixed';
+  const week = prescription === 'fixed' ? FIXED_WORKOUT_WEEK : prescription;
+  if(w.optional && !fixed && (week<5||week===16)) return {...w,category:'recovery',exercises:[],focus:'Walking or mobility only',subtitle:week===16?'Skip optional resistance work during the deload.':'Upper C becomes optional from Week 5.'};
   let exercises=w.exercises.map(ex=>{
     const choice=ex.slot?options.choices[ex.slot]:undefined;
     const variant=choice?variantsFor(ex).find(v=>v.id===choice.variantId)??ex:ex;
     let sets=variant.sets;
-    if(w.optional) sets=week===5?1:options.saturdayTwoSets?2:1;
+    if(fixed) sets=fixedSetCount(variant, !!w.optional, options.saturdayTwoSets);
+    else if(w.optional) sets=week===5?1:options.saturdayTwoSets?2:1;
     else if(week<=4) sets=variant.role==='core'?Math.min(2,sets):Math.min(variant.role==='main'?(week<=2?2:3):(week===1?1:2),sets);
     else if(week>=13&&week<=15&&options.extraSlot===ex.slot) sets++;
     return {...variant,slot:ex.slot,sets,rir:variant.role==='core'?'—':weekEffort(week),setup:choice?.setup??'',supportCm:choice?.supportCm??null,coreLevel:choice?.coreLevel??'Basic'};
   });
-  if(w.optional&&week>=9&&options.saturdayCore!=='none') {
+  if(w.optional&&(fixed||week>=9)&&options.saturdayCore!=='none') {
     const ex=SATURDAY_CORE[options.saturdayCore], choice=options.choices['optional:core'];
     exercises.push({...ex,setup:choice?.setup??'',supportCm:choice?.supportCm??null,coreLevel:choice?.coreLevel??'Basic'});
   }
@@ -116,7 +127,7 @@ export function resolveWorkout(w:Workout, week:number, options:ProgrammeOptions)
     let remaining=total-exercises.length;
     for(const role of ['main','accessory','core']) for(let i=0;i<exercises.length&&remaining>0;i++) if(exercises[i].role===role&&limits[i]>1) {exercises[i].sets++;remaining--;}
   }
-  return {...w,exercises};
+  return {...w,exercises,...(fixed ? {prescriptionMode:'fixed' as const} : {})};
 }
 export function prescription(ex:Exercise) { return (ex.min===ex.max?String(ex.min):ex.min+'–'+ex.max)+(ex.timed?' sec':' reps')+(ex.perSide?' / side':''); }
 export function rirTarget(ex:Exercise) { return ex.rir==='—'?'Controlled':ex.rir+' RIR'; }

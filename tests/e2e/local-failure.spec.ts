@@ -11,7 +11,7 @@ test('an IndexedDB quota failure keeps the last durable copy and unsaved changes
   });
   await page.goto('/#today');await page.getByRole('button',{name:/Log bodyweight/}).click();
   await page.getByLabel('Bodyweight (kg)',{exact:true}).fill('71');await page.getByRole('button',{name:'Save bodyweight'}).click();
-  await expect(page.locator('.app-shell').getByRole('alert')).toContainText('Changes could not be saved on this device');
+  await expect(page.locator('.storage-error[role=alert]')).toContainText('Changes could not be saved on this device');
   await expect(page.getByRole('dialog')).toHaveCount(1);await page.getByRole('dialog').getByRole('button',{name:'Close dialog'}).click();
   await page.goto('/#settings');const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export backup',exact:true}).click();
   const backup=JSON.parse(await fs.readFile((await(await download).path())!,'utf8'));expect(backup.body[0].kg).toBe(71);

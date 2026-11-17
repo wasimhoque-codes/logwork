@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { X, ChevronLeft, Dumbbell, MoveUpRight, Footprints, Activity, Flame, Heart, ArrowUpRight } from './icons';
 import type { Exercise } from './data';
 import { number } from './model';
-import { motionDuration, reducedMotion } from './motion';
+import { motionDuration, motionPreference, reducedMotion } from './motion';
 export function Hawk({ size = 29 }: {
     size?: number;
 }) { return <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true"><path d="M3 9h20l-9 10h10l-8 10h10L13 43l5-14H9l5-10H7zM24 9h20l-8 10H25l-5 6 4-12z" fill="currentColor"/></svg>; }
@@ -12,36 +12,72 @@ export function MuscleIcon({ exercise }: {
     const Icon = exercise.kind === 'lower' ? Footprints : exercise.kind === 'core' ? Activity : exercise.kind === 'carry' ? Flame : exercise.muscle === 'Back' ? MoveUpRight : Dumbbell;
     return <span className={`muscle-icon muscle-${exercise.muscle.toLowerCase().replace(' ', '-')}`}><Icon size={21} strokeWidth={1.6}/></span>;
 }
-export function Modal({ title, children, onClose, wide = false, variant = 'dialog' }: {
+export const ModalTriggerContext = createContext<RefObject<HTMLElement | null> | null>(null);
+
+function historyRowInset(overlay: HTMLElement, row: HTMLElement | null) {
+    if (!row?.isConnected || !row.matches('.history-row')) return null;
+    const frame = overlay.getBoundingClientRect(), bounds = row.getBoundingClientRect();
+    const left = Math.max(frame.left, bounds.left), right = Math.min(frame.right, bounds.right);
+    const top = Math.max(frame.top, bounds.top), bottom = Math.min(frame.bottom, bounds.bottom);
+    if (right <= left || bottom <= top) return null;
+    return `inset(${top - frame.top}px ${frame.right - right}px ${frame.bottom - bottom}px ${left - frame.left}px round 14px)`;
+}
+
+export function Modal({ title, children, onClose, wide = false, variant = 'dialog', expandFromHistory = false, dismissDisabled=false }: {
     title: string;
     children: ReactNode;
     onClose: () => void;
     wide?: boolean;
     variant?: 'dialog' | 'sheet' | 'page';
+    expandFromHistory?: boolean;
+    dismissDisabled?: boolean;
 }) {
+    const historySurfaceRef = useRef<HTMLDivElement>(null);
+    const backdropRef = useRef<HTMLDivElement>(null);
     const ref = useRef<HTMLDivElement>(null);
-    const returnFocus = useRef(document.activeElement as HTMLElement | null);
-    const onCloseRef = useRef(onClose);
+    const trigger = useContext(ModalTriggerContext)?.current;
+    const returnFocus = useRef(trigger?.isConnected ? trigger : document.activeElement as HTMLElement | null);
+    const onCloseRef = useRef(onClose), disabledRef=useRef(dismissDisabled);
+    disabledRef.current=dismissDisabled;
     onCloseRef.current = onClose;
     const [closing, setClosing] = useState(false);
-    const closingRef = useRef(false), closedRef = useRef(false), dismissTimer = useRef<number | undefined>(undefined);
+    const closingRef = useRef(false), closedRef = useRef(false);
     const finishDismiss = useCallback(() => {
         if (closedRef.current) return;
         closedRef.current = true;
-        window.clearTimeout(dismissTimer.current);
         onCloseRef.current();
     }, []);
     const dismiss = useCallback(() => {
-        if (closingRef.current) return;
-        if (reducedMotion()) { finishDismiss(); return; }
+        if (disabledRef.current || closingRef.current || closedRef.current) return;
+        const backdrop = backdropRef.current, panel = ref.current;
+        if (!backdrop || !panel || reducedMotion() || !motionDuration('--motion-dismiss')) { finishDismiss(); return; }
+        // A quick dismissal starts from the current entrance frame.
+        const panelStyle = getComputedStyle(panel);
+        backdrop.style.setProperty('--dismiss-opacity', getComputedStyle(backdrop).opacity);
+        panel.style.setProperty('--dismiss-opacity', panelStyle.opacity);
+        panel.style.setProperty('--dismiss-transform', panelStyle.transform);
+        const surface = historySurfaceRef.current;
+        if (surface?.hasAttribute('data-history-origin')) {
+            const inset = historyRowInset(surface, returnFocus.current);
+            if (inset) {
+                surface.style.setProperty('--history-origin', inset);
+                const { clipPath, opacity } = getComputedStyle(surface);
+                surface.style.setProperty('--history-current', clipPath === 'none' ? 'inset(0 round 0px)' : clipPath);
+                surface.style.setProperty('--history-opacity', opacity);
+            } else surface.removeAttribute('data-history-origin');
+        }
         closingRef.current = true;
         setClosing(true);
-        dismissTimer.current = window.setTimeout(finishDismiss, Math.min(160, motionDuration('--motion-dismiss')));
     }, [finishDismiss]);
     useEffect(() => {
+        if (!closing) return;
+        const timer = window.setTimeout(finishDismiss, motionDuration('--motion-dismiss') + 40);
+        return () => window.clearTimeout(timer);
+    }, [closing, finishDismiss]);
+    useLayoutEffect(() => {
         const previous = returnFocus.current;
-        const getFocusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex="0"], summary') ?? []).filter(e => !e.hasAttribute('disabled') && e.getClientRects().length > 0);
-        if (!ref.current?.contains(document.activeElement)) getFocusable()[0]?.focus();
+        const getFocusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex="0"], summary') ?? []).filter(e => !e.hasAttribute('disabled') && !e.closest('[inert]') && e.getClientRects().length > 0);
+        if (!ref.current?.contains(document.activeElement)) getFocusable()[0]?.focus({ preventScroll: true });
         const handler = (e: KeyboardEvent) => {
             if (e.key === 'Escape')
                 dismiss();
@@ -60,13 +96,33 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
         const oldOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
         document.addEventListener('keydown', handler);
-        const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const preference = motionPreference();
         const onPreference = () => { if (preference.matches && closingRef.current) finishDismiss(); };
         preference.addEventListener('change', onPreference);
-        return () => { window.clearTimeout(dismissTimer.current); preference.removeEventListener('change', onPreference); document.body.style.overflow = oldOverflow; document.removeEventListener('keydown', handler); if (previous?.isConnected) previous.focus({preventScroll:true}); };
+        return () => { preference.removeEventListener('change', onPreference); document.body.style.overflow = oldOverflow; document.removeEventListener('keydown', handler); if (previous?.isConnected) previous.focus({preventScroll:true}); };
     }, [dismiss, finishDismiss]);
-    return <div className={`modal-overlay ${variant === 'sheet' ? 'sheet-overlay' : variant === 'page'?'page-overlay':''}`} data-state={closing?'closing':'open'} onAnimationEnd={e=>{if(closing&&e.target===e.currentTarget&&e.animationName==='overlay-out')finishDismiss();}} onClickCapture={e=>{if(closing){e.preventDefault();e.stopPropagation();}}} onClick={e => { if (e.target === e.currentTarget)
-        dismiss(); }}><div className={`modal ${wide ? 'modal-wide' : ''} ${variant === 'sheet' ? 'modal-sheet' : variant === 'page'?'modal-page':''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading">{variant==='page'?<><button className="icon-button" aria-label="Back to previous screen" onClick={dismiss}><ChevronLeft size={22}/></button><h2>{title}</h2></>:<><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={dismiss}><X size={20}/></button></>}</div>{children}</div></div>;
+    useLayoutEffect(() => {
+        const surface = historySurfaceRef.current;
+        if (!surface || reducedMotion() || !CSS.supports('clip-path', 'inset(0 round 0px)')) return;
+        const inset = historyRowInset(surface, returnFocus.current);
+        if (!inset) return;
+        surface.style.setProperty('--history-origin', inset);
+        surface.setAttribute('data-history-origin', '');
+        const preference = motionPreference();
+        const settle = () => { if (preference.matches) surface.removeAttribute('data-history-origin'); };
+        preference.addEventListener('change', settle);
+        return () => { preference.removeEventListener('change', settle); surface.removeAttribute('data-history-origin'); };
+    }, [expandFromHistory]);
+    const content = <>
+        <div ref={backdropRef} className="modal-backdrop" aria-hidden="true" onAnimationEnd={e=>{if(closing&&e.animationName==='overlay-out')finishDismiss();}}/>
+        <div className={`modal ${wide ? 'modal-wide' : ''} ${variant === 'sheet' ? 'modal-sheet' : variant === 'page'?'modal-page':''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading">{variant==='page'?<><button className="icon-button" aria-label="Back to previous screen" disabled={dismissDisabled} onClick={dismiss}><ChevronLeft size={22}/></button><h2>{title}</h2></>:<><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" disabled={dismissDisabled} onClick={dismiss}><X size={20}/></button></>}</div>{children}</div>
+    </>;
+    return <div className={`modal-overlay ${variant === 'sheet' ? 'sheet-overlay' : variant === 'page'?'page-overlay':''}`} data-state={closing?'closing':'open'}
+        onClickCapture={e=>{if(closingRef.current){e.preventDefault();e.stopPropagation();}}}
+        onSubmitCapture={e=>{if(closingRef.current){e.preventDefault();e.stopPropagation();}}}
+        onClick={e=>{if(e.target===e.currentTarget||e.target===historySurfaceRef.current)dismiss();}}>
+        {expandFromHistory ? <div className="history-modal-surface" ref={historySurfaceRef}>{content}</div> : content}
+    </div>;
 }
 export function Empty({ title, text, icon = 'activity', action }: {
     title: string;

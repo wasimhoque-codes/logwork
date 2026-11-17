@@ -1,0 +1,2 @@
+ALTER TABLE record_versions ADD COLUMN edited_at INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE record_versions ADD COLUMN edit_id TEXT NOT NULL DEFAULT '';

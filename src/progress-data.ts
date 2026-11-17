@@ -1,6 +1,6 @@
 import { WORKOUTS, type Exercise } from './data';
 import { bodyTrend } from './body-trend';
-import { attemptSessions, completeSession, coreWorkoutCount, currentAttempt, doneSets, exerciseKey, localDate, progression, volume, type ExerciseLog, type Session, type SetLog, type Store } from './model';
+import { attemptSessions, compareTrainingDates, completeSession, coreWorkoutCount, currentAttempt, doneSets, exerciseKey, localDate, progression, volume, type ExerciseLog, type Session, type SetLog, type Store } from './model';
 
 // Date-only arithmetic must not gain or lose a day when the clocks change.
 export function calendarDay(date: string) {
@@ -39,7 +39,7 @@ export type MovementDay = { date: string; day: number; workouts: MovementRecord[
 
 export function recordedSessions(sessions: Session[]) {
   return sessions.filter(s => s.endedAt !== undefined && doneSets(s) > 0)
-    .sort((a, b) => a.startedAt - b.startedAt || a.id.localeCompare(b.id));
+    .sort(compareTrainingDates);
 }
 
 // Keep one observation per exercise identity per saved workout, including extra sets.
@@ -115,7 +115,15 @@ export function trainingJourney(store: Store, today = localDate()) {
     const first = Math.min(...weeks.keys()), last = Math.max(weekDay(today), ...weeks.keys());
     for (let day = first; day <= last; day += 7) if (!weeks.has(day)) weeks.set(day, { date: new Date(day * 86400000).toISOString().slice(0, 10), sessions: 0, volume: 0 });
   }
-  return { sessions, series, firstDate: sessions.length ? sessions.reduce((first, s) => s.date < first ? s.date : first, sessions[0].date) : undefined,
+  const currentWeek=weekDay(today);
+  const recentWeeks=Array.from({length:8},(_,i)=>{
+    const day=currentWeek-(7-i)*7;
+    return weeks.get(day)??{date:new Date(day*86400000).toISOString().slice(0,10),sessions:0,volume:0};
+  });
+  const todayDay=calendarDay(today);
+  const currentSessions=sessions.filter(session=>calendarDay(session.date)>=currentWeek&&calendarDay(session.date)<=todayDay).length;
+  const previousSessions=sessions.filter(session=>calendarDay(session.date)>=currentWeek-7&&calendarDay(session.date)<=todayDay-7).length;
+  return { sessions, series, recentWeeks,currentSessions,previousSessions,firstDate: sessions.length ? sessions.reduce((first, s) => s.date < first ? s.date : first, sessions[0].date) : undefined,
     sets: sessions.reduce((n, s) => n + doneSets(s), 0), activeWeeks,
     weeks: [...weeks].sort(([a], [b]) => a - b).map(([, week]) => week) };
 }
@@ -162,21 +170,26 @@ export function bodySnapshot(store: Store, today = localDate()) {
 }
 
 export function volumeDistribution(sessions: Session[]) {
-  const muscles = new Map<string, number>();
+  const muscles = new Map<string, {label:string;volume:number;sets:number}>();
   const groups = ['Upper body', 'Lower body'].map(label => ({ label, volume: 0, sessions: 0 }));
   let coreSeconds = 0;
   for (const session of sessions.filter(s => s.endedAt !== undefined)) {
     let total = 0;
     session.workout.exercises.forEach((exercise, index) => {
       const log = session.exercises[index], amount = exerciseVolume(exercise, log);
-      if (amount > 0) muscles.set(exercise.muscle, (muscles.get(exercise.muscle) ?? 0) + amount);
+      const sets=log.sets.filter(set=>set.done).length;
+      if(sets){
+        const item=muscles.get(exercise.muscle)??{label:exercise.muscle,volume:0,sets:0};
+        item.volume+=amount;item.sets+=sets;
+        muscles.set(exercise.muscle,item);
+      }
       total += amount;
       if (exercise.role === 'core' && exercise.timed) coreSeconds += log.sets.reduce((n, set) => n + (set.done ? set.reps : 0), 0);
     });
     const group = groups.find(g => g.label.toLowerCase() === session.workout.label.toLowerCase());
     if (group && total > 0) { group.volume += total; group.sessions++; }
   }
-  return { groups, coreSeconds, muscles: [...muscles].map(([label, volume]) => ({ label, volume })).sort((a, b) => b.volume - a.volume || a.label.localeCompare(b.label)) };
+  return { groups, coreSeconds, muscles: [...muscles.values()].sort((a, b) => b.volume - a.volume || a.label.localeCompare(b.label)) };
 }
 
 export function movementSummary(series: MovementSeries) {
@@ -184,4 +197,24 @@ export function movementSummary(series: MovementSeries) {
   const recent = series.records.slice(-5);
   const best = series.records.reduce((best, record) => beatsMovementRecord(record, best) ? record : best, first);
   return { first, latest, recent, best };
+}
+
+
+export type ExerciseChartMetric='top'|'reps'|'estimate';
+export type ExerciseObservation={record:MovementRecord;value:number};
+
+export function estimatedMax(set:SetLog) {
+  if(set.weight===null||set.weight<=0||set.reps>12||set.reps<1) return null;
+  return set.weight*(set.reps===1?1:1+set.reps/30);
+}
+export function exerciseObservation(day:MovementDay,metric:ExerciseChartMetric,load?:number):ExerciseObservation|undefined {
+  if(metric==='top')return {record:day.best,value:day.best.value};
+  let best:ExerciseObservation|undefined;
+  for(const record of day.workouts) {
+    for(const set of record.sets) {
+      const value=metric==='estimate'?estimatedMax(set):set.weight===load?set.reps:null;
+      if(value!==null&&(!best||value>best.value))best={record:{...record,best:set},value};
+    }
+  }
+  return best;
 }

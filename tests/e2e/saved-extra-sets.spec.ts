@@ -29,7 +29,7 @@ test('saved additions are drafts until saved, survive offline reload and backup 
   const weight=page.getByLabel(`${name} set 3 weight`,{exact:true}),logged=page.getByLabel(`${name} set 3 logged`,{exact:true});
   await expect(weight).toBeFocused();await expect(weight).toHaveValue('12');await expect(logged).not.toBeChecked();
   await expect(exercise(page).locator('.detail-set').last()).toContainText('Extra');
-  await expect(page.locator('.unit-badge')).toContainText('Partial');
+  await expect(page.locator('.unit-badge')).toContainText('Complete');
   await page.getByRole('button',{name:'Cancel',exact:true}).click();await edit(page);
   await expect(exercise(page).locator('.detail-set')).toHaveCount(2);
   await add(page).click();await close(page);await open(page);await edit(page);
@@ -51,7 +51,7 @@ test('saved additions are drafts until saved, survive offline reload and backup 
   await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 2');await context.setOffline(false);
 });
 
-test('saved unlogged extras persist as partial and enforce the ten-set and removal rules',async({page})=>{
+test('unused extras preserve prescribed completion and enforce the ten-set and removal rules',async({page})=>{
   const store=fixture();await seed(page,store);await open(page);await edit(page);
   expect(await exercise(page).getByRole('button',{name:/^Remove /}).count()).toBe(0);
   for(let i=2;i<10;i++)await add(page).click();
@@ -59,7 +59,7 @@ test('saved unlogged extras persist as partial and enforce the ten-set and remov
   await expect(exercise(page).getByRole('button',{name:/^Remove /})).toHaveCount(1);
   await exercise(page).getByRole('button',{name:/^Remove extra set 10 from /}).click();await expect(add(page)).toBeFocused();await expect(add(page)).toBeEnabled();
   await add(page).click();await page.getByRole('button',{name:'Save changes',exact:true}).click();
-  await expect(page.locator('.unit-badge')).toContainText('Partial');await close(page);await page.reload();await open(page);await edit(page);
+  await expect(page.locator('.unit-badge')).toContainText('Complete');await close(page);await page.reload();await open(page);await edit(page);
   await expect(add(page)).toBeDisabled();await expect(exercise(page).locator('.detail-set')).toHaveCount(10);
   const last=exercise(page).locator('.detail-set').last();await last.getByRole('checkbox').check();await expect(last.getByRole('button')).toHaveCount(0);
   await last.getByRole('checkbox').uncheck();await last.getByRole('button',{name:/^Remove /}).click();

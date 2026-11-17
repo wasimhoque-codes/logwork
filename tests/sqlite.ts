@@ -1,10 +1,14 @@
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import type { Database, Statement } from '../src/server/database';
 
 export class TestDatabase implements Database {
   raw=new DatabaseSync(':memory:');
-  constructor(){this.raw.exec(readFileSync('migrations/0001_training.sql','utf8'));}
+  constructor(){
+    for (const file of readdirSync('migrations').filter(file=>file.endsWith('.sql')).sort()) {
+      this.raw.exec(readFileSync('migrations/'+file,'utf8'));
+    }
+  }
   prepare(sql:string):Statement{return new TestStatement(this,sql,[]);}
   async batch<T>(statements:Statement[]):Promise<{results:T[]}[]> {
     this.raw.exec('BEGIN');

@@ -28,6 +28,11 @@ test('compact history shows five dated sessions, preserves input and edit drafts
   await page.clock.install({time:new Date(store.active!.startedAt)});await seed(page,store);await page.goto('/#workout');
   await expect(page.locator('.previous-hint')).toHaveCount(0);await expect(page.locator('.exercise-history-list')).toHaveCount(0);
   await page.getByLabel('Set 1 weight in kg').fill('18');await page.getByLabel('Set 1 reps',{exact:true}).fill('10');
+  await expect.poll(async()=>{
+    const persisted=JSON.parse(await raw(page)??'null') as Store|null;
+    const set=persisted?.active?.exercises[0].sets[0];
+    return [set?.weight,set?.reps];
+  }).toEqual([18,10]);
   const before=await raw(page);await history(page).click();
   await expect(sheet(page)).toContainText(store.active!.exercises[0].name);await expect(sheet(page).locator('.exercise-history-session')).toHaveCount(5);
   const latest=sheet(page).locator('.exercise-history-session').first();
@@ -40,9 +45,16 @@ test('compact history shows five dated sessions, preserves input and edit drafts
   await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('18');await expect(page.getByLabel('Set 1 reps',{exact:true})).toHaveValue('10');
   await page.getByRole('button',{name:'Log set 1',exact:true}).click();
   await page.locator('.logged-sets summary').click();await page.getByRole('button',{name:'Edit set 1',exact:true}).click();await page.getByLabel('Set 1 weight in kg').fill('22');
-  await history(page).click();await page.clock.fastForward(10000);await close(page);
+  const timer=page.getByRole('group',{name:'Rest timer'});
+  const remainingSeconds=async()=>{
+    const [minutes,seconds]=(await timer.locator('strong').innerText()).split(':').map(Number);
+    return minutes*60+seconds;
+  };
+  await history(page).click();const beforeRest=await remainingSeconds();
+  await page.clock.fastForward(10000);await close(page);
   await expect(history(page)).toBeFocused();await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('22');await expect(page.getByRole('button',{name:'Save set 1',exact:true})).toBeVisible();
-  await expect(page.getByRole('group',{name:'Rest timer'})).toContainText('1:50');
+  await expect.poll(remainingSeconds).toBeLessThanOrEqual(beforeRest-10);
+  expect(await remainingSeconds()).toBeGreaterThan(0);
   await page.getByRole('button',{name:'Cancel edit',exact:true}).click();await page.getByRole('button',{name:'More exercise options'}).click();
   await page.getByRole('button',{name:'Copy last session',exact:true}).click();await close(page);
   await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('21');

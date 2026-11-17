@@ -1,7 +1,7 @@
 import { replaceLocal } from './fixture';
 import { test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, reviewWeek, currentAttempt, localDate, exerciseKey, validateStore, type Store } from '../../src/model';
-import { movementSeries } from '../../src/progress-data';
+import { movementSeries, volumeDistribution } from '../../src/progress-data';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -40,9 +40,10 @@ test('Overview stays focused and Exercises shows every recorded identity alphabe
   const store = fixture(); await seed(page, store);
   await expect(page.locator('.journey-stat').first()).toContainText('3');
   await expect(page.locator('.journey-lift,.spotlight-card')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Training volume', exact: true }).click(); await expect(page.getByRole('img', { name: /^Weekly kg/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Training volume', exact: true }).click(); await expect(page.getByRole('group', { name: /^Weekly kg/ })).toBeVisible();
   await openGrid(page); await expect(page).toHaveURL(/#progress\/exercises$/);
   await expect(page.locator('.exercise-tile')).toHaveCount(movementSeries(store.sessions).length);
+  await page.getByLabel('Sort exercises').selectOption('alphabetical');
   const names = await page.locator('.exercise-tile h3').allTextContents(); expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
   await expect(page.locator('.exercise-tile .exercise-metrics,.exercise-tile .lift-role,.exercise-tile-footer,.exercise-tile .journey-legend')).toHaveCount(0);
   await expect(page.locator('.exercise-tile').first().locator('.exercise-tile-change')).toHaveText('1 recorded date');
@@ -69,7 +70,7 @@ test('search, role filters, clear and detail return preserve place and focus', a
 });
 test('interactive details preserve exact identity on reload and support keyboard point selection', async ({ page }) => {
   const store = fixture(); await seed(page, store); await openGrid(page); const series = movementSeries(store.sessions).find(s => s.records.length === 2)!;
-  await openKey(page, series.key); await page.reload(); await expect(page.locator('.exercise-detail-heading h2')).toHaveText(series.exercise.name);
+  await openKey(page, series.key); await page.reload(); await expect(page.getByRole('heading',{level:1})).toHaveText(series.exercise.name);
   await expect(page.locator('.exercise-detail .exercise-metrics')).toBeHidden();
   await page.getByText('Compare with earlier workouts', { exact: true }).click();
   await expect(page.locator('.exercise-detail .exercise-metrics')).toContainText('Peak load');
@@ -77,12 +78,21 @@ test('interactive details preserve exact identity on reload and support keyboard
   await expect(page.locator('.selected-workout')).toContainText('26 Oct 2026'); await page.keyboard.press('End'); await expect(page.locator('.selected-workout')).toContainText('2 Nov 2026');
   await page.getByRole('button', { name: 'Browse exercises', exact: true }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
 });
-test('inline bodyweight, attempt volume and feedback remain available from Overview', async ({ page }) => {
-  await seed(page, fixture()); await expect(page.locator('.bodyweight-chart .body-weigh-in')).toHaveCount(15);
+test('Overview includes inline bodyweight and all-time volume across attempts', async ({ page }) => {
+  const store = fixture();
+  await seed(page, store); await expect(page.locator('.bodyweight-chart .body-weigh-in')).toHaveCount(15);
   await page.getByRole('button', { name: 'Log bodyweight', exact: true }).click(); await page.getByLabel('Bodyweight (kg)', { exact: true }).fill('62'); await page.getByRole('button', { name: 'Save bodyweight' }).click();
   await expect(page.locator('.body-chart-latest')).toContainText('62.0 kg');
-  await page.locator('.pending-feedback').click(); await page.getByLabel('Following-day symptoms').selectOption('none'); await page.getByRole('button', { name: 'Save recovery response' }).click(); await expect(page.locator('.pending-feedback')).toHaveCount(0);
-  await page.getByRole('button', { name: 'By muscle', exact: true }).click(); await expect(page.locator('.muscle-breakdown')).toContainText('attempt started 31 Oct');
+  await expect(page.getByText('Workout feedback', { exact: true })).toHaveCount(0);
+  const distribution = volumeDistribution(store.sessions);
+  await expect(page.locator('.volume-overview .distribution-row').filter({ hasText: 'Upper body' })).toContainText('2 sessions');
+  await page.getByRole('button', { name: 'By muscle', exact: true }).click();
+  const muscles = page.locator('.muscle-breakdown');
+  await expect(muscles).toContainText('Last 8 weeks');
+  await page.getByLabel('Insights date range').selectOption('all');
+  await page.getByRole('button',{name:'External-load volume',exact:true}).click();
+  const chest = distribution.muscles.find(muscle => muscle.label === 'Chest')!;
+  await expect(muscles.locator('.distribution-row').filter({ hasText: 'Chest' })).toContainText(chest.volume.toLocaleString('en-GB', { maximumFractionDigits: 2 }) + ' kg × reps');
 });
 test('old setups and latest-five comparisons survive new attempts and mixed workouts', async ({ page, isMobile }) => {
   const store = fixture(), first = structuredClone(store.sessions[0]), lower = structuredClone(store.sessions[1]); store.sessions = [];
@@ -173,7 +183,7 @@ test('flat load shows rep gains and a shared date preserves all completed sets',
   await openGrid(page);
   const key = exerciseKey(first.workout.exercises[0], first.exercises[0].mode);
   const tile = page.locator('.exercise-tile').filter({ has: page.locator('[data-exercise-key]').and(page.getByRole('button', { name: new RegExp('^View details for ' + first.workout.exercises[0].name) })) });
-  await expect(tile.locator('.exercise-tile-change strong')).toHaveText('+2 reps');
+  await expect(tile.locator('.exercise-tile-change strong')).toHaveText('45 kg × 9 reps → 45 kg × 11 reps');
   await openKey(page, key);
   await expect(page.locator('[data-point]')).toHaveCount(2);
   await expect(page.locator('.movement-plot').getByText('9 reps', { exact: true })).toBeVisible();

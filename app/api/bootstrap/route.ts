@@ -1,4 +1,7 @@
-import { route, jsonResponse } from '../../../src/server/http';
+import { route, jsonResponse, requireSyncProtocol } from '../../../src/server/http';
 import { snapshot } from '../../../src/server/database';
 export const dynamic='force-dynamic';
-export const GET=route(async(_request,db)=>jsonResponse(await snapshot(db)));
+export const GET=route(async(request,db)=>{
+  requireSyncProtocol(request);
+  return jsonResponse(await snapshot(db));
+});

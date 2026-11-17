@@ -32,9 +32,6 @@
   --shadow:0 4px 20px var(--shadow-color);
   --radius:24px;
   --radius-small:14px;
-  --motion-content:240ms;
-  --motion-sheet:280ms;
-  --ease-out:cubic-bezier(.22,.8,.25,1);
 }
 
 body {
@@ -62,14 +59,6 @@ h2 {
 
 h3 {
   letter-spacing:-.35px
-}
-
-button {
-  transition:background 160ms ease,box-shadow 160ms ease,transform 160ms ease
-}
-
-button:active:not(:disabled) {
-  transform:scale(.985)
 }
 
 button:disabled {
@@ -332,212 +321,343 @@ input:focus,select:focus,textarea:focus {
 .today-intro {
   grid-column:1/-1;
   display:flex;
+  flex-wrap:wrap;
   justify-content:space-between;
-  align-items:end;
-  gap:16px;
-  margin:2px 0 10px
+  align-items:baseline;
+  gap:6px 16px;
+  color:var(--muted);
+  font-size:14px
 }
 
-.today-intro .eyebrow {
-  font-size:12px;
-  font-weight:450;
-  letter-spacing:0;
-  margin-bottom:12px
-}
-
-.today-intro h2 {
-  font-size:43px;
+.today-intro p {
+  color:var(--text);
   font-weight:550;
-  line-height:1.09;
-  letter-spacing:-1.9px
-}
-
-.today-intro h2>span {
-  color:#8a9385
+  overflow-wrap:anywhere
 }
 
 .today-date {
-  display:flex;
+  display:inline-flex;
   align-items:center;
-  gap:8px;
-  font-size:12px;
-  color:var(--muted);
-  margin:0 0 4px;
-  white-space:nowrap
+  gap:6px;
+  margin:0
 }
 
 .today-card {
-  position:relative;
-  isolation:isolate;
-  min-height:340px;
-  overflow:hidden;
+  grid-column:1/-1;
+  display:grid;
+  gap:16px;
+  padding:clamp(18px,4vw,30px);
   border:0;
   border-radius:24px;
-  padding:28px;
   background:var(--hero);
-  box-shadow:none;
-  color:#fff;
-  display:flex;
-  flex-direction:column;
-  justify-content:flex-start
+  color:#fff
 }
 
-.today-card:before,.today-card:after {
+.today-card::before,.today-card::after {
   display:none
 }
 
-.workout-card-top {
-  position:relative;
-  z-index:1;
+.today-card-summary {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-areas:"status graphic" "copy graphic";
   align-items:center;
-  gap:12px;
-  margin:0 0 42px
+  gap:12px 20px
 }
 
-.hero-kicker {
+.today-card-status {
+  grid-area:status;
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
-  gap:7px;
-  letter-spacing:1.55px;
-  font-size:12px;
-  font-weight:600;
-  color:#ccd5c7
-}
-
-.live-dot {
-  width:5px;
-  height:5px;
-  border-radius:50%;
-  background:var(--accent);
-  box-shadow:0 0 0 4px rgb(195 239 129 / 8%)
+  gap:6px 10px
 }
 
 .today-card .badge {
-  font-size:12px;
-  color:#d8e3d1;
+  margin:0;
+  padding:5px 10px;
+  border:1px solid rgb(255 255 255 / 15%);
+  border-radius:999px;
   background:rgb(255 255 255 / 7%);
-  border:1px solid rgb(255 255 255 / 10%);
-  padding:4px 9px;
-  border-radius:20px;
-  margin-left:auto
+  color:#e6eee2;
+  font-size:12px;
+  font-weight:600
 }
 
-.hero-copy {
-  z-index:1;
+.today-card[data-state=done] .badge {
+  border-color:rgb(195 239 129 / 27%);
+  background:rgb(195 239 129 / 11%);
+  color:var(--hero-action)
+}
+
+.today-optional {
+  color:var(--hero-muted);
+  font-size:12px
+}
+
+.today-card-copy {
+  grid-area:copy;
+  min-width:0;
+  overflow-wrap:anywhere
+}
+
+.today-card-summary.has-art {
+  grid-template-rows:auto 1fr;
+  align-items:start
+}
+
+.today-card-summary.has-art .today-card-copy {
+  align-self:center
+}
+
+.today-card-visual {
+  grid-area:graphic;
   position:relative;
-  max-width:72%
+  align-self:center;
+  justify-self:end;
+  width:clamp(108px,29vw,290px);
+  background:radial-gradient(ellipse at center,rgb(184 223 124 / 12%),transparent 70%)
+}
+
+.today-illustration {
+  display:block;
+  position:relative;
+  width:100%;
+  aspect-ratio:4/3;
+  pointer-events:none
+}
+
+.today-illustration>img,.today-illustration>canvas {
+  display:block;
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%
+}
+
+.today-illustration>canvas,.today-illustration[data-animating]>img {
+  visibility:hidden
+}
+
+.today-illustration[data-animating]>canvas {
+  visibility:visible
+}
+
+@media(prefers-reduced-motion:reduce) {
+  .today-illustration[data-animating]>canvas { visibility:hidden }
+  .today-illustration[data-animating]>img { visibility:visible }
 }
 
 .today-card h2 {
-  font-size:39px;
-  letter-spacing:-1.6px;
-  line-height:1.1;
   color:#fff;
-  font-weight:500
+  font-size:clamp(28px,5vw,42px);
+  font-weight:600;
+  line-height:1.08;
+  letter-spacing:-.04em
 }
 
-.today-card .workout-meta {
-  font-size:12px;
-  line-height:1.7;
-  max-width:230px;
-  color:#c1cdbb;
-  margin:14px 0 0
+.today-card .workout-meta,.today-prescription {
+  display:block;
+  margin:7px 0 0;
+  color:var(--hero-muted);
+  font-size:14px;
+  line-height:1.45
 }
 
-.hero-prescription {
-  font-size:12px;
-  color:#d0dacb;
-  margin-top:12px
+.today-prescription {
+  margin-top:3px
 }
 
-.hero-prescription span {
-  margin:0 6px;
-  color:#7a8d73
+.today-graphic {
+  grid-area:graphic;
+  display:grid;
+  place-items:center;
+  width:clamp(76px,13vw,108px);
+  aspect-ratio:1;
+  color:var(--hero-action);
+  background:radial-gradient(circle,rgb(195 239 129 / 10%),transparent 70%)
 }
 
-.hero-orbit {
+.today-graphic>svg {
+  grid-area:1/1
+}
+
+.today-graphic.today-active-ring {
   position:absolute;
-  width:260px;
-  height:260px;
-  right:-102px;
-  top:65px;
-  z-index:0;
-  opacity:.9
+  right:0;
+  bottom:0;
+  width:clamp(28px,5vw,44px);
+  border-radius:50%;
+  background:var(--hero)
 }
 
-.hero-orbit svg {
-  width:100%;
-  height:100%;
-  transform:rotate(-90deg)
-}
-
-.hero-orbit circle {
-  fill:none;
-  stroke-width:12
-}
-
-.orbit-track {
-  stroke:#354433
-}
-
-.hero-orbit .orbit-progress {
-  stroke:var(--accent);
-  stroke-linecap:round;
-  transition:stroke-dasharray .7s var(--ease-out)
-}
-
-.hero-orbit .orbit-inner {
-  stroke:#789461;
-  stroke-width:2;
-  opacity:.35
-}
-
-.hero-orbit .orbit-core {
-  stroke:#648052;
+.today-ring-track,.today-ring-inner {
+  stroke:currentColor;
   stroke-width:1;
-  opacity:.35
+  opacity:.23
 }
 
-.hero-orbit>svg+svg {
-  position:absolute;
-  left:106px;
-  top:106px;
-  width:48px;
-  height:48px;
-  transform:none;
-  color:var(--accent)
+.today-ring-inner {
+  opacity:.12
+}
+
+.today-ring-progress {
+  stroke:currentColor;
+  stroke-width:2.5;
+  transform:rotate(-90deg);
+  transform-origin:48px 48px
+}
+
+.today-check {
+  stroke:currentColor;
+  stroke-width:4;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  stroke-dasharray:1;
+  stroke-dashoffset:0
 }
 
 .today-card .hero-button {
-  position:relative;
-  z-index:1;
   width:100%;
-  padding:14px 18px;
-  border-radius:13px;
-  background:var(--accent);
+  margin:0;
+  min-height:48px;
+  padding:12px 16px;
   border:0;
+  border-radius:13px;
+  background:var(--hero-action);
   color:var(--on-accent);
-  margin:28px 0 0;
-  min-height:49px;
-  font-size:13px
+  font-size:14px
 }
 
 .today-card .hero-button:hover {
-  background:var(--accent-hover)
+  background:var(--hero-action-hover)
 }
 
-.today-card .rest-day-suggestions {
-  z-index:1;
-  position:relative;
-  margin-top:8px
+.today-saved-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:0 20px;
+  margin:-6px 0 -4px
+}
+
+.today-card-link {
+  display:inline-flex;
+  align-items:center;
+  justify-self:start;
+  gap:7px;
+  min-height:44px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:var(--hero-action);
+  text-align:left;
+  font-size:14px;
+  font-weight:600
+}
+
+.today-card-link:hover {
+  text-decoration:underline;
+  text-underline-offset:3px
+}
+
+.today-card-link:focus-visible,.today-card .hero-button:focus-visible,.today-preview:focus-visible {
+  outline:2px solid var(--hero-action);
+  outline-offset:4px
+}
+
+.today-preview {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  grid-template-areas:"date date date" "icon copy arrow";
+  align-items:center;
+  gap:10px 12px;
+  width:100%;
+  padding:14px clamp(12px,3vw,18px);
+  border:1px solid var(--selection-line);
+  border-radius:16px;
+  background:var(--selection);
+  color:var(--text);
+  text-align:left
+}
+
+.today-preview:hover {
+  background:#e2edd9
+}
+
+.today-preview-date {
+  grid-area:date;
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:3px 12px;
+  padding-bottom:9px;
+  border-bottom:1px solid var(--selection-line);
+  color:var(--accent-ink);
+  font-size:12px;
+  font-weight:600
+}
+
+.today-preview-date time {
+  color:var(--muted);
+  font-weight:500
+}
+
+.today-preview-icon {
+  grid-area:icon;
+  display:grid;
+  place-items:center;
+  align-self:start;
+  width:38px;
+  height:38px;
+  border:1px solid var(--selection-line);
+  border-radius:11px;
+  background:var(--surface);
+  color:var(--accent-ink)
+}
+
+.today-preview-copy {
+  grid-area:copy;
+  display:grid;
+  gap:3px;
+  min-width:0;
+  font-size:13px;
+  font-weight:400;
+  line-height:1.35;
+  color:var(--muted);
+  overflow-wrap:anywhere
+}
+
+.today-preview-title {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:3px 8px
+}
+
+.today-preview-title strong {
+  color:var(--text);
+  font-size:17px;
+  font-weight:650
+}
+
+.today-preview-optional {
+  color:var(--accent-ink);
+  font-size:12px;
+  font-weight:600
+}
+
+.today-preview-arrow {
+  grid-area:arrow;
+  color:var(--accent-ink)
 }
 
 .today-card .rest-day-suggestions>ul {
   gap:7px;
-  margin:14px 0 6px
+  margin:0 0 6px
 }
 
-.today-card .rest-day-suggestions li {
+.today-card .rest-day-suggestions>ul>li {
   border:1px solid #4c5b47;
   border-radius:20px;
   padding:5px 10px;
@@ -554,41 +674,83 @@ input:focus,select:focus,textarea:focus {
 }
 
 .today-card .guide-section summary {
-  font-size:12px;
+  font-size:14px;
   color:#d2ddcb;
-  min-height:38px
+  min-height:44px
 }
 
-.today-card .guide-section summary:after {
-  color:#c4d3b8
+.today-card .guide-section summary::after {
+  border-color:#c4d3b8
 }
 
 .today-card .guide-list {
   margin:8px 0 0;
-  padding-left:16px
+  padding-left:16px;
+  color:var(--hero-muted)
 }
 
-.today-card .guide-list li {
-  border:0;
-  line-height:1.6
+@media(max-width:440px) {
+  .today-card-summary:not(.has-art) {
+    grid-template-areas:"status graphic" "copy copy";
+    column-gap:8px;
+    row-gap:4px
+  }
+
+  .today-graphic {
+    width:52px
+  }
+
+  .today-card-summary.has-art {
+    gap:7px 8px
+  }
+
+  .today-card-visual {
+    width:clamp(96px,31vw,140px)
+  }
+
+  .today-preview {
+    column-gap:8px
+  }
+
+  .today-preview-icon {
+    width:32px;
+    height:32px
+  }
+
+  .today-preview-icon>svg {
+    width:18px;
+    height:18px
+  }
 }
 
-.hero-plan-link {
-  position:relative;
-  z-index:1;
-  display:flex;
-  gap:8px;
-  align-items:center;
-  justify-content:space-between;
-  width:100%;
-  margin:14px 0 0;
-  padding:12px 0 0;
-  border:0;
-  border-top:1px solid #41503c;
-  background:transparent;
-  color:var(--accent);
-  font-size:12px;
-  text-align:left
+@media(prefers-reduced-motion:no-preference) {
+  .today-ring-progress {
+    transition:stroke-dashoffset var(--motion-content) var(--ease-out)
+  }
+
+  .today-card[data-handoff] .today-check {
+    animation:today-check-in var(--motion-content) var(--ease-out) both
+  }
+
+  .today-preview {
+    transition:background-color var(--motion-control) var(--ease-out),transform var(--motion-control) var(--ease-out)
+  }
+
+  .today-card[data-handoff] .today-preview {
+    animation:today-preview-in var(--motion-content) var(--ease-out) 80ms backwards
+  }
+
+  .today-preview:active {
+    transform:scale(.99)
+  }
+}
+
+@keyframes today-check-in {
+  from { stroke-dashoffset:1 }
+}
+
+@keyframes today-preview-in {
+  from { opacity:.58; transform:perspective(650px) translateY(-5px) translateZ(-18px) rotateX(-5deg) }
 }
 
 .weekly-card {
@@ -747,9 +909,12 @@ input:focus,select:focus,textarea:focus {
 }
 
 .daily-card {
-  display:flex;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,44%);
+  grid-template-rows:auto 1fr;
+  grid-template-areas:"icon action" "copy illustration";
   align-items:center;
-  gap:14px;
+  gap:6px 10px;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:20px;
@@ -757,7 +922,7 @@ input:focus,select:focus,textarea:focus {
   text-align:left;
   width:100%;
   min-width:0;
-  min-height:128px
+  min-height:166px
 }
 
 .daily-card:hover {
@@ -766,9 +931,9 @@ input:focus,select:focus,textarea:focus {
 }
 
 .daily-icon {
+  grid-area:icon;
   width:40px;
   height:40px;
-  flex:0 0 40px;
   background:var(--selection);
   color:var(--accent-ink);
   border-radius:13px;
@@ -782,8 +947,9 @@ input:focus,select:focus,textarea:focus {
 }
 
 .daily-card-copy {
-  flex:1;
-  min-width:0
+  grid-area:copy;
+  min-width:0;
+  overflow-wrap:anywhere
 }
 
 .daily-card-copy .eyebrow {
@@ -816,6 +982,8 @@ input:focus,select:focus,textarea:focus {
 }
 
 .daily-card-action {
+  grid-area:action;
+  justify-self:end;
   display:flex;
   align-items:center;
   gap:6px;
@@ -827,9 +995,14 @@ input:focus,select:focus,textarea:focus {
   display:none
 }
 
-.daily-card>svg {
-  color:var(--muted);
-  width:18px
+.daily-progress .daily-card-action {
+  color:var(--muted)
+}
+
+.daily-card .today-illustration {
+  grid-area:illustration;
+  justify-self:center;
+  max-width:164px
 }
 
 .today-history {
@@ -1085,6 +1258,7 @@ input:focus,select:focus,textarea:focus {
 
 /* Analytics share one restrained chart language. */
 .progress-switch {
+  position:relative;
   display:flex;
   gap:4px;
   padding:4px;
@@ -1096,6 +1270,7 @@ input:focus,select:focus,textarea:focus {
 }
 
 .progress-switch button {
+  position:relative;
   font-size:12px;
   padding:9px 14px;
   min-height:40px;
@@ -1112,6 +1287,27 @@ input:focus,select:focus,textarea:focus {
   color:var(--text);
   font-weight:600;
   border:0
+}
+
+.progress-switch[data-highlight-ready]::before {
+  content:'';
+  position:absolute;
+  inset:4px auto 4px 0;
+  width:var(--tab-width);
+  transform:translateX(var(--tab-x));
+  border-radius:9px;
+  background:var(--surface);
+  box-shadow:0 2px 5px rgb(35 45 28 / 6%);
+  pointer-events:none
+}
+
+.progress-switch[data-highlight-moving]::before {
+  transition:transform var(--motion-content) var(--ease-out),width var(--motion-content) var(--ease-out)
+}
+
+.progress-switch[data-highlight-ready] button[aria-selected=true] {
+  background:transparent;
+  box-shadow:none
 }
 
 .progress-unit select {
@@ -1880,6 +2076,11 @@ input:focus,select:focus,textarea:focus {
 }
 
 .modal-overlay {
+  background:transparent;
+  backdrop-filter:none
+}
+
+.modal-backdrop {
   background:var(--overlay);
   backdrop-filter:blur(7px)
 }
@@ -1981,24 +2182,6 @@ input:focus,select:focus,textarea:focus {
     padding-right:24px
   }
 
-  .today-card {
-    min-height:365px;
-    padding:32px
-  }
-
-  .hero-orbit {
-    right:-55px;
-    top:68px
-  }
-
-  .today-intro h2 {
-    font-size:49px
-  }
-
-  .today-card h2 {
-    font-size:45px
-  }
-
   .workout-shell {
     max-width:720px;
     padding-left:28px;
@@ -2067,35 +2250,6 @@ input:focus,select:focus,textarea:focus {
     gap:16px
   }
 
-  .today-intro h2 {
-    font-size:36px
-  }
-
-  .today-card {
-    padding:24px
-  }
-
-  .hero-copy {
-    max-width:85%
-  }
-
-  .hero-orbit {
-    right:-158px;
-    opacity:.65
-  }
-
-  .today-card h2 {
-    font-size:34px
-  }
-
-  .today-intro {
-    align-items:flex-start
-  }
-
-  .today-date {
-    font-size:12px
-  }
-
   .daily-card {
     gap:10px;
     padding:18px 14px
@@ -2107,8 +2261,7 @@ input:focus,select:focus,textarea:focus {
 
   .daily-icon {
     width:34px;
-    height:34px;
-    flex-basis:34px
+    height:34px
   }
 
   .journey-totals {
@@ -2215,77 +2368,6 @@ input:focus,select:focus,textarea:focus {
     gap:16px
   }
 
-  .today-intro {
-    display:block;
-    margin:0 0 6px
-  }
-
-  .today-intro h2 {
-    font-size:39px;
-    line-height:1.08;
-    letter-spacing:-1.6px
-  }
-
-  .today-intro .eyebrow {
-    font-size:12px;
-    margin-bottom:12px
-  }
-
-  .today-date {
-    font-size:12px;
-    margin-top:16px
-  }
-
-  .today-card {
-    grid-column:1/-1;
-    min-height:310px;
-    border-radius:24px;
-    padding:26px
-  }
-
-  .today-card .workout-card-top {
-    margin-bottom:34px
-  }
-
-  .today-card h2 {
-    font-size:39px
-  }
-
-  .hero-orbit {
-    right:-76px;
-    top:43px;
-    width:260px;
-    height:260px
-  }
-
-  .hero-copy {
-    max-width:72%
-  }
-
-  .today-card .workout-meta {
-    font-size:12px;
-    max-width:225px
-  }
-
-  .today-card .hero-button {
-    margin-top:26px;
-    font-size:14px;
-    min-height:52px
-  }
-
-  .hero-prescription {
-    font-size:12px
-  }
-
-  .hero-kicker {
-    font-size:12px;
-    letter-spacing:1.4px
-  }
-
-  .today-card .badge {
-    font-size:12px
-  }
-
   .weekly-card {
     grid-column:1/-1;
     border-radius:22px;
@@ -2352,29 +2434,18 @@ input:focus,select:focus,textarea:focus {
   }
 
   .daily-card {
-    align-items:flex-start;
-    flex-wrap:wrap;
-    padding:20px 17px;
-    gap:15px;
-    min-height:191px;
-    border-radius:22px;
-    position:relative
+    padding:16px;
+    border-radius:22px
   }
 
   .daily-icon {
     width:37px;
     height:37px;
-    flex-basis:37px;
     border-radius:12px
   }
 
   .daily-icon svg {
     width:19px
-  }
-
-  .daily-card-copy {
-    flex:1 0 100%;
-    order:2
   }
 
   .daily-card-copy .eyebrow {
@@ -2400,15 +2471,6 @@ input:focus,select:focus,textarea:focus {
     font-size:12px;
     line-height:1.6;
     margin-top:8px
-  }
-
-  .daily-card-action,.daily-card>svg {
-    margin-left:auto;
-    margin-top:10px
-  }
-
-  .daily-card-action span {
-    display:none
   }
 
   .today-history {
@@ -2754,7 +2816,7 @@ input:focus,select:focus,textarea:focus {
     padding:24px
   }
 
-  .modal-overlay.sheet-overlay {
+  .sheet-overlay>.modal-backdrop {
     backdrop-filter:blur(5px)
   }
 
@@ -2786,6 +2848,21 @@ input:focus,select:focus,textarea:focus {
 
 }
 
+@media(max-width:500px) {
+  .daily-card {
+    grid-template-rows:auto auto 1fr;
+    grid-template-areas:"icon action" "illustration illustration" "copy copy"
+  }
+
+  .daily-card .today-illustration {
+    max-width:130px
+  }
+
+  .daily-card-copy {
+    align-self:start
+  }
+}
+
 @media(max-width:360px) {
   .app-shell {
     padding-left:16px;
@@ -2802,48 +2879,8 @@ input:focus,select:focus,textarea:focus {
     font-size:25px
   }
 
-  .today-intro h2 {
-    font-size:35px
-  }
-
   .today-layout {
     gap:13px
-  }
-
-  .today-card {
-    padding:22px;
-    min-height:300px
-  }
-
-  .today-card h2 {
-    font-size:35px
-  }
-
-  .hero-orbit {
-    right:-112px;
-    top:40px
-  }
-
-  .hero-kicker {
-    font-size:12px;
-    letter-spacing:1.2px
-  }
-
-  .hero-copy {
-    max-width:85%
-  }
-
-  .today-card .badge {
-    font-size:12px
-  }
-
-  .today-card .workout-card-top {
-    margin-bottom:29px
-  }
-
-  .today-card .workout-meta {
-    max-width:210px;
-    font-size:12px
   }
 
   .weekly-card {
@@ -2851,8 +2888,7 @@ input:focus,select:focus,textarea:focus {
   }
 
   .daily-card {
-    padding:18px 14px;
-    min-height:190px
+    padding:14px
   }
 
   .daily-body .daily-card-copy>strong {
@@ -3006,33 +3042,12 @@ input:focus,select:focus,textarea:focus {
   font-size:10px
 }
 
-.hero-kicker {
-  font-size:10px;
-  letter-spacing:1.2px
-}
-
-.today-card .badge {
-  font-size:11px
-}
-
-.today-card .workout-meta {
-  font-size:14px
-}
-
-.hero-prescription {
-  font-size:12px
-}
-
 .daily-card-copy .eyebrow {
   font-size:10px
 }
 
 .daily-card-copy>small {
   font-size:12px
-}
-
-.today-intro .eyebrow,.today-date {
-  font-size:13px
 }
 
 .bottom-nav>button {
@@ -3134,30 +3149,6 @@ input:focus,select:focus,textarea:focus {
     font-size:11px
   }
 
-  .today-intro h2 {
-    font-size:38px
-  }
-
-  .today-date {
-    font-size:12px
-  }
-
-  .hero-kicker {
-    font-size:9px
-  }
-
-  .today-card .badge {
-    font-size:10px
-  }
-
-  .today-card .workout-meta {
-    font-size:14px
-  }
-
-  .today-card .rest-day-suggestions li {
-    font-size:12px
-  }
-
   .daily-card-copy>strong small {
     font-size:12px
   }
@@ -3168,10 +3159,6 @@ input:focus,select:focus,textarea:focus {
 
   .daily-card-copy .eyebrow {
     font-size:10px
-  }
-
-  .daily-card {
-    min-height:205px
   }
 
   .daily-card-copy>strong {
@@ -3233,18 +3220,6 @@ input:focus,select:focus,textarea:focus {
     font-size:12px
   }
 
-  .today-card .guide-section summary {
-    font-size:12px
-  }
-
-  .today-card .hero-plan-link {
-    font-size:13px
-  }
-
-  .hero-copy {
-    max-width:78%
-  }
-
   .sync-strip {
     font-size:10px
   }
@@ -3256,19 +3231,6 @@ input:focus,select:focus,textarea:focus {
 }
 
 @media(max-width:360px) {
-  .hero-kicker {
-    font-size:8px;
-    letter-spacing:.8px
-  }
-
-  .today-card .badge {
-    font-size:9px
-  }
-
-  .today-intro h2 {
-    font-size:35px
-  }
-
   .daily-card-copy>small {
     font-size:11px
   }
@@ -3637,4 +3599,114 @@ input:focus,select:focus,textarea:focus {
 .movement-dot.is-dense {
   fill:var(--chart-line);
   stroke:none;
+}
+
+.set-context, .set-feedback, .body-reading, .exercise-grid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.set-context, .set-feedback, .hold-stopwatch {
+  margin-top: 12px;
+  font-size: 14px;
+}
+.set-context .input-hint { margin: 2px 0 0; }
+.set-feedback {
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.rir-input, .history-date-field, .exercise-chart-controls label, .history-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+.rir-input { flex-shrink: 0; }
+.rir-input small, .estimate-source { color: var(--muted); font-weight: 400; }
+.rir-input select, .exercise-grid-toolbar select, .exercise-chart-controls select, .history-filters input, .history-filters select {
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--input);
+  color: var(--text);
+}
+.hold-stopwatch, .history-edit-actions, .exercise-chart-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.history-edit-actions, .history-date-field { margin: 0 0 16px; }
+.history-date-field .text-input { width: min(100%, 17rem); }
+.history-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 16px; }
+.detail-set:has(.rir-input) .rir-input { grid-column: 2 / -1; justify-self: start; flex-direction: row; align-items: center; }
+.detail-set:has(.rir-input) .detail-remove-set { grid-column: 2 / -1; }
+.body-entries div:has(button.text-button) { grid-template-columns: minmax(0,1fr) auto auto auto; }
+.estimate-source { display: block; margin-top: 4px; }
+.exercise-tile { position: relative; }
+.exercise-tile-heading { padding-right: 30px; }
+.exercise-tile-open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.exercise-tile-open svg { position: absolute; top: 17px; right: 16px; }
+.exercise-tile:has(.exercise-tile-open:hover) { border-color: var(--line-strong); }
+.exercise-chart-controls { margin-top: 12px; }
+.week-comparison { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 8px 0; }
+.week-comparison strong { font-size: 23px; }
+.week-comparison span, .weekly-selection { font-size: 14px; color: var(--muted); }
+.weekly-selection { margin: 8px 0 4px; }
+.weekly-scroll [role=button], .body-chart-plot [role=button] { cursor: pointer; }
+.weekly-scroll [aria-pressed=true] .weekly-bar { fill: var(--accent-ink); stroke: var(--ink-strong); stroke-width: 1.5px; }
+.weekly-scroll [role=button]:focus-visible .weekly-bar, .body-chart-plot [role=button]:focus-visible circle {
+  stroke: var(--focus);
+  stroke-width: 3px;
+}
+.sync-strip > span { font-size: 12px; white-space: normal; line-height: 1.35; }
+.exercise-grid-toolbar select { width: auto; }
+.exercise-grid-toolbar .exercise-result-count { margin: 0; }
+.today-history { justify-content: flex-end; min-height: 44px; }
+@media (max-width: 500px) {
+  .daily-card {
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "icon action" "copy copy";
+    min-height: 145px;
+    position: relative;
+    overflow: hidden;
+  }
+  .daily-card .today-illustration {
+    position: absolute;
+    top: 6px;
+    right: 32px;
+    width: 46px;
+    pointer-events: none;
+  }
+  .history-filters { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .history-filters label:first-child { grid-column: 1 / -1; }
+}
+
+
+.app-shell :is(button, a[href], summary) {
+  min-height: 44px;
+  min-width: 44px;
+}
+@media (max-width: 360px) {
+  .week-picker {
+    grid-template-columns: repeat(7, minmax(44px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
 }
