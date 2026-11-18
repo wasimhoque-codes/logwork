@@ -1,3 +1,4 @@
+import { ExerciseIcon } from './exercise-icon';
 import { useMemo, useState } from 'react';
 import { Check, ChevronRight } from './icons';
 import { Modal } from './components';
@@ -23,6 +24,7 @@ export function ExerciseDetails({ exercise, choice, sessions, unit, forSession =
     [sessions, selected, draft.supportCm, draft.coreLevel],
   );
   return <Modal variant="sheet" title={forSession ? 'Swap for this session' : exercise.name} onClose={onClose}>
+    <p className="exercise-icon-heading"><ExerciseIcon exercise={selected} size={40}/><strong>{selected.name}</strong></p>
     <p className="prescription-detail">{exercise.sets} × {prescription(selected)}</p>
     <div className="detail-chips">
       <span className="badge">{selected.rest}s rest</span>

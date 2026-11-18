@@ -1,3 +1,4 @@
+import { ExerciseIcon } from './exercise-icon';
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Check, CheckCheck, Layers, Clock3, ChevronRight, NotebookPen, Trash2, Plus } from './icons';
 import { Modal } from './components';
@@ -131,9 +132,9 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
             const key=exerciseKey(spec,e.mode), record=records.get(key);
             const limitId = `${id}-set-limit-${ei}`;
             return <div className="detail-exercise" data-exercise-index={ei} key={e.id}>
-                <h3>{!editing&&e.sets.some(set=>set.done)
+                <h3 className="exercise-icon-heading"><ExerciseIcon exercise={spec}/>{!editing&&e.sets.some(set=>set.done)
                   ? <button type="button" className="workout-exercise-link" data-detail-focus={`exercise-${ei}`} aria-label={`View progress for ${e.name}`} onClick={event=>{event.currentTarget.focus({preventScroll:true});onExercise(key,e.name,session.date);}}>{e.name}<ChevronRight size={18}/></button>
-                  : e.name}</h3>
+                  : <span>{e.name}</span>}</h3>
                 {spec.supportCm !== null && spec.supportCm !== undefined && <p className="input-hint">Support: {spec.supportCm} cm</p>}
                 {spec.role === 'core' && spec.coreLevel && <p className="input-hint">Core variation: {spec.coreLevel}</p>}
                 {e.sets.map((s, si) => <div className={`detail-set ${!s.done ? 'not-logged' : ''}`} data-set-index={si} key={si}>

@@ -1,3 +1,4 @@
+import { ExerciseIcon } from './exercise-icon';
 import { Check, ChevronRight, NotebookPen } from './icons';
 import { COOLDOWN } from './data';
 import { completeSession, doneSets, localDate, prescribedSetsComplete, removeUnusedExtras, sessionLabel, skippedSets, workoutDateError, type Session } from './model';
@@ -18,7 +19,7 @@ export function ReviewWorkout({session,saving,date,onDate,onUpdate,onSave,onCont
           const missing=log.sets.slice(0,session.workout.exercises[index].sets).flatMap((set,i)=>set.done?[]:[i]);
           const skipped=skippedSets(session,index);
           return missing.length?<li key={log.id}><button className="text-button" disabled={saving} onClick={()=>onJump(index,missing[0])}>
-            {log.name} · {missing.length-skipped.length} remaining{skipped.length>0&&' · '+skipped.length+' skipped'}<ChevronRight size={16}/>
+            <ExerciseIcon exercise={session.workout.exercises[index]} size={24}/>{log.name} · {missing.length-skipped.length} remaining{skipped.length>0&&' · '+skipped.length+' skipped'}<ChevronRight size={16}/>
           </button></li>:null;
         })}</ul>
       </details>}

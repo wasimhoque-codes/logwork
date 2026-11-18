@@ -1,3 +1,4 @@
+import { ExerciseIcon } from './exercise-icon';
 import { useMemo, useRef, useState } from 'react';
 import type { Unit } from './data';
 import { ChevronLeft, ChevronRight, Search, Dumbbell } from './icons';
@@ -78,7 +79,7 @@ export function ExerciseGrid({ store, state, onState, onOpen, onStart }: {
             aria-label={`View details for ${s.exercise.name}${setup ? ` · ${setup}` : ''}`}
             aria-describedby={`exercise-summary-${index}`}
             onClick={() => { onState({ ...state, focusKey: s.key }); onOpen(s.key); }}>
-            <span className="directory-name"><strong>{s.exercise.name}</strong><small>{[dateLabel(latest.session.date),setup].filter(Boolean).join(' · ')}</small></span>
+            <span className="directory-exercise"><ExerciseIcon exercise={s.exercise}/><span className="directory-name"><strong>{s.exercise.name}</strong><small>{[dateLabel(latest.session.date),setup].filter(Boolean).join(' · ')}</small></span></span>
             <span className="directory-result" id={`exercise-summary-${index}`}><strong>{setLabel(latest,store.settings.unit)}</strong>
               <small className="exercise-tile-change">{directoryChange(s,delta,store.settings.unit) || (!delta.previous?'1 recorded date':'')}</small></span>
             <ChevronRight size={17} aria-hidden="true"/>

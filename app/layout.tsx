@@ -3,6 +3,7 @@ import '../src/styles.css';
 import '../src/redesign.css';
 import '../src/training-motion.css';
 import '../src/progress.css';
+import '../src/exercise-icon.css';
 
 export const metadata: Metadata = {
   title: 'Gym Hawk',

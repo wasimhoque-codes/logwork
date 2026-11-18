@@ -1,0 +1,40 @@
+.exercise-emblem {
+  display: inline-block;
+  flex: none;
+  color: var(--text);
+  vertical-align: middle;
+}
+.exercise-emblem-detail { color: var(--accent-ink); }
+.exercise-icon-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.exercise-icon-heading > span,
+.exercise-icon-heading > strong { min-width: 0; overflow-wrap: anywhere; }
+.exercise-order { display: grid; justify-items: center; gap: 3px; }
+.exercise-order .row-number {
+  width: auto;
+  height: auto;
+  background: none;
+  border-radius: 0;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.exercise-list .exercise-row { grid-template-columns: 32px minmax(0, 1fr) 18px; }
+.exercise-jump-list .exercise-order { flex: none; }
+.exercise-jump-list .exercise-order .row-number { margin: 0; }
+.directory-exercise { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.directory-exercise .directory-name { min-width: 0; }
+.detail-exercise .workout-exercise-link { flex: 1; min-width: 0; }
+.app-header h1 .exercise-icon-heading { margin: 0; }
+@media (max-width: 360px) {
+  .directory-exercise { gap: 6px; }
+  .directory-exercise .exercise-emblem { width: 24px; height: 24px; }
+  .exercise-icon-heading { gap: 9px; }
+}
+@media (forced-colors: active) {
+  .exercise-emblem, .exercise-emblem-detail { color: CanvasText; }
+  .exercise-emblem-detail circle { fill: Canvas; }
+}
