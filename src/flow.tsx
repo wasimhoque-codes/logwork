@@ -15,11 +15,11 @@ export function ReviewWorkout({session,saving,date,onDate,onUpdate,onSave,onCont
       <h2>{complete?'Ready to save':plannedDone+' of '+planned+' prescribed sets logged'}</h2>
       <p>{complete?'Your prescribed sets are complete.':logged===0?'Log at least one set to save this workout.':'This will be saved as a partial workout.'}</p>
       {!complete&&<details className="guide-section"><summary>Unfinished sets</summary>
-        <ul className="guide-list">{session.exercises.map((log,index)=>{
+        <ul className="guide-list review-exercise-list">{session.exercises.map((log,index)=>{
           const missing=log.sets.slice(0,session.workout.exercises[index].sets).flatMap((set,i)=>set.done?[]:[i]);
           const skipped=skippedSets(session,index);
           return missing.length?<li key={log.id}><button className="text-button" disabled={saving} onClick={()=>onJump(index,missing[0])}>
-            <ExerciseIcon exercise={session.workout.exercises[index]} size={24}/>{log.name} · {missing.length-skipped.length} remaining{skipped.length>0&&' · '+skipped.length+' skipped'}<ChevronRight size={16}/>
+            <ExerciseIcon exercise={session.workout.exercises[index]} size={32}/><span>{log.name}<small>{missing.length-skipped.length} remaining{skipped.length>0&&' · '+skipped.length+' skipped'}</small></span><ChevronRight size={16}/>
           </button></li>:null;
         })}</ul>
       </details>}
