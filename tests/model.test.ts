@@ -8,7 +8,7 @@ function completed(week=5,id='upper-a'):Session {const s=atWeek(week),w=selected
 afterEach(()=>vi.unstubAllGlobals());
 describe('source programme',()=>{
   it('starts with the source equipment defaults and selectable floor-bridge alternative',()=>{
-    const s=freshStore();expect(selectedWorkout(s,2)!.exercises.map(e=>e.id)).toContain('p16-leg-press');expect(selectedWorkout(s,2)!.exercises[3].id).toBe('p16-machine-thrust');expect(VARIANTS['lower-a:thrust'].map(e=>e.id)).toContain('p16-bridge-12');expect(selectedWorkout(s,4)!.exercises[3].id).toBe('p16-assisted-dip');expect(selectedWorkout(s,5)!.exercises[2].id).toBe('p16-seated-curl');expect(selectedWorkout(s,5)!.exercises[3].id).toBe('p16-floor-bridge');
+    const s=freshStore();expect(selectedWorkout(s,2)!.exercises.map(e=>e.id)).toContain('p16-leg-press');expect(selectedWorkout(s,2)!.exercises[3].id).toBe('p16-machine-thrust');expect(VARIANTS['lower-a:thrust'].map(e=>e.id)).toContain('p16-bridge-12');expect(selectedWorkout(s,4)!.exercises[3].id).toBe('p16-weighted-dip');expect(selectedWorkout(s,5)!.exercises[2].id).toBe('p16-seated-curl');expect(selectedWorkout(s,5)!.exercises[3].id).toBe('p16-floor-bridge');
   });
   it('preserves all full-volume prescriptions, rest, tempo and per-side/timed fields',()=>{
     const shape=(id:string)=>workout(id).exercises.map(e=>[e.sets,e.min,e.max,e.rest,e.tempo,!!e.perSide,!!e.timed]);

@@ -24,6 +24,40 @@ async function device(store=freshStore(),send=transport){const e=new SyncEngine(
 async function seed(store=freshStore()){const id=await createStage(db,null,0);await stageStore(db,id,store);await activateStage(db,id);}
 async function edit(engine:SyncEngine,fn:(s:Store)=>void){vi.setSystemTime(Date.now()+10);const before=engine.current!.store,after=structuredClone(before);fn(after);await engine.edit(before,after);}
 
+it('persists the dips default on old devices without overwriting a later cloud exercise choice',async()=>{
+  const old=freshStore();delete old.programme.options.weightedDipsDefaultApplied;
+  old.programme.options.choices['upper-b:dip']={variantId:'p16-assisted-dip',supportCm:null,coreLevel:'Basic'};
+  await seed(old);
+  const stale=await snapshot(db);
+  const a=await device();await a.sync();
+  expect((await snapshot(db)).store!.programme.options.choices['upper-b:dip'].variantId).toBe('p16-weighted-dip');
+  await edit(a,s=>{s.programme.options.choices['upper-b:dip'].variantId='p16-dip';});await a.sync();
+  // This device still has the pre-update programme and opens after that choice.
+  vi.setSystemTime(Date.now()+1000);
+  const local=new LocalDatabase(crypto.randomUUID());
+  await local.update(()=>({store:structuredClone(old),base:stale,blocked:false,queue:[]}));
+  const b=new SyncEngine(local,transport);engines.push(b);await b.open(freshStore());
+  expect(b.current!.store.programme.options.choices['upper-b:dip'].variantId).toBe('p16-weighted-dip');
+  expect(b.current!.base!.store!.programme.options.weightedDipsDefaultApplied).toBeUndefined();
+  expect((await b.local.read())!.queue).toHaveLength(1);
+  await b.sync();
+  expect(b.current!.store.programme.options.choices['upper-b:dip'].variantId).toBe('p16-dip');
+  expect((await snapshot(db)).store!.programme.options.choices['upper-b:dip'].variantId).toBe('p16-dip');
+  b.close();const reopened=new SyncEngine(local,transport);engines.push(reopened);await reopened.open(freshStore());
+  expect(reopened.current!.store.programme.options.choices['upper-b:dip'].variantId).toBe('p16-dip');
+  expect(reopened.current!.queue).toHaveLength(0);
+});
+
+it('upgrades an old version-4 restore and preserves its active workout snapshot',async()=>{
+  const old=freshStore();delete old.programme.options.weightedDipsDefaultApplied;
+  old.programme.options.choices['upper-b:dip']={variantId:'p16-assisted-dip',supportCm:null,coreLevel:'Basic'};
+  old.active=newSession(selectedWorkout(old,4)!,old);
+  const e=await device();await e.sync();await e.restore(old);await e.sync();
+  const saved=(await snapshot(db)).store!;
+  expect(saved.programme.options.choices['upper-b:dip'].variantId).toBe('p16-weighted-dip');
+  expect(saved.active).toEqual(old.active);
+});
+
 it('persists offline changes through reload and syncs them on reconnection',async()=>{
   await seed();let online=false;
   const sender:Transport=(p,b)=>online?transport(p,b):Promise.reject(new Error('Offline'));

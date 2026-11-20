@@ -1,4 +1,4 @@
-import { validateStore, type Store } from '../model';
+import { applyWeightedDipsDefault, validateStore, type Store } from '../model';
 import { LocalDatabase, type LocalDocument } from './local';
 import { changesBetween, compareEdits, equal, importRecords, mergeEdit, overlay, records, SYNC_PROTOCOL, type Edit, type Snapshot, type Change } from './records';
 
@@ -58,6 +58,17 @@ function enqueueEdit(doc:LocalDocument,before:Store,after:Store,changes:Change[]
   return {...doc,store,lastEditAt:time,queue:[...queue,makeEdit(before,after,changes,time)]};
 }
 
+function applyProgrammeDefaults(doc:LocalDocument):LocalDocument {
+  if(doc.blocked)return doc;
+  const after=applyWeightedDipsDefault(doc.store);
+  // Queue a normal programme edit; never rewrite the acknowledged cloud snapshot.
+  if(after===doc.store)return doc;
+  const migrated=enqueueEdit(doc,doc.store,after,changesBetween(doc.store,after),Date.now());
+  const queue=[...migrated.queue!];
+  queue[queue.length-1]={...queue[queue.length-1],appliedWeightedDipsDefault:true};
+  return {...migrated,queue};
+}
+
 function project(doc: LocalDocument, base: Snapshot, queue: Edit[]): LocalDocument {
   if (!base.store) return {...doc, base, queue};
   let store = base.store, clocks = base.clocks ?? {};
@@ -87,7 +98,9 @@ function reconcile(doc: LocalDocument, remote: Snapshot, acknowledged?: string):
     return doc;
   }
   const base = doc.base && doc.base.revision > remote.revision ? doc.base : remote;
-  const queue=doc.queue??[];
+  // A stale device's automatic default must not overwrite a choice already made
+  // on a device that has applied this update. Explicit user edits still replay.
+  const queue=(doc.queue??[]).filter(edit=>!edit.appliedWeightedDipsDefault||!base.store?.programme.options.weightedDipsDefaultApplied);
   const projected=project(doc,base,queue.filter(edit=>edit.id!==acknowledged));
   const pending=new Map<string,{edit:Edit;change:Change}>();
   for(const edit of queue) for(const change of edit.changes) pending.set(change.key,{edit,change});
@@ -122,7 +135,7 @@ export class SyncEngine {
   private emit() { this.listeners.forEach(fn => fn()); }
 
   private async update(fn: (doc: LocalDocument) => LocalDocument) {
-    this.current = await this.local.update(doc => fn(doc!));
+    this.current = await this.local.update(doc => applyProgrammeDefaults(fn(doc!)));
     this.emit();
     this.channel?.postMessage('changed');
   }
@@ -142,6 +155,7 @@ export class SyncEngine {
       const changes = base?.store ? changesBetween(base.store, store, base.versions) : [];
       return {store, base, blocked, recovered, ...(base?.store && changes.length ? {} : {queue:[]})};
     });
+    await this.update(doc=>doc);
     if (typeof BroadcastChannel !== 'undefined') {
       this.channel = new BroadcastChannel('gym-hawk-sync');
       this.channel.onmessage = () => { void this.refresh(); };
@@ -195,7 +209,7 @@ export class SyncEngine {
   }
 
   async restore(store: Store) {
-    const target = validateStore(store);
+    const target = applyWeightedDipsDefault(validateStore(store));
     await this.update(doc => ({
       ...doc, store:target, blocked:false, queue:[],
       restore:{id:crypto.randomUUID(), expected:doc.base ?? emptySnapshot, target},

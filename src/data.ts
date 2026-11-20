@@ -10,8 +10,8 @@ export type Exercise = {
 };
 export type Workout = { id: string; name: string; subtitle: string; focus: string; days: number[]; label: string; exercises: Exercise[]; optional?: boolean; category: 'strength' | 'recovery' | 'optional'; prescriptionMode?: 'fixed' };
 export type ExerciseChoice = { variantId: string; supportCm: number | null; coreLevel: string };
-export type ProgrammeOptions = { choices: Record<string, ExerciseChoice>; saturdayTwoSets: boolean; saturdayCore: 'none' | 'dead-bug' | 'knee-raise'; extraSlot: string | null };
-export const DEFAULT_OPTIONS: ProgrammeOptions = { choices: {}, saturdayTwoSets: false, saturdayCore: 'none', extraSlot: null };
+export type ProgrammeOptions = { choices: Record<string, ExerciseChoice>; saturdayTwoSets: boolean; saturdayCore: 'none' | 'dead-bug' | 'knee-raise'; extraSlot: string | null; weightedDipsDefaultApplied?: boolean };
+export const DEFAULT_OPTIONS: ProgrammeOptions = { choices: {}, saturdayTwoSets: false, saturdayCore: 'none', extraSlot: null, weightedDipsDefaultApplied: true };
 export const SOURCE_URL = 'https://chatgpt.com/s/t_6ac8e755a9188191a08cf1a3ae3211f9';
 export const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const oneHand = 'Log the weight of one dumbbell.';
@@ -44,7 +44,7 @@ export const WORKOUTS: Workout[] = [
     ['pullup',e('assisted-pullup','Assisted Pull-Ups','Back',3,5,8,120,'2-1-1','main',{mode:'assistance',method:'assistance',note:'Start with generous machine assistance. Reduce assistance gradually before moving to unassisted reps.'})],
     ['press',e('shoulder-machine','Back-Supported Machine Shoulder Press','Shoulders',3,8,12,120,'2-0-1','main',{note:'Maintain contact with the backrest. Avoid leaning back to complete reps.'})],
     ['row',e('supported-cable-row','Supported Seated Cable Row','Back',2,10,12,90,'2-1-1','main',{note:'Keep your torso supported and avoid momentum.'})],
-    ['dip',e('assisted-dip','Assisted Dips','Chest',2,6,10,90,'2-0-1','main',{mode:'assistance',method:'assistance',note:'Start with generous machine assistance. Do not descend until shoulders roll forward or the back arches. Use a chest press if uncomfortable.'})],
+    ['dip',e('weighted-dip','Weighted Dips','Chest',2,6,10,90,'2-0-1','main',{mode:'external',method:'load',note:'Log added weight only, excluding bodyweight. Keep the load secure and use controlled repetitions. Stop the descent before shoulders roll forward or the back arches. Use a chest press if uncomfortable.'})],
     ['rear-delt',e('reverse-pec','Reverse Pec Deck','Shoulders',2,12,20,60,'2-1-1','accessory',{note:'Keep your chest supported and shoulders controlled.'})],
     ['curl',e('cable-curl','Cable Biceps Curl','Biceps',2,10,15,60,'2-0-1','accessory',{note:'Keep elbows and trunk steady.'})],
     ['side-plank',e('side-plank','Side Plank','Core',2,20,40,45,'Hold','core',{mode:'bodyweight',timed:true,perSide:true,note:'Start with bent knees if needed. Maintain alignment through shoulders, hips and ankles. ' + bothSides})],
@@ -75,7 +75,7 @@ export const VARIANTS: Record<string,Exercise[]> = {
   'lower-a:squat':[baseSlot('lower-a:squat'),alt('lower-a:squat','belt-squat','Belt Squat',{note:'Load around the hips. Use a stable stance and comfortable range.'})],
   'lower-a:thrust':[baseSlot('lower-a:thrust'),alt('lower-a:thrust','bridge-12','Floor Glute Bridge',{mode:'bodyweight',method:'bridge',note:'Start on the floor. Extend at the hips without arching your spine.'})],
   'upper-b:pullup':[baseSlot('upper-b:pullup'),alt('upper-b:pullup','pullup','Unassisted Pull-Ups',{mode:'bodyweight',note:'Use controlled unassisted reps without swinging. Reduce machine assistance before choosing this variation.'})],
-  'upper-b:dip':[baseSlot('upper-b:dip'),alt('upper-b:dip','dip','Unassisted Dips',{mode:'bodyweight'}),alt('upper-b:dip','supported-chest-10','Chest Press Machine',{mode:'external',method:'load',note:'Keep your back supported and use a comfortable range.'})],
+  'upper-b:dip':[baseSlot('upper-b:dip'),alt('upper-b:dip','assisted-dip','Assisted Dips',{mode:'assistance',method:'assistance',note:'Record machine assistance. Stop the descent before shoulders roll forward or the back arches. Use a chest press if uncomfortable.'}),alt('upper-b:dip','dip','Unassisted Dips',{mode:'bodyweight',note:'Use controlled bodyweight repetitions. Stop the descent before shoulders roll forward or the back arches. Use a chest press if uncomfortable.'}),alt('upper-b:dip','supported-chest-10','Chest Press Machine',{mode:'external',method:'load',note:'Keep your back supported and use a comfortable range.'})],
   'lower-b:curl':[baseSlot('lower-b:curl'),alt('lower-b:curl','lying-curl','Lying Leg Curl',{note:'Control the return without lifting your hips or arching your back.'})],
   'lower-b:bridge':[baseSlot('lower-b:bridge'),alt('lower-b:bridge','band-bridge','Banded Glute Bridge',{mode:'bodyweight',note:'Use modest band resistance only after controlling pelvic position.'}),alt('lower-b:bridge','resisted-bridge','Glute Bridge with Modest Resistance',{mode:'external',note:'Add modest resistance only after controlling pelvic position; avoid lumbar arching.'})],
   'upper-a:pushup':pushupVariants('upper-a:pushup'), 'optional:pushup':pushupVariants('optional:pushup'),

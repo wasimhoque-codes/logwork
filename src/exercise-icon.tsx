@@ -93,7 +93,7 @@ const exerciseIcons: Record<string, IconSpec> = {
   'p16-inverted-row': icon('invertedRow'), 'p16-cable-fly': icon('fly'),
   'p16-hammer-curl': icon('hammer'), 'p16-supported-chest-12': icon('chestPress'),
   'p16-belt-squat': icon('beltSquat'), 'p16-bridge-12': icon('bridge'),
-  'p16-pullup': icon('pullup'), 'p16-dip': icon('dip'),
+  'p16-pullup': icon('pullup'), 'p16-dip': icon('dip'), 'p16-weighted-dip': icon('dip', 'load'),
   'p16-supported-chest-10': icon('chestPress'), 'p16-lying-curl': icon('lyingCurl'),
   'p16-band-bridge': icon('bridge', 'band'), 'p16-resisted-bridge': icon('bridge', 'load'),
   'p16-floor-pushup': icon('pushup'), 'p16-feet-pushup': icon('feetPushup'),

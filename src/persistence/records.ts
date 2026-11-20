@@ -8,6 +8,7 @@ export type EditClock = { editedAt: number; id: string };
 export type Edit = EditClock & {
   changes: Change[];
   removedSetup?: true;
+  appliedWeightedDipsDefault?: true;
   activeId?: string;
   attempts?: Programme['attempts'];
 };

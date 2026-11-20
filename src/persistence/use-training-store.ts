@@ -66,8 +66,9 @@ export function useTrainingStore() {
   const restore=useCallback(async(value:Store)=>{
     await chain.current;
     if(!engineRef.current?.current)throw new Error('Browser database is unavailable.');
-    await engineRef.current.restore(value);unsaved.current=false;setError('');ref.current=value;setView(value);
-    try{saveStore(value);}catch{/* IndexedDB is authoritative. */}
+    await engineRef.current.restore(value);unsaved.current=false;setError('');
+    const restored=engineRef.current.current!.store;ref.current=restored;setView(restored);
+    try{saveStore(restored);}catch{/* IndexedDB is authoritative. */}
   },[]);
   return {
     store,setStore,commitStore,ready,error,syncError,status,blocked:doc?.blocked??!!initial.corrupt,

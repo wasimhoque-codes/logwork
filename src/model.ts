@@ -22,6 +22,15 @@ export const toKg=(n:number,unit:Unit)=>unit==='lb'?n/2.2046226218:n;
 export function number(n:number,decimals=1) { return new Intl.NumberFormat('en-GB',{maximumFractionDigits:decimals}).format(n); }
 export const emptyFeedback=():Feedback=>({before:null,after:null,nextDay:null,nextDayDate:null,technique:null});
 export function freshStore():Store { return {version:4,settings:{name:'',unit:'kg',autoRest:true},programme:{week:1,status:'active',attempts:[{id:crypto.randomUUID(),week:1,started:localDate()}],options:structuredClone(DEFAULT_OPTIONS)},sessions:[],active:null,body:[],daily:[],recovery:[]}; }
+export function applyWeightedDipsDefault(store:Store):Store {
+  const options=store.programme.options;
+  if(options.weightedDipsDefaultApplied)return store;
+  const choice=options.choices['upper-b:dip'];
+  const replace=choice&&['p16-assisted-dip','p16-dip'].includes(choice.variantId);
+  return {...store,programme:{...store.programme,options:{...options,weightedDipsDefaultApplied:true,
+    choices:replace?{...options.choices,'upper-b:dip':{...choice,variantId:'p16-weighted-dip'}}:options.choices,
+  }}};
+}
 export function sessionResume(session:Session):ResumeState {
   if(session.resume)return session.resume;
   const first=session.exercises.findIndex(ex=>ex.sets.some(set=>!set.done));
@@ -295,6 +304,7 @@ export function validateStore(value:unknown):Store {
   const last=p.attempts.at(-1) as WeekAttempt;
   if(last.week!==p.week||p.status==='complete'&&(p.week!==16||last.decision!=='complete')||p.status==='active'&&(last.ended!==undefined||last.decision!==undefined))invalid();
   const options=p.options;
+  if(options.weightedDipsDefaultApplied!==undefined&&typeof options.weightedDipsDefaultApplied!=='boolean')invalid();
   if(typeof options.saturdayTwoSets!=='boolean'||!['none','dead-bug','knee-raise'].includes(String(options.saturdayCore))||!record(options.choices)||Object.keys(options.choices).length>100||!(options.extraSlot===null||WORKOUTS.filter(w=>w.category==='strength').flatMap(w=>w.exercises).some(ex=>ex.slot===options.extraSlot&&ex.role!=='core')))invalid();
   for(const [key,choice] of Object.entries(options.choices)) { const base=WORKOUTS.flatMap(w=>w.exercises).find(ex=>ex.slot===key),allowed=VARIANTS[key]??(base?[base]:[]);if(!record(choice)||!allowed.some(ex=>ex.id===choice.variantId)||!(choice.supportCm===null||finite(choice.supportCm,0,300))||!['Basic','Controlled extension','Longer lever'].includes(String(choice.coreLevel)))invalid(); }
   const all=[...value.sessions,...(value.active===null?[]:[value.active])];

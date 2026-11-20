@@ -20,7 +20,7 @@ describe('exercise emblems', () => {
   it('distinguishes variations whose equipment or movement differs', () => {
     const groups = [
       ['p16-incline-pushup', 'p16-floor-pushup', 'p16-feet-pushup'],
-      ['p16-pullup', 'p16-assisted-pullup'], ['p16-dip', 'p16-assisted-dip'],
+      ['p16-pullup', 'p16-assisted-pullup'], ['p16-dip', 'p16-assisted-dip', 'p16-weighted-dip'],
       ['p16-floor-bridge', 'p16-band-bridge', 'p16-resisted-bridge'],
       ['p16-seated-curl', 'p16-lying-curl'],
     ];
