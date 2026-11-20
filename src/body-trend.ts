@@ -22,6 +22,28 @@ export function bodyTrend(body: BodyEntry[]): BodyTrendPoint[] {
 export function bodyTrendBounds(points: BodyTrendPoint[]) {
   if (!points.length) return { low: 0, high: 1 };
   const { min, max } = points.reduce((bounds, point) => ({ min: Math.min(bounds.min, point.kg, point.averageKg), max: Math.max(bounds.max, point.kg, point.averageKg) }), { min: Infinity, max: -Infinity });
-  const span = Math.max(1, (max - min) * 1.3), centre = (min + max) / 2;
+  const span = Math.max(2, (max - min) * 1.15), centre = (min + max) / 2;
   return { low: Math.max(0, Math.floor((centre - span / 2) * 10) / 10), high: Math.ceil((centre + span / 2) * 10) / 10 };
+}
+
+export type BodyRange = '1W' | '1M' | '3M' | '1Y' | 'All';
+export const bodyRangeDays = { '1W': 7, '1M': 30, '3M': 90, '1Y': 365 } as const;
+
+export function bodyRangePoints(points: BodyTrendPoint[], range: BodyRange, today: number) {
+  return points.filter(point => point.day <= today && (range === 'All' || point.day >= today - bodyRangeDays[range] + 1));
+}
+
+// Up to three missing days can be bridged; longer absences start a new segment.
+export function bodyTrendSegments(points: BodyTrendPoint[]) {
+  const segments: BodyTrendPoint[][] = [];
+  for (const point of points) {
+    const current = segments.at(-1);
+    if (!current || point.day - current.at(-1)!.day > 4) segments.push([point]);
+    else current.push(point);
+  }
+  return segments;
+}
+
+export function bodyNetChange(points: BodyTrendPoint[], selected: BodyTrendPoint) {
+  return points.length ? selected.averageKg - points[0].averageKg : 0;
 }

@@ -1,4 +1,4 @@
-/* Strength leads; the supporting records stay one tap away. */
+/* Progress overview and supporting records. */
 .strength-dashboard { display: grid; gap: 36px; padding-bottom: 12px; }
 .strength-dashboard > *, .progress-support-grid > * { min-width: 0; }
 .progress-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 18px; margin-bottom: 18px; }
@@ -240,4 +240,29 @@
   .exercise-directory .exercise-directory-row { grid-template-columns: minmax(0, 1fr); }
   .exercise-directory .exercise-directory-row .directory-result { grid-column: 1 / -1; }
   .exercise-directory .lift-sparkline { display: none; }
+}
+
+/* Bodyweight leads Progress, with the average visually ahead of daily readings. */
+.strength-dashboard > .body-summary { padding: 24px; border-radius: 24px; }
+.progress-support-grid { grid-template-columns: minmax(0, 1fr); }
+.body-chart-readout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; margin-bottom: 22px; }
+.body-chart-change { display: grid; align-content: start; gap: 6px; padding-top: 2px; }
+.body-chart-change > strong { font-size: 26px; line-height: 1.5; font-weight: 550; font-variant-numeric: tabular-nums; }
+.body-chart-change small { font-size: 14px; font-weight: 400; color: var(--muted); }
+.body-chart-change > span:last-child { font-size: 12px; color: var(--muted); }
+.body-range-filters { gap: 6px; flex-wrap: wrap; }
+.body-average-line { stroke-width: 3.5; }
+.body-weigh-in { fill-opacity: .55; stroke-width: 1; }
+.body-average-marker { fill: var(--chart-line); stroke: var(--surface); stroke-width: 2; }
+.body-selection-line { stroke: var(--muted); stroke-opacity: .35; stroke-dasharray: 3 4; }
+.body-chart-plot > svg { touch-action: pan-y; }
+.body-chart-plot g[role="button"]:focus-visible { outline: none; }
+.body-chart-plot g[role="button"]:focus-visible .body-weigh-in { stroke: var(--text); stroke-width: 3; fill-opacity: 1; }
+.body-chart-stats .body-summary-value { margin: 0; }
+.body-chart-stats .body-summary-value > strong { font-size: 23px; letter-spacing: -.5px; }
+@media(max-width: 600px) {
+  .strength-dashboard > .body-summary { padding: 18px; }
+  .body-chart-readout { gap: 10px; }
+  .body-chart-latest > strong { font-size: 32px; }
+  .body-chart-change > strong { font-size: 24px; }
 }

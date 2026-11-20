@@ -71,7 +71,7 @@ for (const width of [320, 390, 768, 1440]) {
     await noOverflow(page);
     await page.screenshot({path:`artifacts/progress-redesign/volume-${width}.png`,fullPage:true});
     await page.getByRole('button', {name:'Go back',exact:true}).click();
-    await page.getByRole('button', {name:'View trend',exact:true}).click();
+    await page.getByRole('button', {name:'View weigh-in records',exact:true}).click();
     await expect(page.locator('.body-weigh-in')).toHaveCount(store.body.length);
     await expect(page.locator('.body-weekly-summaries')).not.toHaveAttribute('open', '');
     await noOverflow(page);

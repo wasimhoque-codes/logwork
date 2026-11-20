@@ -81,7 +81,7 @@ test('Overview includes compact bodyweight and links to muscle volume across att
   const store = fixture();
   await seed(page, store); await expect(page.locator('.body-summary-value')).toContainText('61.7 kg');
   await page.getByRole('button', { name: 'Log bodyweight', exact: true }).click(); await page.getByLabel('Bodyweight (kg)', { exact: true }).fill('62'); await page.getByRole('button', { name: 'Save bodyweight' }).click();
-  await expect(page.locator('.body-summary-value')).toContainText('62 kg');
+  await expect(page.locator('.body-summary-value')).toContainText('62.0 kg');
   await expect(page.getByText('Workout feedback', { exact: true })).toHaveCount(0);
   const distribution = volumeDistribution(store.sessions);
   await expect(page.locator('.muscle-summary')).toContainText('sets');

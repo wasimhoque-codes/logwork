@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bodyTrend, bodyTrendBounds } from '../src/body-trend';
+import { bodyTrend, bodyTrendBounds, bodyRangePoints, bodyTrendSegments, bodyNetChange } from '../src/body-trend';
 import { bodyAverages, bodyGuidance, fromKg, type BodyEntry } from '../src/model';
 
 const entries = (...pairs: [string, number][]): BodyEntry[] => pairs.map(([date, kg], index) => ({ id: String(index), date, kg }));
@@ -39,11 +39,11 @@ describe('bodyweight chart series', () => {
     const points = bodyTrend(entries(['2026-01-01', 70]));
     expect(points).toHaveLength(1); expect(points[0]).toMatchObject({ kg: 70, averageKg: 70, count: 1, position: .5 });
   });
-  it('keeps flat weights and tiny fluctuations on a useful minimum one-kilogram scale', () => {
+  it('keeps flat weights and tiny fluctuations on a useful minimum two-kilogram scale', () => {
     const flat = bodyTrend(entries(['2026-01-01', 70], ['2026-01-02', 70]));
-    expect(bodyTrendBounds(flat)).toEqual({ low: 69.5, high: 70.5 });
+    expect(bodyTrendBounds(flat)).toEqual({ low: 69, high: 71 });
     const bounds = bodyTrendBounds(bodyTrend(entries(['2026-01-01', 70], ['2026-01-02', 70.01])));
-    expect(bounds.high - bounds.low).toBeGreaterThanOrEqual(1);
+    expect(bounds.high - bounds.low).toBeGreaterThanOrEqual(2);
     expect(bounds.low).toBeLessThan(70); expect(bounds.high).toBeGreaterThan(70.01);
   });
   it('preserves old readings, canonical kilograms and correct pound conversion', () => {
@@ -59,5 +59,33 @@ describe('bodyweight chart series', () => {
     bodyTrend(body);
     expect(bodyAverages(body)).toEqual(weekly); expect(bodyGuidance(body, '2026-10-09')).toBe(guidance);
     expect(guidance).toContain('100–150');
+  });
+});
+
+describe('bodyweight chart windows and gaps', () => {
+  it('filters inclusive trailing calendar ranges without losing earlier average history', () => {
+    const points = bodyTrend(entries(['2026-01-01', 70], ['2026-01-03', 72], ['2026-01-07', 74], ['2026-01-08', 76]));
+    const visible = bodyRangePoints(points, '1W', points[2].day);
+    expect(visible.map(point => point.date)).toEqual(['2026-01-01','2026-01-03','2026-01-07']);
+    const next = bodyRangePoints(points, '1W', points[3].day);
+    expect(next[0].averageKg).toBe(71);
+    expect(bodyNetChange(next, next.at(-1)!)).toBe(3);
+    expect(bodyRangePoints(points, 'All', points[2].day)).toHaveLength(3);
+  });
+  it.each([['1W', 7], ['1M', 30], ['3M', 90], ['1Y', 365]] as const)('includes exactly the %s window', (range, days) => {
+    const points = bodyTrend(entries(['2026-01-01', 70], ['2026-01-02', 71]));
+    expect(bodyRangePoints(points, range, points[0].day + days)).toEqual([points[1]]);
+    expect(bodyRangePoints(points, range, points[1].day + days)).toEqual([]);
+  });
+  it('bridges three missed days and splits after four without inserting readings', () => {
+    const points = bodyTrend(entries(['2026-01-01', 70], ['2026-01-05', 71], ['2026-01-10', 72]));
+    expect(bodyTrendSegments(points).map(segment => segment.length)).toEqual([2,1]);
+    expect(bodyTrendSegments([])).toEqual([]);
+    expect(bodyNetChange([], points[0])).toBe(0);
+  });
+  it('pads visible extremes by at least 7.5 percent of their span', () => {
+    const bounds = bodyTrendBounds(bodyTrend(entries(['2026-01-01', 60], ['2026-01-02', 80])));
+    expect(bounds.low).toBeLessThanOrEqual(58.5);
+    expect(bounds.high).toBeGreaterThanOrEqual(81.5);
   });
 });
