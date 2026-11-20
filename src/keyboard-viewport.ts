@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { reducedMotion } from './motion';
 
-const setInputs = '.set-inputs input[type="number"], .modal-page .detail-set input[type="number"]';
+const setInputs = '.set-inputs input[type="number"], .modal-page .detail-set input[type="number"], .programme-sheet input[type="number"]';
 const fieldGap = 8;
 const viewportSettleMs = 90;
 
@@ -36,16 +36,18 @@ export function useKeyboardViewport() {
       if (!field || isZoomed()) return;
 
       const rect = field.getBoundingClientRect();
-      const panel = field.closest<HTMLElement>('.modal-page');
+      const sheet = field.closest<HTMLElement>('.programme-sheet');
+      const panel = sheet?.querySelector<HTMLElement>('.programme-sheet-body') ?? field.closest<HTMLElement>('.modal-page');
       let { top, bottom } = bounds;
 
       if (panel) {
         const panelRect = panel.getBoundingClientRect();
-        const header = panel.querySelector<HTMLElement>('.modal-heading');
+        const header = (sheet ?? panel).querySelector<HTMLElement>('.modal-heading');
         // Reserve the header's sticky height even if it has already scrolled off its starting position.
-        const stickyBottom = panelRect.top + (header?.offsetHeight ?? 0);
+        const stickyBottom = sheet ? panelRect.top : panelRect.top + (header?.offsetHeight ?? 0);
         top = Math.max(top, stickyBottom, header?.getBoundingClientRect().bottom ?? 0);
-        bottom = Math.min(bottom, panelRect.bottom);
+        const footer = sheet?.querySelector<HTMLElement>('.programme-sheet-footer');
+        bottom = Math.min(bottom, panelRect.bottom, footer?.getBoundingClientRect().top ?? Infinity);
       } else {
         const dock = field.closest('.workout-shell')?.querySelector<HTMLElement>('.workout-dock');
         if (dock) {

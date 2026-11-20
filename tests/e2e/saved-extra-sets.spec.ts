@@ -38,7 +38,7 @@ test('saved additions are drafts until saved, survive offline reload and backup 
   await expect(exercise(page).getByRole('button',{name:/^Remove /})).toHaveCount(0);
   await page.getByRole('button',{name:'Save changes',exact:true}).click();
   await expect(page.locator('.unit-badge')).toContainText('Complete');
-  await expect(page.locator('.summary-pills')).toContainText(`${doneSets(original)+1} sets`);
+  await expect(page.locator('.saved-workout-stats')).toContainText(`Logged sets${doneSets(original)+1}`);
   await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise<void>(resolve=>navigator.serviceWorker.addEventListener('controllerchange',()=>resolve(),{once:true}));});
   await close(page);await context.setOffline(true);await page.reload();await open(page);
   await expect(exercise(page).locator('.detail-set').last()).toContainText('15 kg');await close(page);
@@ -47,7 +47,7 @@ test('saved additions are drafts until saved, survive offline reload and backup 
   expect({...saved,exercises:original.exercises}).toEqual(original);expect(volume(saved)).toBe(volume(original)+15*saved.exercises[0].sets[2].reps);validateStore(data);
   await page.getByLabel('Import backup file').setInputFiles({name:'saved-extras.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
   await page.getByRole('button',{name:'Replace data and restore'}).click();await page.reload();expect(await backup(page)).toEqual(data);
-  await page.goto('/#programme');await page.getByRole('tab',{name:'Mon Upper A',exact:true}).click();await page.getByRole('button',{name:'Train this session today',exact:true}).click();
+  await page.goto('/#programme');await page.getByRole('link', { name: 'Monday Upper A',exact:true}).click();await page.getByRole('button',{name:'Start workout',exact:true}).click();
   await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 2');await context.setOffline(false);
 });
 

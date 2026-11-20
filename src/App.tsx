@@ -4,20 +4,21 @@ import { LayoutDashboard, Layers, ChartNoAxesCombined, Settings2, ChevronLeft, C
 import { fixedWorkoutForDay, fixedSetCount, variantsFor, SATURDAY_CORE, weekEffort, FIXED_WORKOUT_WEEK, type Exercise, type ExerciseChoice, type Workout } from './data';
 import { savedRaw, newSession, localDate, doneSets, validateStore, previousExercise, exerciseHistory, sessionResume, restSeconds, markSetSkipped, prefillExercise, exerciseKey, normalizeExerciseKey, workoutDateError, type BodyEntry, type Store, type Session, type SetLog, type ResumeState } from './model';
 import { Hawk, Modal, ModalTriggerContext } from './components';
-import { Today, Plan, History, emptyHistory, ProgressDetail, SettingsScreen, type ProgressMetric } from './screens';
+import { Today, History, emptyHistory, ProgressDetail, SettingsScreen, type ProgressMetric } from './screens';
 import type { TrainingRange } from './progress-charts';
 import { movementSeries } from './progress-data';
 import { ProgressOverview } from './progress';
 import { ExerciseGrid, ExerciseProgressDetail, emptyExerciseGrid, type ExerciseGridState, type ExerciseTrendSelection } from './exercise-progress';
 import { ExerciseDetails, OptionsModal, PreparationModal, TrainingGuide, UrgentHelp } from './programme-ui';
 import { WorkoutScreen } from './workout';
+import { ProgrammeOverview, ProgrammeSession } from './programme';
 import { ReviewWorkout, WorkoutSaved } from './flow';
 import { BodyModal, SessionDetail } from './details';
 import { useContentFade, useTabHighlight } from './motion';
 import { useKeyboardViewport } from './keyboard-viewport';
 import { useTrainingStore } from './persistence/use-training-store';
 import { SyncPanel } from './persistence/sync-panel';
-import { resolvePage, pageTitles, type Page } from './routes';
+import { resolvePage, pageTitles, programmeDay, programmePage, type Page } from './routes';
 type DetailLocation = { scroll: number; focus?: string; trend?: ExerciseTrendSelection };
 type DetailView = ({ kind:'workout'; id:string } | { kind:'exercise'; key:string; name:string; date:string }) & { location?: DetailLocation };
 type Dialog='body'|'discard'|'restore'|'guide'|'urgent'|'warmup'|'options'|'knee-check'|null;
@@ -37,7 +38,9 @@ export default function App() {
   const [bodyToEdit,setBodyToEdit]=useState<BodyEntry|null>(null);
   const openBody=()=>{setBodyToEdit(null);setDialog('body');};
   const [storageError,setStorageError]=useState('');
-  const [page,setPage]=useState<Page>(()=>resolvePage(window.location.hash)),[selectedDay,setSelectedDay]=useState((new Date().getDay()+6)%7);
+  const [page,setPage]=useState<Page>(()=>resolvePage(window.location.hash));
+  const selectedDay=programmeDay(page);
+  const programmeFocus=useRef<number | undefined>(undefined);
   const [dialog,setDialog]=useState<Dialog>(null),[details,setDetails]=useState<DetailView[]>([]),[previewExercise,setPreviewExercise]=useState<Exercise|null>(null),[pendingImport,setPendingImport]=useState<Store|null>(null),[toast,setToast]=useState('');
   const navigationPage=useRef(page),freshSave=useRef<string|null>(null);
   const [savingSession,setSavingSession]=useState<Session|null>(null),[todayHandoff,setTodayHandoff]=useState<string|null>(null);
@@ -48,6 +51,7 @@ export default function App() {
   const [pendingWorkout,setPendingWorkout]=useState<Workout|null>(null),[kneeReady,setKneeReady]=useState(false),[savedId,setSavedId]=useState<string|null>(null),[now,setNow]=useState(Date.now());
   const uploadRef=useRef<HTMLInputElement>(null),settingsOrigin=useRef<Page>('today'),headingRef=useRef<HTMLHeadingElement>(null),mainRef=useRef<HTMLElement>(null),progressTabsRef=useRef<HTMLDivElement>(null),focusProgressTab=useRef(false);
   const contentRef=useRef<HTMLDivElement>(null),movementOrigin=useRef<Page>('progress/exercises');
+  const overviewFocusKey=useRef<string | undefined>(undefined);
   const scrollPositions=useRef(new Map<Page,number>()),restorePageScroll=useRef(false);
   const detailView=details.at(-1);
   const detail=detailView?.kind==='workout'?store.sessions.find(session=>session.id===detailView.id):undefined;
@@ -71,7 +75,11 @@ export default function App() {
     if(next!=='workout/saved')freshSave.current=null;
     if(next!==navigationPage.current){
       trackScroll();
-      if(next==='progress/movement')movementOrigin.current=navigationPage.current;
+      if(next==='progress/movement'){
+        movementOrigin.current=navigationPage.current;
+        if(navigationPage.current==='progress')overviewFocusKey.current=exerciseKey;
+      }
+      if(navigationPage.current==='programme'&&programmeDay(next)!==undefined)programmeFocus.current=programmeDay(next);
     }
     restorePageScroll.current=restore;
     navigationPage.current=next;
@@ -112,6 +120,7 @@ export default function App() {
       const next=resolvePage(window.location.hash);
       if(navigationPage.current!==next){
         trackScroll();
+        if(navigationPage.current==='programme'&&programmeDay(next)!==undefined)programmeFocus.current=programmeDay(next);
         restorePageScroll.current=scrollPositions.current.has(next);
         setTodayHandoff(null);
         if(next!=='workout/saved')freshSave.current=null;
@@ -132,11 +141,16 @@ export default function App() {
     const restore=restorePageScroll.current;
     restorePageScroll.current=false;
     scrollPage(restore?scrollPositions.current.get(page)??0:0);
-    if(focusProgressTab.current){
+    if(page==='programme'&&restore&&programmeFocus.current!==undefined){
+      mainRef.current?.querySelector<HTMLElement>(`[data-programme-day="${programmeFocus.current}"]`)?.focus({preventScroll:true});
+    }else if(focusProgressTab.current){
       focusProgressTab.current=false;
       progressTabsRef.current?.querySelector<HTMLElement>('[aria-selected=true]')?.focus({preventScroll:true});
     }else if(page==='progress/exercises'&&restore&&exerciseGrid.focusKey){
       [...(mainRef.current?.querySelectorAll<HTMLButtonElement>('[data-exercise-key]')??[])].find(row=>row.dataset.exerciseKey===exerciseGrid.focusKey)?.focus({preventScroll:true});
+    }else if(page==='progress'&&restore&&overviewFocusKey.current){
+      const trigger=[...(mainRef.current?.querySelectorAll<HTMLButtonElement>('[data-featured-exercise-key]')??[])].find(row=>row.dataset.featuredExerciseKey===overviewFocusKey.current);
+      (trigger??headingRef.current)?.focus({preventScroll:true});
     }else{
       headingRef.current?.focus({preventScroll:true});
     }
@@ -148,10 +162,10 @@ export default function App() {
   const savedSession=store.sessions.find(s=>s.id===savedId)??[...store.sessions].sort((a,b)=>(b.endedAt??0)-(a.endedAt??0))[0];
   useEffect(()=>{if((page==='workout'||page==='workout/review')&&!active&&!savingSession)go('today');if(page==='workout/saved'&&!savedSession)go('today');},[page,active,savingSession,savedSession,go]);
   const options=store.programme.options;
-  const selectedWorkout=fixedWorkoutForDay((selectedDay+1)%7,options),unit=store.settings.unit;
+  const selectedWorkout=selectedDay===undefined?undefined:fixedWorkoutForDay((selectedDay+1)%7,options),unit=store.settings.unit;
   const currentIndex=resume.exerciseIndex,totalSets=active?.exercises.reduce((n,e)=>n+e.sets.length,0)??0,completedSets=active?doneSets(active):0;
   const focused=page.startsWith('workout'),metric=progressMetrics[page];
-  function openWorkout(){setReviewSet(undefined);updateResume({origin:page==='programme'?'programme':'today'});go('workout');}
+  function openWorkout(){setReviewSet(undefined);updateResume({origin:page.startsWith('programme')?'programme':'today'});go('workout');}
   function start(w?:Workout) {
     if(readBlocked){alert('Restore a valid backup to enable saving.');settingsOrigin.current=page;go('settings');return;}
     if(active){if(page==='today')openWorkout();return;}
@@ -165,7 +179,7 @@ export default function App() {
     const key=w.id+'|'+localDate(), warmup=warmupDrafts.current.get(key);
     void setStore(s=>{
       const session=newSession(w,s);
-      session.resume={...sessionResume(session),origin:page==='programme'?'programme':'today'};
+      session.resume={...sessionResume(session),origin:page.startsWith('programme')?'programme':'today'};
       if(warmup) session.warmup=warmup;
       return {...s,active:session};
     }).then(()=>warmupDrafts.current.delete(key)).catch(()=>{});
@@ -273,9 +287,9 @@ export default function App() {
     if(!s.sessions.some(record=>record.id===session.id))throw new Error('This workout was removed.');
     return {...s,sessions:s.sessions.map(record=>record.id===session.id?session:record)};
   });
-  function back(){if(page==='settings')go(settingsOrigin.current);else if(page==='workout')go(active?.resume?.origin??'today');else if(page==='workout/review')go('workout');else if(page==='progress/movement')go(movementOrigin.current,undefined,true);else go('progress',undefined,true);}
+  function back(){if(page==='settings')go(settingsOrigin.current);else if(selectedDay!==undefined)go('programme',undefined,true);else if(page==='workout')go(active?.resume?.origin==='programme'?programmePage(((active.workout.days[0]??1)+6)%7):'today');else if(page==='workout/review')go('workout');else if(page==='progress/movement')go(movementOrigin.current,undefined,true);else go('progress',undefined,true);}
   const progressDetail=!!metric||page==='progress/movement';
-  const backVisible=page==='settings'||!!metric||page==='progress/movement'||page==='workout'||page==='workout/review';
+  const backVisible=selectedDay!==undefined||page==='settings'||!!metric||page==='progress/movement'||page==='workout'||page==='workout/review';
   const rest=(resume.restEnd!==null||resume.restPaused!==null)?<div className="rest-timer" role="group" aria-label="Rest timer"><Clock3 size={20}/><div><span>{resume.restPaused!==null?'Paused':'Rest'}</span><strong aria-live="off">{Math.floor(remaining/60)}:{String(remaining%60).padStart(2,'0')}</strong></div><button className="icon-button" aria-label={resume.restPaused!==null?'Resume rest timer':'Pause rest timer'} onClick={()=>{if(resume.restPaused!==null){updateResume({restEnd:Date.now()+resume.restPaused*1000,restPaused:null});setNow(Date.now());}else updateResume({restPaused:remaining,restEnd:null});}}>{resume.restPaused!==null?<Play size={18}/>:<Pause size={18}/>}</button><button className="small-button" aria-label="Add 30 seconds rest" onClick={()=>resume.restPaused!==null?updateResume({restPaused:Math.min(86400,resume.restPaused+30)}):updateResume({restEnd:Math.min(Date.now()+86400000,(resume.restEnd??Date.now())+30000)})}>+30s</button><button className="icon-button" aria-label="Skip rest timer" onClick={()=>updateResume({restEnd:null,restPaused:null})}><X size={20}/></button></div>:undefined;
   const warmupKey=selectedWorkout?.id+'|'+localDate();
   const movementExercise=page==='progress/movement'?movementSeries(store.sessions).find(series=>series.key===progressSelection.exerciseKey)?.exercise:undefined;
@@ -284,10 +298,12 @@ export default function App() {
     // Safari can activate a button without moving focus to it.
     const trigger=event.target instanceof Element?event.target.closest<HTMLElement>('button, a[href]'):null;
     if(trigger&&!trigger.closest('.modal-overlay'))modalTriggerRef.current=trigger;
-  }} className={'app-shell '+(focused?'workout-shell':'')+' '+(page==='workout/review'?'review-shell':'')}><div ref={contentRef} className="app-content" data-dock={progressTab} inert={!!detailView}><header className="app-header">{backVisible?<button className="icon-button" disabled={savingSet||page==='workout/review'&&!!savingSession} aria-label={page==='workout/review'?'Back to workout':page==='workout'?'Leave workout':'Go back'} onClick={back}><ChevronLeft size={23}/></button>:<span className="brand-mark"><Hawk size={24}/></span>}<div className="header-heading"><h1 ref={headingRef} tabIndex={-1}>{movementExercise?<span className="exercise-icon-heading"><ExerciseIcon exercise={movementExercise} size={64}/><span>{movementExercise.name}</span></span>:page==='workout'?active?.workout.name??'Workout':pageTitles[page]}</h1>{page==='workout'&&<p className="session-meta">{completedSets} of {totalSets} sets · {Math.max(0,Math.floor((now-(active?.startedAt??now))/60000))} min elapsed</p>}<SyncPanel persistence={persistence} actions={page==='settings'} compact={progressTab||progressDetail}/></div>{page==='workout'?<button className="small-button" disabled={savingSet} aria-label="Review and finish workout" onClick={()=>go('workout/review')}>Finish</button>:!focused&&!progressDetail&&page!=='settings'?<button className="icon-button" aria-label="Open settings" onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/></button>:null}</header>
+  }} className={'app-shell '+(focused?'workout-shell':'')+' '+(page==='workout/review'?'review-shell':'')}><div ref={contentRef} className="app-content" data-dock={progressTab} inert={!!detailView}><header className="app-header">{backVisible?<button className="icon-button" disabled={savingSet||page==='workout/review'&&!!savingSession} aria-label={page==='workout/review'?'Back to workout':page==='workout'?'Leave workout':selectedDay!==undefined?'Back to programme':'Go back'} onClick={back}><ChevronLeft size={23}/></button>:<span className="brand-mark"><Hawk size={24}/></span>}<div className="header-heading"><h1 ref={headingRef} tabIndex={-1}>{movementExercise?<span className="exercise-icon-heading"><ExerciseIcon exercise={movementExercise} size={64}/><span>{movementExercise.name}</span></span>:page==='workout'?active?.workout.name??'Workout':pageTitles[page]}</h1>{page==='workout'&&<p className="session-meta">{completedSets} of {totalSets} sets · {Math.max(0,Math.floor((now-(active?.startedAt??now))/60000))} min elapsed</p>}<SyncPanel persistence={persistence} actions={page==='settings'} workout={page==='workout'} compact={progressTab||progressDetail||page==='workout'}/></div>{page==='workout'?<button className="small-button" disabled={savingSet} aria-label="Review and finish workout" onClick={()=>go('workout/review')}>Finish</button>:!focused&&!progressDetail&&page!=='settings'?<button className="icon-button" aria-label="Open settings" onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/></button>:null}</header>
+    {page==='workout'&&<div className="workout-session-progress" role="progressbar" aria-label="Workout sets logged" aria-valuemin={0} aria-valuemax={totalSets} aria-valuenow={completedSets}><span style={{width:`${totalSets?completedSets/totalSets*100:0}%`}}/></div>}
     {(storageError||persistence.error)&&<div className="storage-error" role="alert">{storageError||persistence.error}<button onClick={downloadBackup}>Export data</button></div>}<main ref={mainRef}>
-      {page==='today'&&<Today handoffId={todayHandoff} onProgress={()=>go('progress')} onHistory={()=>go('progress/history')} store={store} onStart={workout=>active?openWorkout():start(workout)} onDetail={openWorkoutDetail} onPlan={day=>{setSelectedDay((day+6)%7);go('programme');}} onBody={openBody}/>}
-      {page==='programme'&&<Plan store={store} day={selectedDay} onDay={setSelectedDay} workout={selectedWorkout} onStart={()=>start(selectedWorkout)} onResume={openWorkout} onOptions={()=>setDialog('options')} onWarmup={()=>setDialog('warmup')} onGuide={()=>setDialog('guide')} onUrgent={()=>setDialog('urgent')} onExercise={setPreviewExercise}/>}
+      {page==='today'&&<Today handoffId={todayHandoff} onProgress={()=>go('progress')} onHistory={()=>go('progress/history')} store={store} onStart={workout=>active?openWorkout():start(workout)} onDetail={openWorkoutDetail} onPlan={day=>go(programmePage((day+6)%7))} onBody={openBody}/>}
+      {page==='programme'&&<ProgrammeOverview store={store} onOpen={next=>go(next)} onResume={openWorkout} onGuide={()=>setDialog('guide')} onUrgent={()=>setDialog('urgent')}/>}
+      {selectedDay!==undefined&&<ProgrammeSession key={page} store={store} day={selectedDay} onStart={()=>start(selectedWorkout)} onResume={openWorkout} onOptions={()=>setDialog('options')} onWarmup={()=>setDialog('warmup')} onGuide={()=>setDialog('guide')} onUrgent={()=>setDialog('urgent')} onExercise={setPreviewExercise}/>}
       {progressTab&&<><div ref={progressTabsRef} className="progress-switch" role="tablist" aria-label="Progress views">{progressTabs.map(([id,label],index)=><button key={id} id={'progress-tab-'+index} aria-controls="progress-panel" role="tab" aria-selected={page===id} tabIndex={page===id?0:-1} onClick={()=>{if(page!==id){setExerciseGrid(s=>({...s,focusKey:undefined}));focusProgressTab.current=true;go(id as Page,undefined,true);}}} onKeyDown={event=>{const next=event.key==='ArrowRight'?(index+1)%progressTabs.length:event.key==='ArrowLeft'?(index+progressTabs.length-1)%progressTabs.length:event.key==='Home'?0:event.key==='End'?progressTabs.length-1:null;if(next!==null){event.preventDefault();if(next!==index){setExerciseGrid(s=>({...s,focusKey:undefined}));focusProgressTab.current=true;go(progressTabs[next][0],undefined,true);}}}}>{label}</button>)}</div><div id="progress-panel" role="tabpanel" aria-labelledby={'progress-tab-'+progressTabs.findIndex(([id])=>id===page)} tabIndex={0}>
         {page==='progress'?<ProgressOverview store={store} range={overviewRange} onRange={setOverviewRange} onGo={go} onBody={openBody} onVolume={range=>{go('progress/volume');setProgressSelection({volumeView:'muscles',range});}}/>:page==='progress/exercises'?<ExerciseGrid store={store} state={exerciseGrid} onState={setExerciseGrid} onOpen={key=>go('progress/movement',key)} onStart={()=>go('programme')}/>:<History store={store} filters={historyFilters} onFilters={setHistoryFilters} onDetail={openWorkoutDetail} onStart={()=>go('programme')}/>}
       </div></>}
@@ -301,7 +317,7 @@ export default function App() {
         date={workoutDateDraft?.id===(active??savingSession)!.id?workoutDateDraft.date:(active??savingSession)!.date}
         onDate={date=>setWorkoutDateDraft({id:(active??savingSession)!.id,date})} onUpdate={updateSession} onSave={finish} onContinue={()=>{setReviewSet(undefined);go('workout');}} onJump={(index,set)=>{changeIndex(index);setReviewSet(set);go('workout');}}/>}
       {page==='workout/saved'&&savedSession&&<WorkoutSaved session={savedSession} animate={freshSave.current===savedSession.id} onToday={returnToToday} onView={()=>openWorkoutDetail(savedSession)}/>}
-    </main></div>{!focused&&<nav inert={!!detailView} className="bottom-nav" aria-label="Main navigation"><div className="nav-brand"><span><Hawk size={27}/></span><strong>Gym Hawk<small>YOUR TRAINING SPACE</small></strong></div><p className="nav-caption">WORKSPACE</p>{nav.map(item=><button key={item.id} aria-current={page===item.id||item.id==='progress'&&page.startsWith('progress/')?'page':undefined} onClick={()=>go(item.id)}><item.icon size={22}/><span>{item.label}</span></button>)}<div className="nav-spacer"/><button className="nav-settings" aria-current={page==='settings'?'page':undefined} onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/><span>Settings</span></button></nav>}
+    </main></div>{!focused&&<nav inert={!!detailView} className="bottom-nav" aria-label="Main navigation"><div className="nav-brand"><span><Hawk size={27}/></span><strong>Gym Hawk<small>YOUR TRAINING SPACE</small></strong></div><p className="nav-caption">WORKSPACE</p>{nav.map(item=><button key={item.id} aria-current={page===item.id||item.id==='progress'&&page.startsWith('progress/')||item.id==='programme'&&page.startsWith('programme/')?'page':undefined} onClick={()=>go(item.id)}><item.icon size={22}/><span>{item.label}</span></button>)}<div className="nav-spacer"/><button className="nav-settings" aria-current={page==='settings'?'page':undefined} onClick={()=>{settingsOrigin.current=page;go('settings');}}><Settings2 size={21}/><span>Settings</span></button></nav>}
     {toast&&!dialog&&!detailView&&!previewExercise&&<div className="toast" role="status"><span>{toast}</span><button className="icon-button" aria-label="Dismiss notification" onClick={()=>setToast('')}><X size={18}/></button></div>}
     <input type="file" ref={uploadRef} accept="application/json,.json" hidden aria-label="Import backup file" onChange={e=>void importBackup(e.target.files?.[0])}/>
     {dialog==='body'&&<BodyModal unit={unit} entry={bodyToEdit??undefined} onClose={closeDialog} onSave={async(date,kg)=>{

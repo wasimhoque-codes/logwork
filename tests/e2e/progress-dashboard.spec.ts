@@ -43,10 +43,10 @@ test('Overview stays focused and Exercises shows every recorded identity alphabe
   await page.getByRole('button', { name: 'External-load volume', exact: true }).click(); await expect(page.getByRole('group', { name: /^Weekly kg/ })).toBeVisible();
   await openGrid(page); await expect(page).toHaveURL(/#progress\/exercises$/);
   await expect(page.locator('.exercise-tile')).toHaveCount(movementSeries(store.sessions).length);
-  await page.getByLabel('Sort exercises').selectOption('alphabetical');
+  await page.getByRole('button', { name: /^Filters/ }).click(); await page.getByLabel('Sort exercises').selectOption('alphabetical'); await page.getByRole('button', { name: 'Apply filters' }).click();
   const names = await page.locator('.directory-name strong').allTextContents(); expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
   await expect(page.locator('.exercise-tile .exercise-metrics,.exercise-tile .lift-role,.exercise-tile-footer,.exercise-tile .journey-legend')).toHaveCount(0);
-  await expect(page.locator('.exercise-tile').first().locator('.exercise-tile-change')).toHaveText('1 recorded date');
+  await expect(page.locator('.exercise-tile').first().locator('.lift-comparison')).toHaveText('First recorded date');
   await expect(page.locator('.exercise-tile p').getByText('Basic', {exact:true})).toHaveCount(0);
   await expect(page.locator('.exercise-tile').first().getByText('Latest set', {exact:true})).toHaveCount(0);
   await expect(page.locator('.exercise-tile').first().getByRole('img')).toHaveCount(0);
@@ -55,11 +55,11 @@ test('Overview stays focused and Exercises shows every recorded identity alphabe
 });
 test('search, role filters, clear and detail return preserve place and focus', async ({ page }) => {
   await seed(page, fixture()); await openGrid(page);
-  await page.getByLabel('Exercise role').selectOption('main'); await page.getByLabel('Search exercises').fill('Basic');
+  await page.getByRole('button', { name: /^Filters/ }).click(); await page.getByLabel('Exercise role').selectOption('main'); await page.getByRole('button', { name: 'Apply filters' }).click(); await page.getByLabel('Search exercises').fill('Basic');
   const trigger = page.getByRole('button', { name: /View details for/ }).last(); await trigger.scrollIntoViewIfNeeded(); const scroll = await page.evaluate(() => matchMedia('(max-width:760px)').matches ? document.querySelector('.app-content')!.scrollTop : scrollY), name = await trigger.getAttribute('aria-label');
   await trigger.click(); await expect(page.locator('.exercise-detail')).toBeVisible(); await expect(page.getByLabel('Select exercise for strength chart')).toHaveCount(0);
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
-  await expect(page.getByLabel('Search exercises')).toHaveValue('Basic'); await expect(page.getByLabel('Exercise role')).toHaveValue('main');
+  await expect(page.getByLabel('Search exercises')).toHaveValue('Basic'); await expect(page.getByRole('button', { name: 'Remove role filter main' })).toBeVisible();
   await expect(page.getByRole('button', { name: name! })).toBeFocused(); await expect.poll(() => page.evaluate(() => matchMedia('(max-width:760px)').matches ? document.querySelector('.app-content')!.scrollTop : scrollY)).toBeCloseTo(scroll, 0);
   await trigger.click(); await page.goBack(); await expect(page.getByLabel('Search exercises')).toHaveValue('Basic');
   await expect(page.getByRole('button', { name: name! })).toBeFocused();
@@ -71,22 +71,22 @@ test('search, role filters, clear and detail return preserve place and focus', a
 test('interactive details preserve exact identity on reload and support keyboard point selection', async ({ page }) => {
   const store = fixture(); await seed(page, store); await openGrid(page); const series = movementSeries(store.sessions).find(s => s.records.length === 2)!;
   await openKey(page, series.key); await page.reload(); await expect(page.getByRole('heading',{level:1})).toHaveText(series.exercise.name);
-  await expect(page.locator('.exercise-detail .exercise-metrics')).toBeHidden();
-  await page.getByText('Compare with earlier workouts', { exact: true }).click();
+  await expect(page.getByRole('heading', { name:'Your benchmarks' })).toBeVisible();
   await expect(page.locator('.exercise-detail .exercise-metrics')).toContainText('Peak load');
   const points = page.locator('[data-point]'); await expect(points).toHaveCount(2); await points.last().focus(); await page.keyboard.press('Home'); await expect(points.first()).toBeFocused();
   await expect(page.locator('.selected-workout')).toContainText('26 Oct 2026'); await page.keyboard.press('End'); await expect(page.locator('.selected-workout')).toContainText('2 Nov 2026');
   await page.getByRole('button', { name: 'Go back', exact: true }).click(); await expect(page.locator('.exercise-tile')).toHaveCount(14);
 });
-test('Overview includes inline bodyweight and all-time volume across attempts', async ({ page }) => {
+test('Overview includes compact bodyweight and links to muscle volume across attempts', async ({ page }) => {
   const store = fixture();
-  await seed(page, store); await expect(page.locator('.bodyweight-chart .body-weigh-in')).toHaveCount(15);
+  await seed(page, store); await expect(page.locator('.body-summary-value')).toContainText('61.7 kg');
   await page.getByRole('button', { name: 'Log bodyweight', exact: true }).click(); await page.getByLabel('Bodyweight (kg)', { exact: true }).fill('62'); await page.getByRole('button', { name: 'Save bodyweight' }).click();
-  await expect(page.locator('.body-chart-latest')).toContainText('62.0 kg');
+  await expect(page.locator('.body-summary-value')).toContainText('62 kg');
   await expect(page.getByText('Workout feedback', { exact: true })).toHaveCount(0);
   const distribution = volumeDistribution(store.sessions);
-  await expect(page.locator('.volume-split-labels')).toContainText('Upper body');
-  await page.getByRole('button', { name: 'Training volume', exact: true }).click();
+  await expect(page.locator('.muscle-summary')).toContainText('sets');
+  await page.getByRole('button', { name: 'Explore training volume', exact: true }).click();
+  await page.getByLabel('Weekly date range').selectOption('all');
   const muscles = page.locator('.muscle-breakdown');
   await expect(muscles).toContainText('All time');
   await expect(page.getByLabel('Weekly date range')).toHaveValue('all');
@@ -98,7 +98,7 @@ test('old links and latest-five comparisons survive new attempts and mixed worko
   const store = fixture(), first = structuredClone(store.sessions[0]), lower = structuredClone(store.sessions[1]); store.sessions = [];
   for (let i = 0; i < 7; i++) { const s = structuredClone(first); s.id = 'old-' + i; s.date = i === 0 ? '2025-01-01' : `2026-10-0${i + 1}`; s.startedAt = Date.parse(s.date + 'T10:00:00Z'); s.endedAt = s.startedAt + 60000; s.exercises.forEach(log => log.sets.forEach(set => set.weight = log.mode === 'bodyweight' ? 0 : 10 + i * 5)); store.sessions.push(s); const mixed = structuredClone(lower); mixed.id = 'lower-' + i; mixed.date = s.date; mixed.startedAt = s.startedAt + 3600000; mixed.endedAt = mixed.startedAt + 60000; store.sessions.push(mixed); }
   const alternate = structuredClone(store.sessions[0]); alternate.id = 'other'; Object.assign(alternate.workout.exercises[0], { setup: 'Different bench' }); store.sessions.push(alternate);
-  await seed(page, validateStore(reviewWeek(store, 'repeat'))); await expect(page.locator('.volume-overview .muted')).toContainText('1 Jan 2025'); await openGrid(page);
+  await seed(page, validateStore(reviewWeek(store, 'repeat'))); await expect(page.locator('.progress-lifetime')).toContainText('1 Jan 2025'); await openGrid(page);
   await expect(page.locator('.exercise-tile')).toHaveCount(14);
   const legacyKey = JSON.parse(exerciseKey(first.workout.exercises[0], first.exercises[0].mode));
   legacyKey.splice(2, 0, 'different bench');
@@ -118,7 +118,7 @@ test('old links and latest-five comparisons survive new attempts and mixed worko
   await page.getByLabel('Chart date range').selectOption('recent');
   await expect(page.locator('.selected-workout h3')).toHaveText('7 Oct 2026');
   await expect(page.getByRole('button', { name: 'Next date', exact: true })).toBeDisabled();
-  await expect(page.locator('.exercise-metrics')).toContainText('+30 kg load');
+  await expect(page.locator('.exercise-metrics')).toContainText('10 kg'); await expect(page.locator('.exercise-metrics')).toContainText('40 kg');
 });
 test('assistance, bodyweight and timed bests retain paired reps and workload units', async ({ page }) => {
   const store = fixture(), session = newSession(selectedWorkout(store, 4)!, store); session.date = '2026-11-02'; session.startedAt = Date.parse('2026-11-02T12:00:00Z'); session.endedAt = session.startedAt + 60000;
@@ -144,15 +144,15 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     test.skip(testInfo.project.name !== 'desktop', 'One capture matrix per viewport.'); await page.setViewportSize({ width, height }); const store = fixture(); await seed(page, store); await openGrid(page);
     const directory = path.resolve('artifacts/exercise-grid'); await fs.mkdir(directory, { recursive: true });
     for (const state of ['populated', 'sparse', 'empty']) { const data = state === 'empty' ? freshStore() : structuredClone(store); if (state === 'sparse') data.sessions = [data.sessions[0]];
-      await replaceLocal(page, data); await page.reload(); await settled(page); await noOverflow(page);
-      if (state === 'sparse') await expect(page.locator('.exercise-tile').first().getByText('1 recorded date', { exact: true })).toBeVisible();
+      await replaceLocal(page, data); await page.reload(); await expect(page.locator('.exercise-tile')).toHaveCount(movementSeries(data.sessions).length); await settled(page); await noOverflow(page);
+      if (state === 'sparse') await expect(page.locator('.exercise-tile').first().getByText('First recorded date', { exact: true })).toBeVisible();
       if (state === 'empty') await expect(page.getByRole('heading', { name: 'Your exercise progress starts here' })).toBeVisible();
       await page.screenshot({ path: path.join(directory, `${state}-${width}.png`), fullPage: true });
       if (state === 'populated') {
         const tiles = await page.locator('.exercise-tile').evaluateAll(nodes => nodes.map(n => ({ name: n.querySelector('.directory-name strong')?.textContent, height: n.getBoundingClientRect().height })));
         await fs.writeFile(path.join(directory, `heights-${width}.json`), JSON.stringify(tiles));
-        if (width <= 390) expect(Math.max(...tiles.map(t => t.height))).toBeLessThanOrEqual(120);
-        if (width === 390) expect(tiles.reduce((sum, tile) => sum + tile.height, 0) / tiles.length).toBeLessThanOrEqual(76);
+        if (width <= 390) expect(Math.max(...tiles.map(t => t.height))).toBeLessThanOrEqual(200);
+        if (width === 390) expect(tiles.reduce((sum, tile) => sum + tile.height, 0) / tiles.length).toBeLessThanOrEqual(180);
       }
       const targets = await page.locator('main button,header button,header select,[role=tab]').evaluateAll(nodes => nodes.filter(n => n.getClientRects().length > 0).map(n => { const b = n.getBoundingClientRect(); return { text: n.textContent, w: b.width, h: b.height }; })); expect(targets.filter(t => t.w < 43.5 || t.h < 43.5)).toEqual([]);
     }
@@ -184,7 +184,7 @@ test('flat load shows rep gains and a shared date preserves all completed sets',
   await openGrid(page);
   const key = exerciseKey(first.workout.exercises[0], first.exercises[0].mode);
   const tile = page.locator('.exercise-tile').filter({ has: page.locator('[data-exercise-key]').and(page.getByRole('button', { name: new RegExp('^View details for ' + first.workout.exercises[0].name) })) });
-  await expect(tile.locator('.exercise-tile-change')).toHaveText('+2 reps at 45 kg');
+  await expect(tile.locator('.lift-comparison strong')).toHaveText('+2 reps at 45 kg');
   await openKey(page, key);
   await expect(page.locator('[data-point]')).toHaveCount(2);
   await expect(page.locator('.movement-plot').getByText('9 reps', { exact: true })).toBeVisible();

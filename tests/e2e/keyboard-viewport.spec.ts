@@ -1,8 +1,40 @@
 import type { Locator } from '@playwright/test';
-import { test, expect, type Page } from './fixture';
+import { setAction, test, expect, type Page } from './fixture';
 import { freshStore, newSession, selectedWorkout } from '../../src/model';
 
 test.use({ viewport: { width: 390, height: 700 } });
+
+test('Programme exercise fields and save action clear the keyboard within their sheet', async ({page}) => {
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const keyboard=await simulateKeyboard(page);
+  await page.goto('/#programme/monday');
+  const trigger=page.getByRole('button',{name:/Incline Push-Ups/});
+  await trigger.click();
+  const field=page.getByLabel('Support height in cm');
+  await field.fill('45');
+  await keyboard(350);
+  const save=page.getByRole('button',{name:'Save exercise choice'});
+  await expect.poll(()=>field.evaluate(input=>{
+    const bounds=input.getBoundingClientRect();
+    const sheet=input.closest('.programme-sheet')!;
+    const top=sheet.querySelector('.modal-heading')!.getBoundingClientRect().bottom;
+    const bottom=sheet.querySelector('.programme-sheet-footer')!.getBoundingClientRect().top;
+    return bounds.top>=top&&bounds.bottom<=bottom;
+  })).toBe(true);
+  expect(await save.evaluate(button=>button.getBoundingClientRect().bottom)).toBeLessThanOrEqual(350);
+  await field.fill('301');await expect(save).toBeDisabled();
+  await field.fill('45');await expect(save).toBeEnabled();
+  await keyboard(700);
+  await page.getByRole('button',{name:'Close dialog',exact:true}).click();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(page.getByLabel('Support height in cm')).toHaveValue('');
+  await page.getByRole('button',{name:'Close dialog',exact:true}).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(save).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button',{name:'Close dialog',exact:true})).toBeFocused();
+});
 
 async function simulateKeyboard(page: Page) {
   await page.addInitScript(() => {
@@ -54,8 +86,8 @@ test('active set fields clear the keyboard and rest dock after focus', async ({ 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const keyboard = await simulateKeyboard(page);
   await page.goto('/#programme');
-  await page.getByRole('tab', { name: 'Mon Upper A', exact: true }).click();
-  await page.getByRole('button', { name: 'Train this session today', exact: true }).click();
+  await page.getByRole('link', { name: 'Monday Upper A', exact: true }).click();
+  await page.getByRole('button', { name: 'Start workout', exact: true }).click();
   await page.getByLabel('Set 1 weight in kg').fill('12');
   await page.getByRole('button', { name: 'Log set 1', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Rest timer' })).toBeVisible();
@@ -80,8 +112,7 @@ test('active set fields clear the keyboard and rest dock after focus', async ({ 
   await expect(reps).toBeFocused();
 
   await page.getByRole('button', { name: 'Log set 2', exact: true }).click();
-  await page.locator('.logged-sets summary').click();
-  await page.getByRole('button', { name: 'Edit set 1', exact: true }).click();
+  await setAction(page,1,'Edit');
   const editedWeight = page.getByLabel('Set 1 weight in kg');
   await focus(editedWeight);
   await keyboard(350);

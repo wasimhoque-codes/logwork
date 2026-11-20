@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './fixture';
+import { openSetOptions, setAction, workoutResource, test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, currentAttempt, localDate, validateStore, reviewWeek, type Store } from '../../src/model';
 import { fixedWorkoutForDay } from '../../src/data';
 import fs from 'node:fs/promises';
@@ -7,7 +7,7 @@ import path from 'node:path';
 const go=async(page:Page,route:string)=>page.goto('/#'+route);
 function atWeek(week:number){const s=freshStore();s.programme.week=week;s.programme.attempts[0].week=week;return s;}
 async function seed(page:Page,store:unknown){await page.addInitScript(raw=>{if(!sessionStorage.getItem('seeded')){localStorage.setItem('gym-hawk-v4',raw);sessionStorage.setItem('seeded','yes');}},JSON.stringify(store));}
-async function startMonday(page:Page){await go(page,'programme');await page.getByRole('tab',{name:'Mon Upper A',exact:true}).click();await page.getByRole('button',{name:'Train this session today',exact:true}).click();await expect(page.getByRole('heading',{name:'Incline Dumbbell Press, Neutral Grip',exact:true})).toBeVisible();}
+async function startMonday(page:Page){await go(page,'programme');await page.getByRole('link', { name: 'Monday Upper A',exact:true}).click();await page.getByRole('button',{name:'Start workout',exact:true}).click();await expect(page.getByRole('heading',{name:'Incline Dumbbell Press, Neutral Grip',exact:true})).toBeVisible();}
 async function close(page:Page){await page.getByRole('dialog').getByRole('button',{name:/^(Close dialog|Back to previous screen)$/}).click();}
 async function jump(page:Page,name:string){await page.getByRole('button',{name:/Exercise \d of/}).click();await page.getByRole('dialog').getByRole('button',{name:new RegExp(name)}).click();}
 async function backup(page:Page){await go(page,'settings');const event=page.waitForEvent('download');await page.getByRole('button',{name:'Export backup',exact:true}).click();return JSON.parse(await fs.readFile((await(await event).path())!,'utf8')) as Store;}
@@ -32,8 +32,8 @@ test('Today shows the partial workout actually saved and keeps it on reload', as
   const card = page.getByRole('region', {name:'Today’s workout'});
   await expect(card.getByRole('heading', {name:'Upper A'})).toBeVisible();
   await go(page, 'programme');
-  await page.getByRole('tab', {name:'Tue Lower A'}).click();
-  await page.getByRole('button', {name:'Train this session today'}).click();
+  await page.getByRole('link', { name: 'Tuesday Lower A'}).click();
+  await page.getByRole('button', {name:'Start workout'}).click();
   await page.getByLabel('Set 1 weight in kg').fill('12');
   await page.getByRole('button', {name:'Log set 1', exact:true}).click();
   await save(page);
@@ -82,7 +82,8 @@ for (const preview of previews) {
       if (workout.optional) await expect(upcoming).toContainText('Optional');
     }
     await upcoming.click();
-    await expect(page.getByRole('tab', {name:preview.tab})).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('region', {name:'Session overview'})).toContainText(preview.tab.slice(4));
+    await expect(page).toHaveURL(/#programme\/(tuesday|wednesday|saturday|sunday)$/);
   });
 }
 
@@ -124,7 +125,7 @@ test('expired rest never logs a set or advances an exercise',async({page})=>{
   const s=atWeek(1);s.active=newSession(selectedWorkout(s,1)!,s);s.active.resume={exerciseIndex:2,restEnd:Date.now()-1000,restPaused:null};await seed(page,s);await go(page,'workout');await expect(page.getByRole('heading',{name:'Neutral-Grip Lat Pulldown',exact:true})).toBeVisible();await expect(page.getByRole('group',{name:'Rest timer'})).toHaveCount(0);const data=await backup(page);expect(data.active!.resume!.exerciseIndex).toBe(2);expect(data.active!.exercises.flatMap(e=>e.sets).some(set=>set.done)).toBe(false);
 });
 test('exercise jumping, editing and undo preserve unfinished sets',async({page})=>{
-  await startMonday(page);await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByText('All sets',{exact:false}).first().click();await page.getByRole('button',{name:'Edit set 1',exact:true}).click();await page.getByLabel('Set 1 weight in kg').fill('18');await page.getByRole('button',{name:'Cancel edit',exact:true}).click();await expect(page.locator('.logged-set').first()).toContainText('12 kg');await page.getByRole('button',{name:'Edit set 1',exact:true}).click();await page.getByLabel('Set 1 weight in kg').fill('14');await page.getByRole('button',{name:'Save set 1',exact:true}).click();await page.getByRole('button',{name:'Undo set 1',exact:true}).click();await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('14');await jump(page,'Pallof Press');await expect(page.getByRole('button',{name:'Review & finish',exact:true})).toBeVisible();const data=await backup(page);expect(data.active!.exercises[0].sets.every(set=>!set.done)).toBe(true);
+  await startMonday(page);await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await setAction(page,1,'Edit');await page.getByLabel('Set 1 weight in kg').fill('18');await page.getByRole('button',{name:'Cancel edit',exact:true}).click();await expect(page.locator('.logged-set').first()).toContainText('12 kg');await setAction(page,1,'Edit');await page.getByLabel('Set 1 weight in kg').fill('14');await page.getByRole('button',{name:'Save set 1',exact:true}).click();await setAction(page,1,'Undo');await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('14');await jump(page,'Pallof Press');await expect(page.getByRole('button',{name:'Review & finish',exact:true})).toBeVisible();const data=await backup(page);expect(data.active!.exercises[0].sets.every(set=>!set.done)).toBe(true);
 });
 test('adding and removing extras preserves the current set and edit drafts',async({page})=>{
   const s=atWeek(1);s.active=newSession(selectedWorkout(s,1)!,s);
@@ -134,18 +135,17 @@ test('adding and removing extras preserves the current set and edit drafts',asyn
   await page.getByRole('button',{name:'Add set',exact:true}).click();
   await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 3');
   await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('12');
-  await page.locator('.logged-sets summary').click();
-  await expect(page.locator('.logged-set').nth(2)).toContainText('Set 3 · Extra');
-  await page.getByRole('button',{name:'Edit set 3',exact:true}).click();
+  await expect(page.locator('.workout-set').nth(2)).toContainText('Set 3 · Extra');
+  await setAction(page,3,'Edit');
   await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('14');
   await expect(page.getByLabel('Set 3 reps',{exact:true})).toHaveValue('10');
   await page.getByLabel('Set 3 weight in kg').fill('19');
   await page.getByRole('button',{name:'Add set',exact:true}).click();
   await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('19');
-  await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Remove extra set 4',exact:true}).click();
+  await openSetOptions(page,3);await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toHaveCount(0);await close(page);
+  await setAction(page,4,'Remove extra');
   await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('19');
-  await page.getByRole('button',{name:'Remove extra set 3',exact:true}).click();
+  await setAction(page,3,'Remove extra');
   await expect(page.getByRole('group',{name:'Current working set'})).toContainText('Set 1 of 2');
   await expect(page.getByRole('group',{name:'Current working set'})).toBeFocused();
   await expect(page.getByRole('button',{name:/Remove extra set/})).toHaveCount(0);
@@ -167,10 +167,9 @@ test('extras survive offline reload, save, history editing and backup restore wi
   await context.setOffline(true);await page.reload();
   await expect(page.getByLabel('Set 3 weight in kg')).toHaveValue('12');
   await page.getByRole('button',{name:'Log set 3',exact:true}).click();
-  await page.locator('.logged-sets summary').click();
-  await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Undo set 3',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toBeVisible();
+  await openSetOptions(page,3);await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toHaveCount(0);await close(page);
+  await setAction(page,3,'Undo');
+  await openSetOptions(page,3);await expect(page.getByRole('button',{name:'Remove extra set 3',exact:true})).toBeVisible();await close(page);
   await page.getByRole('button',{name:'Log set 3',exact:true}).click();
   await save(page);await page.getByRole('button',{name:'View workout',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText((originalCount+1)+' sets');
@@ -192,8 +191,7 @@ test('the ten-set limit survives reload and removal re-enables adding',async({pa
   await expect(page.getByRole('button',{name:'Add set',exact:true})).toBeDisabled();
   await expect(page.getByText('10-set limit reached for this exercise.',{exact:true})).toBeVisible();
   await page.reload();await expect(page.getByRole('button',{name:'Add set',exact:true})).toBeDisabled();
-  await page.locator('.logged-sets summary').click();
-  await page.getByRole('button',{name:'Remove extra set 10',exact:true}).click();
+  await setAction(page,10,'Remove extra');
   await expect(page.getByRole('button',{name:'Add set',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Add set',exact:true}).click();
   const data=await backup(page);expect(data.active!.exercises[0].sets).toHaveLength(10);validateStore(data);
@@ -204,7 +202,7 @@ test('extra sets preserve pounds, assistance, bodyweight, timed and per-side log
   await seed(page,s);await go(page,'workout');
   await page.getByLabel('Set 1 assistance in lb').fill('44');await page.getByRole('button',{name:'Log set 1',exact:true}).click();
   await page.getByRole('button',{name:'Add set',exact:true}).click();
-  await page.locator('.logged-sets summary').click();await page.getByRole('button',{name:'Edit set 4',exact:true}).click();
+  await setAction(page,4,'Edit');
   await expect(page.getByLabel('Set 4 assistance in lb')).toHaveValue('44');await page.getByRole('button',{name:'Cancel edit',exact:true}).click();
   await jump(page,'Side Plank');await expect(page.getByText('Complete both sides, then log one set.',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Add set',exact:true}).click();
@@ -233,7 +231,7 @@ test('add-set controls and focus remain usable above the dock on narrow phones',
     expect(field!.y+field!.height).toBeLessThanOrEqual(restDock!.y);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
     await page.screenshot({path:testInfo.outputPath('extra-set-'+width+'.png')});
-    await page.locator('.logged-sets summary').click();await page.getByRole('button',{name:'Remove extra set 4',exact:true}).click();
+    await setAction(page,4,'Remove extra');
     await discard(page);
   }
 });
@@ -245,10 +243,10 @@ test('the final logged set offers review instead of a disabled next action',asyn
   const s=atWeek(1),log=savedWorkout(s);delete log.endedAt;log.exercises.at(-1)!.sets.at(-1)!.done=false;log.resume={exerciseIndex:6,restEnd:null,restPaused:null};s.active=log;await seed(page,s);await go(page,'workout');await page.getByRole('button',{name:'Log set 2',exact:true}).click();await expect(page.getByRole('group',{name:'Rest timer'})).toHaveCount(0);await page.getByRole('button',{name:'Review & finish',exact:true}).click();await expect(page.getByRole('heading',{name:'Ready to save',exact:true})).toBeVisible();await page.getByRole('button',{name:'Save workout',exact:true}).click();await expect(page.locator('.saved-summary').getByText('Week 1 · Complete',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Back to Today',exact:true}).click();await expect(page.locator('.daily-progress')).toContainText('1 workout logged');
 });
 test('another day’s programme never silently resumes the active session',async({page})=>{
-  await startMonday(page);await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('tab',{name:'Tue Lower A',exact:true}).click();await expect(page.getByRole('button',{name:'Train this session today',exact:true})).toBeDisabled();await expect(page.locator('.active-banner')).toContainText('Upper A is in progress');await page.getByRole('button',{name:'Resume Upper A',exact:true}).click();await expect(page.getByRole('heading',{name:'Incline Dumbbell Press, Neutral Grip',exact:true})).toBeVisible();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:'Today',exact:true}).click();await expect(page.getByRole('tablist',{name:'Weekly programme'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Resume Upper A',exact:true})).toBeVisible();
+  await startMonday(page);await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:'Back to programme'}).click();await page.getByRole('link', { name: 'Tuesday Lower A',exact:true}).click();await expect(page.getByRole('button',{name:'Start workout',exact:true})).toHaveCount(0);await expect(page.locator('.programme-active')).toContainText('Upper A is in progress');await page.getByRole('button',{name:'Resume Upper A',exact:true}).click();await expect(page.getByRole('heading',{name:'Incline Dumbbell Press, Neutral Grip',exact:true})).toBeVisible();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:'Today',exact:true}).click();await expect(page.getByRole('tablist',{name:'Weekly programme'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Resume Upper A',exact:true})).toBeVisible();
 });
 test('saved alternatives keep active and historical prescriptions intact',async({page})=>{
-  await seed(page,atWeek(5));await go(page,'programme');await page.getByRole('tab',{name:'Tue Lower A',exact:true}).click();await page.getByRole('button',{name:/Leg Press/}).click();await page.getByLabel('Exercise variation').selectOption('p16-belt-squat');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Train this session today'}).click();await page.getByLabel('Set 1 weight in kg').fill('20');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:/Belt Squat/}).click();await page.getByLabel('Exercise variation').selectOption('p16-leg-press');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Resume Lower A',exact:true}).click();await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();await save(page);await page.getByRole('button',{name:'View workout',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Belt Squat');await page.getByRole('button',{name:'Edit workout',exact:true}).click();await page.getByLabel('Belt Squat set 1 weight',{exact:true}).fill('22');await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(22);validateStore(data);
+  await seed(page,atWeek(5));await go(page,'programme');await page.getByRole('link', { name: 'Tuesday Lower A',exact:true}).click();await page.getByRole('button',{name:/Leg Press/}).click();await page.getByLabel('Exercise variation').selectOption('p16-belt-squat');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Start workout'}).click();await page.getByLabel('Set 1 weight in kg').fill('20');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await page.getByRole('button',{name:'Leave workout'}).click();await page.getByRole('button',{name:/Belt Squat/}).click();await page.getByLabel('Exercise variation').selectOption('p16-leg-press');await page.getByRole('button',{name:'Save exercise choice'}).click();await page.getByRole('button',{name:'Resume Lower A',exact:true}).click();await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();await save(page);await page.getByRole('button',{name:'View workout',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Belt Squat');await page.getByRole('button',{name:'Edit workout',exact:true}).click();await page.getByLabel('Belt Squat set 1 weight',{exact:true}).fill('22');await page.getByRole('button',{name:'Save changes',exact:true}).click();await close(page);const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(22);validateStore(data);
 });
 for (const week of [1, 2, 16]) test(`Week ${week} data can train the fixed schedule`, async ({ page }) => {
   const previous = atWeek(week);
@@ -258,11 +256,11 @@ for (const week of [1, 2, 16]) test(`Week ${week} data can train the fixed sched
   await go(page, 'today');
   await expect(page.locator('.weekly-card, .nav-programme, .review-ready')).toHaveCount(0);
   await go(page, 'programme');
-  await expect(page.locator('.programme-heading')).toHaveText('Weekly schedule');
-  await expect(page.getByRole('tablist', { name: 'Weekly programme' }).getByRole('tab')).toHaveCount(7);
+  await expect(page.locator('.programme-intro')).toContainText('YOUR WEEKLY SPLIT');
+  await expect(page.getByRole('list', { name: 'Weekly programme' }).getByRole('link')).toHaveCount(7);
   await expect(page.getByText('16-week roadmap')).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Sat Upper C' }).click();
-  await page.getByRole('button', { name: 'Train this session today' }).click();
+  await page.getByRole('link', { name: 'Saturday Upper C' }).click();
+  await page.getByRole('button', { name: 'Start workout' }).click();
   await expect(page.getByRole('heading', { name: 'Upper C', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Current working set' })).toContainText('Set 1 of 1');
   await discard(page);
@@ -279,21 +277,21 @@ for (const week of [1, 2, 16]) test(`Week ${week} data can train the fixed sched
 
 test('Upper C options apply without advancing the week', async ({ page }) => {
   await go(page, 'programme');
-  await page.getByRole('tab', { name: 'Sat Upper C' }).click();
+  await page.getByRole('link', { name: 'Saturday Upper C' }).click();
   await page.getByRole('button', { name: 'Upper C settings' }).click();
-  await page.getByRole('checkbox', { name: 'Use two sets per exercise' }).check();
-  await page.getByRole('combobox', { name: 'Saturday core skill' }).selectOption('dead-bug');
-  await page.getByRole('button', { name: 'Done' }).click();
-  await page.getByRole('button', { name: 'Train this session today' }).click();
+  await page.getByRole('radio', { name: /^Two sets/ }).check();
+  await page.getByRole('radio', { name: /^Dead Bug/ }).check();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await page.getByRole('button', { name: 'Start workout' }).click();
   await expect(page.getByRole('group', { name: 'Current working set' })).toContainText('Set 1 of 2');
   await jump(page, 'Dead Bug');
   await expect(page.getByRole('heading', { name: 'Dead Bug', exact: true })).toBeVisible();
 });
 test('optional knee raises require current-session confirmation and support dead bugs',async({page})=>{
-  const s=atWeek(9);s.programme.options.saturdayCore='knee-raise';await seed(page,s);await go(page,'programme');await page.getByRole('tab',{name:'Sat Upper C'}).click();await page.getByRole('button',{name:'Train this session today'}).click();await expect(page.getByRole('button',{name:'Start with knee raises'})).toBeDisabled();await page.getByRole('button',{name:'Use dead bugs this session'}).click();await jump(page,'Dead Bug');await expect(page.getByText('Complete both sides, then log one set.',{exact:true})).toBeVisible();await expect(page.locator('.bodyweight-load')).toContainText('Bodyweight');
+  const s=atWeek(9);s.programme.options.saturdayCore='knee-raise';await seed(page,s);await go(page,'programme');await page.getByRole('link', { name: 'Saturday Upper C'}).click();await page.getByRole('button',{name:'Start workout'}).click();await expect(page.getByRole('button',{name:'Start with knee raises'})).toBeDisabled();await page.getByRole('button',{name:'Use dead bugs this session'}).click();await jump(page,'Dead Bug');await expect(page.getByText('Complete both sides, then log one set.',{exact:true})).toBeVisible();await expect(page.getByRole('group',{name:'Current working set'}).getByText('Bodyweight',{exact:true})).toContainText('Bodyweight');
 });
 test('assistance and timed per-side sets retain their meaning',async({page})=>{
-  await seed(page,atWeek(9));await go(page,'programme');await page.getByRole('tab',{name:'Thu Upper B'}).click();await page.getByRole('button',{name:'Train this session today'}).click();await page.getByLabel('Set 1 assistance in kg').fill('35');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await jump(page,'Side Plank');await page.getByLabel('Set 1 seconds').fill('25');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await save(page);const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(35);expect(data.sessions[0].exercises[6].sets[0].reps).toBe(25);validateStore(data);
+  await seed(page,atWeek(9));await go(page,'programme');await page.getByRole('link', { name: 'Thursday Upper B'}).click();await page.getByRole('button',{name:'Start workout'}).click();await page.getByLabel('Set 1 assistance in kg').fill('35');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await jump(page,'Side Plank');await page.getByLabel('Set 1 seconds').fill('25');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await save(page);const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(35);expect(data.sessions[0].exercises[6].sets[0].reps).toBe(25);validateStore(data);
 });
 test('bodyweight remains available with replacement and no daily tracking',async({page})=>{
   await go(page,'today');await expect(page.getByRole('button',{name:/Daily check-in/})).toHaveCount(0);
@@ -315,8 +313,8 @@ for(const [date,day,week] of [['2026-11-04','Wed Active recovery',1],['2026-11-0
     await expect(activities).toHaveText('MobilityRunningWalking');await expect(activities.locator('button,input')).toHaveCount(0);
     await expect(page.getByRole('button',{name:/Log recovery|Start workout/})).toHaveCount(0);
     await page.getByText('Mobility guide',{exact:true}).click();await expect(page.getByText(/Half-kneeling hip flexor/)).toBeVisible();
-    await go(page,'programme');await page.getByRole('tab',{name:String(day),exact:true}).click();await expect(activities).toHaveText('MobilityRunningWalking');
-    await expect(page.getByRole('button',{name:/Log recovery|Train this session today/})).toHaveCount(0);
+    await go(page,'programme');await page.getByRole('link',{name:String(day).replace('Wed','Wednesday').replace('Sun Rest','Sunday Rest day'),exact:true}).click();await expect(activities).toHaveText('MobilityRunningWalking');
+    await expect(page.getByRole('button',{name:/Log recovery|Start workout/})).toHaveCount(0);
     expect((await backup(page)).recovery).toEqual([]);
   });
 }
@@ -390,7 +388,7 @@ test('a failed localStorage mirror retains old keys while IndexedDB saves bodywe
   await page.addInitScript(()=>{localStorage.setItem('gym-hawk-v3','old');const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='gym-hawk-v4')throw new DOMException('Quota','QuotaExceededError');return original.call(this,key,value);};});await go(page,'today');await expect(page.locator('.app-shell').getByRole('alert')).toHaveCount(0);await page.getByRole('button',{name:/Log bodyweight/}).click();await page.getByLabel('Bodyweight (kg)',{exact:true}).fill('61');await page.getByRole('button',{name:'Save bodyweight'}).click();await expect(page.locator('.app-shell').getByRole('alert')).toHaveCount(0);expect(await page.evaluate(()=>localStorage.getItem('gym-hawk-v3'))).toBe('old');const data=await backup(page);expect(data.body[0].kg).toBe(61);expect(data.daily).toEqual([]);
 });
 test('older version-4 active workouts restore to the first unfinished exercise',async({page})=>{
-  const s=atWeek(1);s.active=newSession(selectedWorkout(s,1)!,s);delete s.active.resume;s.active.exercises[0].sets.forEach(set=>Object.assign(set,{weight:12,done:true}));const raw=JSON.stringify(s);await seed(page,s);await go(page,'workout');await expect(page.getByRole('heading',{name:'Chest-Supported Machine Row',exact:true})).toBeVisible();expect(JSON.parse((await page.evaluate(()=>localStorage.getItem('gym-hawk-v4')))!)).toEqual(JSON.parse(raw));await page.getByRole('button',{name:'Warm-up',exact:true}).click();await page.getByRole('checkbox',{name:/Easy treadmill/}).check();await close(page);await page.reload();await page.getByRole('button',{name:'Warm-up',exact:true}).click();await expect(page.getByRole('checkbox',{name:/Easy treadmill/})).toBeChecked();
+  const s=atWeek(1);s.active=newSession(selectedWorkout(s,1)!,s);delete s.active.resume;s.active.exercises[0].sets.forEach(set=>Object.assign(set,{weight:12,done:true}));const raw=JSON.stringify(s);await seed(page,s);await go(page,'workout');await expect(page.getByRole('heading',{name:'Chest-Supported Machine Row',exact:true})).toBeVisible();expect(JSON.parse((await page.evaluate(()=>localStorage.getItem('gym-hawk-v4')))!)).toEqual(JSON.parse(raw));await workoutResource(page,'Warm-up');await page.getByRole('checkbox',{name:/Easy treadmill/}).check();await close(page);await page.reload();await workoutResource(page,'Warm-up');await expect(page.getByRole('checkbox',{name:/Easy treadmill/})).toBeChecked();
 });
 test('offline workout and bodyweight logging, reload and backup restore work',async({page,context})=>{
   await startMonday(page);await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise<void>(resolve=>navigator.serviceWorker.addEventListener('controllerchange',()=>resolve(),{once:true}));});await context.setOffline(true);await page.reload();await page.getByLabel('Set 1 weight in kg').fill('12');await page.getByRole('button',{name:'Log set 1',exact:true}).click();await save(page);await page.getByRole('button',{name:'Back to Today',exact:true}).click();await page.getByRole('button',{name:/Log bodyweight/}).click();await page.getByLabel('Bodyweight (kg)',{exact:true}).fill('61');await page.getByRole('button',{name:'Save bodyweight'}).click();const data=await backup(page);expect(data.sessions[0].exercises[0].sets[0].weight).toBe(12);expect(data.body[0].kg).toBe(61);expect(data.daily).toEqual([]);data.settings.name='Offline';await page.getByLabel('Import backup file').setInputFiles({name:'offline.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});await page.getByRole('button',{name:'Replace data and restore'}).click();await expect(page.getByRole('dialog')).toHaveCount(0);await page.reload();await expect(page.getByRole('textbox',{name:'What should we call you?'})).toHaveValue('Offline');
@@ -423,7 +421,7 @@ test('rest suggestions and Progress fit phone, tablet and desktop layouts',async
   for(const [width,height] of [[320,568],[390,844],[768,1000],[1440,1000]]) {
     await page.setViewportSize({width,height});
     for(const route of ['today','programme','progress']) {
-      await go(page,route);if(route==='programme')await page.getByRole('tab',{name:'Wed Active recovery',exact:true}).click();
+      await go(page,route);if(route==='programme')await page.getByRole('link', { name: 'Wednesday Active recovery',exact:true}).click();
       if(route==='progress')await expect(page.getByRole('heading',{name:'Volume & load',exact:true})).toBeVisible();
       else await expect(page.getByRole('list',{name:'Optional rest-day activities'})).toHaveText('MobilityRunningWalking');
       expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
@@ -448,7 +446,7 @@ test('exercise details show the last two logged sets for the selected variation'
   store.sessions = [older, newer, belt];
   await seed(page, store);
   await go(page, 'programme');
-  await page.getByRole('tab', { name:'Tue Lower A', exact:true }).click();
+  await page.getByRole('link', { name: 'Tuesday Lower A', exact:true }).click();
   await page.getByRole('button', { name:/Leg Press/ }).click();
 
   const details = page.getByRole('dialog');
@@ -467,7 +465,7 @@ test('recent sets label assistance and timed bodyweight in the exercise sheet', 
   store.sessions = [savedWorkout(store, 4)];
   await seed(page, store);
   await go(page, 'programme');
-  await page.getByRole('tab', { name:'Thu Upper B', exact:true }).click();
+  await page.getByRole('link', { name: 'Thursday Upper B', exact:true }).click();
   await page.getByRole('button', { name:/Assisted Pull-Ups/ }).click();
 
   const recent = page.getByRole('region', { name:'Last two logged sets' });

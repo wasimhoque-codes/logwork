@@ -11,7 +11,7 @@ function exportRecovered(store: Store, index: number) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function SyncPanel({persistence:p,actions=false,compact=false}:{persistence:ReturnType<typeof useTrainingStore>;actions?:boolean;compact?:boolean}) {
+export function SyncPanel({persistence:p,actions=false,compact=false,workout=false}:{persistence:ReturnType<typeof useTrainingStore>;actions?:boolean;compact?:boolean;workout?:boolean}) {
   const [cloudSession,setCloudSession]=useState<{signedIn:boolean;localDevelopment:boolean}>();
   const [signingOut,setSigningOut]=useState(false);
   const [authMessage,setAuthMessage]=useState('');
@@ -75,11 +75,12 @@ export function SyncPanel({persistence:p,actions=false,compact=false}:{persisten
     if(process.env.NODE_ENV!=='production'||!('serviceWorker' in navigator))return;
     void navigator.serviceWorker.register('/sw.js').catch(()=>{});
   },[]);
+  const workoutLabels={...labels,local:'Saved · pending sync',signin:'Saved · sign in to sync'};
   const signedOut=needsSignIn||cloudSession?.signedIn===false;
   if(compact&&(p.status==='synced'||p.status==='syncing'))return null;
   return <>
     <div className="sync-strip">
-      <span aria-live="polite" title={p.syncError}>{labels[p.status]}</span>
+      <span aria-live="polite" title={p.syncError||labels[p.status]} aria-label={labels[p.status]}>{workout?workoutLabels[p.status]:labels[p.status]}</span>
       {actions&&signedOut&&<a href="/api/auth/github/start" className="text-button">Sign in with GitHub</a>}
       {actions&&p.status==='update'&&<button className="text-button" onClick={()=>window.location.reload()}>Reload Gym Hawk</button>}
       {actions&&cloudSession?.signedIn&&!cloudSession.localDevelopment&&!needsSignIn&&

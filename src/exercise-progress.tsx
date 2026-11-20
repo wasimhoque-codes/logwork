@@ -1,11 +1,13 @@
 import { ExerciseIcon } from './exercise-icon';
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { Unit } from './data';
-import { ChevronLeft, ChevronRight, Search, Dumbbell } from './icons';
+import { ChevronLeft, ChevronRight, Search, Dumbbell, Settings2 } from './icons';
 import { compareTrainingDates, dateLabel, fromKg, number, type Session, type Store } from './model';
-import { exerciseChange, exerciseObservation, exerciseVolume, movementDays, movementSeries, movementSummary, type ExerciseChartMetric, type ExerciseObservation, type MovementDay, type MovementSeries } from './progress-data';
-import { fullDate, MovementChart, movementMeasure, recentMovementChange, directoryChange, setLabel, setupLabel } from './progress-charts';
+import { exerciseObservation, exerciseVolume, movementDays, movementSeries, movementSummary, type ExerciseChartMetric, type ExerciseObservation, type MovementDay, type MovementSeries } from './progress-data';
+import { fullDate, MovementChart, movementMeasure, setLabel, setupLabel } from './progress-charts';
 import { useContentFade } from './motion';
+import { Modal } from './components';
+import { LiftComparison, LiftSparkline } from './progress-ui';
 
 export type ExerciseTrendSelection = { date: string; range: 'recent' | 'all'; metric: ExerciseChartMetric; load?: number };
 
@@ -15,25 +17,26 @@ const bestLabel = (s: MovementSeries) => s.exercise.timed ? 'Longest hold' : s.m
 function ComparisonHelp() {
   return <details className="progress-method">
     <summary>How comparisons work</summary>
-    <p>Each date shows one set from the saved workouts for this exact exercise variation. Directory changes compare with the previous logged date.</p>
+    <p>Each date shows one set from the saved workouts for this exact exercise variation. Rep and hold comparisons use the nearest earlier date with a set at the same load or assistance. Bodyweight sets compare reps without load.</p>
+    <p>When the load changes and there is no earlier matching set, both performances are shown without an improvement claim. Less assistance is highlighted only when reps are maintained or increased.</p>
     <p>For loaded exercises, the chart uses the heaviest set. For assisted exercises, it uses the least assistance. When load or assistance ties, it uses the set with more reps. Bodyweight exercises use most reps and timed exercises use the longest hold.</p>
     <p>Volume adds up external load × reps. Per-hand and per-side values are recorded as entered. Estimated 1RM uses the highest estimate from sets of 1–12 reps on each date.</p>
   </details>;
 }
 
 function ExerciseMetrics({ series, days, unit }: { series: MovementSeries; days: MovementDay[]; unit: Unit }) {
+  const id = useId();
   const { best } = movementSummary(series);
   const first = days[0].best;
   const latest = days.at(-1)!.best;
-  return <details className="comparison-help exercise-comparisons">
-    <summary>Compare with earlier workouts</summary>
+  return <section className="exercise-comparisons" aria-labelledby={id}>
+    <div className="progress-section-heading"><div><p className="progress-kicker">The bigger picture</p><h2 id={id}>Your benchmarks</h2><p>Across all recorded dates for this variation.</p></div></div>
     <dl className="exercise-metrics">
-      <div><dt>First recorded date</dt><dd>{setLabel(first, unit)}</dd></div>
-      <div><dt>{bestLabel(series)}</dt><dd>{setLabel(best, unit)}</dd></div>
-      <div><dt>Latest recorded date</dt><dd>{setLabel(latest,unit)}</dd></div>
-      <div><dt>Since first</dt><dd>{days.length > 1 ? recentMovementChange(series, first, latest, unit) : '—'}</dd></div>
+      <div><dt>First recorded date</dt><dd>{setLabel(first, unit)}</dd><small>{fullDate(days[0].date)}</small></div>
+      <div><dt>{bestLabel(series)}</dt><dd>{setLabel(best, unit)}</dd><small>{fullDate(best.session.date)}</small></div>
+      <div><dt>Latest recorded date</dt><dd>{setLabel(latest, unit)}</dd><small>{fullDate(days.at(-1)!.date)}</small></div>
     </dl>
-  </details>;
+  </section>;
 }
 function tileSetupLabel(series: MovementSeries, catalogue: MovementSeries[]) {
   const ex = series.exercise;
@@ -47,6 +50,8 @@ export function ExerciseGrid({ store, state, onState, onOpen, onStart }: {
 }) {
   const series = useMemo(() => movementSeries(store.sessions), [store.sessions]);
   const groups = [...new Set(series.map(item=>item.exercise.muscle))].sort();
+  const [draft, setDraft] = useState<ExerciseGridState>();
+  const filterCount = Number(state.filter !== 'all') + Number(state.role !== 'all') + Number(state.sort !== 'recent');
   const query = state.query.trim().toLocaleLowerCase();
   const visible = series.filter(s => (state.filter === 'all' || s.exercise.muscle === state.filter)
     && (state.role === 'all' || s.exercise.role === state.role)
@@ -55,24 +60,18 @@ export function ExerciseGrid({ store, state, onState, onOpen, onStart }: {
     ||a.exercise.name.localeCompare(b.exercise.name)||a.key.localeCompare(b.key));
   const change = (patch: Partial<ExerciseGridState>) => onState({ ...state, ...patch, focusKey: undefined });
   return <div className="exercise-dashboard">
-    <div className="exercise-page-heading"><h2>Exercise progress</h2></div>
+    <div className="progress-section-heading"><div><p className="progress-kicker">One lift at a time</p><h2>Exercise progress</h2><p>Find a lift. See how it’s changing.</p></div></div>
     {!series.length ? <div className="dashboard-empty"><span className="snapshot-icon"><Dumbbell size={22}/></span><h3>Your exercise progress starts here</h3><p>Save a workout with logged sets to see your exercises here.</p><button className="primary" onClick={onStart}>Explore programme</button></div> : <>
-      <label className="exercise-search"><Search size={18}/><span className="sr-only">Search exercises</span><input type="search" value={state.query} placeholder="Search exercises" onChange={event => change({query:event.target.value})}/></label>
-      <div className="directory-controls exercise-directory-controls">
-        <select aria-label="Muscle group" value={state.filter} onChange={event=>change({filter:event.target.value})}>
-          <option value="all">Muscle</option>{groups.map(group=><option key={group}>{group}</option>)}
-        </select>
-        <select aria-label="Sort exercises" value={state.sort} onChange={event=>change({sort:event.target.value as ExerciseGridState['sort']})}>
-          <option value="recent">Recent</option><option value="alphabetical">A–Z</option>
-        </select>
-        <select aria-label="Exercise role" value={state.role} onChange={event=>change({role:event.target.value})}>
-          <option value="all">Role</option><option value="main">Main</option><option value="accessory">Accessory</option><option value="core">Core</option>
-        </select>
-      </div>
+      <div className="progress-directory-toolbar"><label className="exercise-search"><Search size={18}/><span className="sr-only">Search exercises</span><input type="search" value={state.query} placeholder="Search exercises" onChange={event => change({query:event.target.value})}/></label>
+        <button className="secondary" onClick={() => setDraft(state)}><Settings2 size={17}/>Filters{filterCount > 0 ? ` (${filterCount})` : ''}</button></div>
+      {filterCount > 0 && <div className="history-chips" aria-label="Active exercise filters">
+        {state.filter !== 'all' && <button className="small-button" aria-label={`Remove muscle filter ${state.filter}`} onClick={() => change({filter:'all'})}>{state.filter} ×</button>}
+        {state.role !== 'all' && <button className="small-button" aria-label={`Remove role filter ${state.role}`} onClick={() => change({role:'all'})}>{state.role === 'main' ? 'Main' : state.role === 'core' ? 'Core' : 'Accessory'} ×</button>}
+        {state.sort !== 'recent' && <button className="small-button" aria-label="Reset sort to recent" onClick={() => change({sort:'recent'})}>A–Z ×</button>}
+      </div>}
       <p className="exercise-result-count" role="status">{visible.length} of {series.length} exercises</p>
       <div className="exercise-directory">{visible.map((s,index) => {
-        const delta = exerciseChange(s);
-        const latest = delta.latest;
+        const latest = movementDays(s).at(-1)!.best;
         const setup = tileSetupLabel(s, series);
         return <article className="exercise-tile" key={s.key}>
           <button type="button" className="exercise-directory-row" data-exercise-key={s.key}
@@ -81,13 +80,22 @@ export function ExerciseGrid({ store, state, onState, onOpen, onStart }: {
             onClick={() => { onState({ ...state, focusKey: s.key }); onOpen(s.key); }}>
             <span className="directory-exercise"><ExerciseIcon exercise={s.exercise}/><span className="directory-name"><strong>{s.exercise.name}</strong><small>{[dateLabel(latest.session.date),setup].filter(Boolean).join(' · ')}</small></span></span>
             <span className="directory-result" id={`exercise-summary-${index}`}><strong>{setLabel(latest,store.settings.unit)}</strong>
-              <small className="exercise-tile-change">{directoryChange(s,delta,store.settings.unit) || (!delta.previous?'1 recorded date':'')}</small></span>
-            <ChevronRight size={17} aria-hidden="true"/>
+              <LiftComparison series={s} unit={store.settings.unit}/></span>
+            <LiftSparkline series={s}/>
           </button>
         </article>;
       })}</div>
       {!visible.length && <div className="dashboard-empty"><h3>No matching exercises</h3><button className="text-button" onClick={() => change({query:'',filter:'all',role:'all'})}>Clear filters</button></div>}
     </>}
+    {draft && <Modal portal variant="sheet" title="Filter exercises" onClose={() => setDraft(undefined)}>
+      <form className="history-filter-form" onSubmit={event => { event.preventDefault(); onState({...state, filter:draft.filter, role:draft.role, sort:draft.sort, focusKey:undefined}); setDraft(undefined); }}>
+        <label>Muscle group<select aria-label="Muscle group" value={draft.filter} onChange={event => setDraft({...draft, filter:event.target.value})}><option value="all">All muscles</option>{groups.map(group => <option key={group}>{group}</option>)}</select></label>
+        <label>Exercise role<select aria-label="Exercise role" value={draft.role} onChange={event => setDraft({...draft, role:event.target.value})}><option value="all">All roles</option><option value="main">Main</option><option value="accessory">Accessory</option><option value="core">Core</option></select></label>
+        <label>Sort exercises<select aria-label="Sort exercises" value={draft.sort} onChange={event => setDraft({...draft, sort:event.target.value as ExerciseGridState['sort']})}><option value="recent">Most recently trained</option><option value="alphabetical">A–Z</option></select></label>
+        <button type="submit" className="primary">Apply filters</button>
+        <button type="button" className="text-button" onClick={() => setDraft({...draft, filter:'all', role:'all', sort:'recent'})}>Reset filters</button>
+      </form>
+    </Modal>}
   </div>;
 }
 function SelectedWorkout({ day, unit, index, count, onSelect, observation, metric, onWorkout }: {
@@ -174,6 +182,11 @@ function ExerciseTrend({ series, unit, initialDate, initialTrend, onWorkout }: {
 
   return <>
     <section className="journey-chart-card exercise-trend" aria-label="Exercise trend">
+      <div className="exercise-latest" role="status">
+        <span>{fullDate(visible[index].date)} · {metric==='estimate'?'Estimated 1RM':metric==='reps'?`Reps at selected ${loadLabel.toLowerCase()}`:movementMeasure(series,unit).split(' · ')[0]}</span>
+        <strong>{selected ? metric==='estimate'?`${number(fromKg(selected.value,unit))} ${unit}`:setLabel(selected.record,unit):'No eligible set'}</strong>
+        {earlier&&<small>Previous comparable date · {fullDate(earlier.day.date)} · {metric==='estimate'?`${number(fromKg(earlier.observation.value,unit))} ${unit}`:setLabel(earlier.observation.record,unit)}</small>}
+      </div>
       {(loadMetric||days.length>5)&&<div className="exercise-chart-controls">
         {loadMetric&&<>
         <label>Metric<select value={metric} onChange={event=>setMetric(event.target.value as ExerciseChartMetric)}>
@@ -188,19 +201,14 @@ function ExerciseTrend({ series, unit, initialDate, initialTrend, onWorkout }: {
           <option value="recent">Latest five</option><option value="all">All history</option>
         </select></label>}
       </div>}
-      <div className="exercise-latest" role="status">
-        <span>{fullDate(visible[index].date)} · {metric==='estimate'?'Estimated 1RM':metric==='reps'?`Reps at selected ${loadLabel.toLowerCase()}`:movementMeasure(series,unit).split(' · ')[0]}</span>
-        <strong>{selected ? metric==='estimate'?`${number(fromKg(selected.value,unit))} ${unit}`:setLabel(selected.record,unit):'No eligible set'}</strong>
-        {earlier&&<small>Previous comparable date · {fullDate(earlier.day.date)} · {metric==='estimate'?`${number(fromKg(earlier.observation.value,unit))} ${unit}`:setLabel(earlier.observation.record,unit)}</small>}
-      </div>
       <p className="exercise-trend-measure">
         <span>{metric==='estimate'?'Estimated 1RM · '+unit:metric==='reps'?'Best reps at selected '+loadLabel.toLowerCase():movementMeasure(series,unit)}</span>
         <span>{visible.length} {visible.length === 1 ? 'date' : 'dates'}</span>
       </p>
       <MovementChart series={series} days={visible} unit={unit} selected={index} onSelect={onSelect} metric={metric}
         observations={metric==='top'?undefined:observations}/>
-      <SelectedWorkout day={visible[index]} unit={unit} index={index} count={visible.length} onSelect={onSelect} metric={metric} observation={observations[index]} onWorkout={session=>onWorkout(session,{date:visible[index].date,range,metric,load})}/>
     </section>
+      <SelectedWorkout day={visible[index]} unit={unit} index={index} count={visible.length} onSelect={onSelect} metric={metric} observation={observations[index]} onWorkout={session=>onWorkout(session,{date:visible[index].date,range,metric,load})}/>
     <ExerciseMetrics series={series} days={days} unit={unit}/>
   </>;
 }

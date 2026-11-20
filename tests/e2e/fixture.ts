@@ -16,3 +16,18 @@ export async function replaceLocal(page:import('@playwright/test').Page,store:un
     db.close();localStorage.setItem('gym-hawk-v4',JSON.stringify(value));
   },store);
 }
+
+// Set actions are available from each always-visible row.
+export async function openSetOptions(page:import('@playwright/test').Page,index:number) {
+  await page.getByRole('button',{name:`Options for set ${index}`,exact:true}).click();
+  return page.getByRole('dialog',{name:`Set ${index} options`,exact:true});
+}
+export async function setAction(page:import('@playwright/test').Page,index:number,action:'Edit'|'Undo'|'Remove extra'|'Skip') {
+  const menu=await openSetOptions(page,index);
+  await menu.getByRole('button',{name:action==='Skip'?'Skip set':`${action} set ${index}`,exact:true}).click();
+  await base.expect(menu).toHaveCount(0);
+}
+export async function workoutResource(page:import('@playwright/test').Page,name:'Warm-up'|'Training guide') {
+  await page.getByRole('button',{name:'More exercise options',exact:true}).click();
+  await page.getByRole('dialog',{name:'Exercise options'}).getByRole('button',{name,exact:true}).click();
+}

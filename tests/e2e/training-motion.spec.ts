@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './fixture';
+import { workoutResource, expect, test, type Page } from './fixture';
 import { fixedWorkoutForDay } from '../../src/data';
 import { freshStore, newSession } from '../../src/model';
 
@@ -48,7 +48,7 @@ test('a successful save plays its treatment once and hands off to Today', async 
 test('technique demos are available on demand with different angles and static poses', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await open(page, 'programme');
-  await page.getByRole('tab', { name: 'Mon Upper A' }).click();
+  await page.getByRole('link', { name: 'Monday Upper A' }).click();
   await page.getByRole('button', { name: /Incline Push-Ups/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.locator('canvas')).toHaveCount(0);
@@ -63,14 +63,14 @@ test('technique demos are available on demand with different angles and static p
   await expect(canvas).toHaveAttribute('aria-label', /front view/);
   await page.keyboard.press('Escape');
 
-  await page.getByRole('button', { name: 'Train this session today' }).click();
+  await page.getByRole('button', { name: 'Start workout' }).click();
   await page.getByRole('button', { name: /Exercise 1 of/ }).click();
   await dialog.getByRole('button', { name: /Incline Push-Ups/ }).click();
   await page.getByRole('button', { name: 'More exercise options' }).click();
   await expect(dialog.getByText('Watch incline push-up demo', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
 
-  await page.getByRole('button', { name: 'Warm-up', exact: true }).click();
+  await workoutResource(page,'Warm-up');
   await dialog.getByText('Mobility technique', { exact: true }).click();
   await dialog.getByText('Watch 90/90 hip switches demo', { exact: true }).click();
   await expect(dialog.getByRole('img', { name: /90\/90 hip switches/ })).toBeVisible();
@@ -81,7 +81,7 @@ test('technique demos are available on demand with different angles and static p
 test('muscle selection changes the figure view and history closes back into the same row', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await open(page, 'progress', true);
-  await page.getByRole('button', { name: 'Training volume', exact: true }).click();
+  await page.getByRole('button', { name: 'Explore training volume', exact: true }).click();
   const rows = page.locator('.muscle-rows');
   await rows.getByRole('button', { name: /^Chest / }).click();
   await expect(page.locator('.muscle-model [role=status]')).toHaveText('Chest · Front view');

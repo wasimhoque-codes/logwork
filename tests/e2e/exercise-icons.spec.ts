@@ -16,22 +16,22 @@ test('exercise emblems follow variants, logging, saved details and progress', as
     }
   }, JSON.stringify(store));
   await page.goto('/#programme');
-  await page.getByRole('tab', { name: 'Mon Upper A', exact: true }).click();
-  const rows = page.locator('.exercise-row');
+  await page.getByRole('link', { name: 'Monday Upper A', exact: true }).click();
+  const rows = page.locator('.programme-exercise');
   await expect(rows.locator('.exercise-emblem')).toHaveCount(7);
-  await expect(rows.first().locator('.row-number')).toHaveText('1');
+  await expect(rows.first().locator('.programme-exercise-number')).toHaveText('01');
   await rows.filter({ hasText: 'Incline Push-Ups' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Exercise variation').selectOption('p16-feet-pushup');
   await expect(dialog.locator('.exercise-emblem')).toHaveAttribute('data-exercise-icon', 'p16-feet-pushup');
   await dialog.getByRole('button', { name: 'Save exercise choice' }).click();
   await expect(rows.locator('[data-exercise-icon="p16-feet-pushup"]')).toBeVisible();
-  await page.getByRole('button', { name: 'Train this session today' }).click();
-  await expect(page.locator('.exercise-heading .exercise-emblem')).toHaveAttribute('aria-hidden', 'true');
+  await page.getByRole('button', { name: 'Start workout' }).click();
+  await expect(page.locator('.workout-exercise-heading .exercise-emblem')).toHaveAttribute('aria-hidden', 'true');
   await page.getByRole('button', { name: /Exercise \d of/ }).click();
   await expect(dialog.locator('.exercise-emblem')).toHaveCount(7);
   await dialog.getByRole('button', { name: /Feet-Elevated Push-Ups/ }).click();
-  await expect(page.locator('.exercise-heading .exercise-emblem')).toHaveAttribute('data-exercise-icon', 'p16-feet-pushup');
+  await expect(page.locator('.workout-exercise-heading .exercise-emblem')).toHaveAttribute('data-exercise-icon', 'p16-feet-pushup');
   await page.getByRole('button', { name: 'Log set 1', exact: true }).click();
   await page.getByRole('button', { name: 'Review and finish workout', exact: true }).click();
   await page.locator('.review-summary summary').click();

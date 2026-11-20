@@ -54,8 +54,8 @@ test('Workers D1 syncs devices, keeps the latest offline edits and resumes after
     await pageB.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Today'}).click();
     await a.setOffline(true);
     await pageA.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Programme'}).click();
-    await pageA.getByRole('tab',{name:'Sat Upper C'}).click();
-    await pageA.getByRole('button',{name:'Train this session today'}).click();
+    await pageA.getByRole('link', { name: 'Saturday Upper C'}).click();
+    await pageA.getByRole('button',{name:'Start workout'}).click();
     await pageA.getByRole('button',{name:'Log set 1',exact:true}).click();
     await pageA.getByRole('button',{name:'Review and finish workout'}).click();
     await pageA.getByRole('button',{name:'Save workout'}).click();

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './fixture';
+import { setAction, test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, addSessionSet, localDate, number, fromKg, type Store } from '../../src/model';
 
 function fixture(day=1,count=6) {
@@ -44,7 +44,7 @@ test('compact history shows five dated sessions, preserves input and edit drafts
   await page.keyboard.press('Escape');await expect(history(page)).toBeFocused();expect(await raw(page)).toBe(before);
   await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('18');await expect(page.getByLabel('Set 1 reps',{exact:true})).toHaveValue('10');
   await page.getByRole('button',{name:'Log set 1',exact:true}).click();
-  await page.locator('.logged-sets summary').click();await page.getByRole('button',{name:'Edit set 1',exact:true}).click();await page.getByLabel('Set 1 weight in kg').fill('22');
+  await setAction(page,1,'Edit');await page.getByLabel('Set 1 weight in kg').fill('22');
   const timer=page.getByRole('group',{name:'Rest timer'});
   const remainingSeconds=async()=>{
     const [minutes,seconds]=(await timer.locator('strong').innerText()).split(':').map(Number);
@@ -80,7 +80,7 @@ test('history respects pounds, assistance, bodyweight and timed per-side snapsho
   for(const index of [3,6]) {
     await jump(page,store.active!.exercises[index].name);await history(page).click();
     if(index===6){await expect(sheet(page)).toContainText('Bodyweight');await expect(sheet(page)).toContainText('sec / side');await expect(sheet(page)).not.toContainText('lb');}
-    else {await expect(sheet(page)).toContainText('lb assistance');await expect(sheet(page)).toContainText('reps');}
+    else {const mode=store.sessions[0].exercises[index].mode;await expect(sheet(page)).toContainText(`${number(fromKg(21,'lb'))} lb${mode==='assistance'?' assistance':''}`);await expect(sheet(page)).toContainText('reps');}
     await close(page);
   }
 });

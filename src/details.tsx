@@ -116,8 +116,9 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
         setError('');
     }
     return <Modal variant="page" title={w.name} onClose={onClose} dismissDisabled={saving} expandFromHistory={expandFromHistory} wide>
+        <div className="saved-workout-detail" data-editing={editing}>
         <div className="detail-subtitle"><span>{dateLabel(draft.date||session.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span><span className="unit-badge">{label && label + ' · '}{completeSession(draft) ? 'Complete' : 'Partial'}</span></div>
-        <div className="summary-pills"><span><CheckCheck size={15}/>{doneSets(draft)} sets</span>{loadedVolume>0&&<span><Layers size={15}/>{number(fromKg(loadedVolume,unit),0)} {unit} × reps</span>}{minutes>0&&<span><Clock3 size={15}/>{minutes} min elapsed</span>}</div>
+        <dl className="saved-workout-stats"><div><dt><CheckCheck size={16}/>Logged sets</dt><dd>{doneSets(draft)}</dd></div>{loadedVolume>0&&<div><dt><Layers size={16}/>External-load volume</dt><dd>{number(fromKg(loadedVolume,unit),0)}<small>{unit} × reps</small></dd></div>}{minutes>0&&<div><dt><Clock3 size={16}/>Elapsed time</dt><dd>{minutes}<small>min</small></dd></div>}</dl>
         {!editing&&<div className="history-edit-actions">
             <button className="secondary" onClick={()=>setEditing(true)}><NotebookPen size={16}/>Edit workout</button>
         </div>}
@@ -125,6 +126,7 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
             <input ref={dateRef} className="text-input" type="date" min="1900-01-01" max={localDate()} value={draft.date}
               disabled={saving} onChange={event=>{setDraft(value=>({...value,date:event.target.value}));setError('');}}/>
         </label>}
+        <div className="progress-section-heading"><div><h2>{editing ? 'Edit logged exercises' : 'Logged exercises'}</h2>{!editing && <p>Tap an exercise name to explore its progress.</p>}</div></div>
         <div className="session-detail-list" inert={saving} ref={listRef}>{draft.exercises.map((e, ei) => {
             const skipped=skippedSets(draft,ei);
             if (!editing && !e.sets.some(s => s.done) && !e.note&&!skipped.length) return null;
@@ -171,5 +173,6 @@ export function SessionDetail({ session, unit, onClose, onSave, onDelete, expand
             {confirmDelete ? <div className="delete-confirm"><p>Delete this workout and all of its logged sets?</p>{error&&<p className="form-error" role="alert">{error}</p>}<button className="danger" disabled={saving} onClick={()=>void deleteWorkout()}>Delete workout</button><button className="secondary" disabled={saving} onClick={()=>{setConfirmDelete(false);setError('');}}>Keep it</button></div>
                 : <button className="text-button danger-text" onClick={()=>setConfirmDelete(true)}><Trash2 size={18}/>Delete workout…</button>}
         </details>}
+        </div>
     </Modal>;
 }

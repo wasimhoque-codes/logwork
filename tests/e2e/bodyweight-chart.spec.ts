@@ -20,7 +20,7 @@ async function settled(page: Page) {
 
 test('Progress overview and detail retain every weigh-in within one week, with rolling averages and selectable readings', async ({ page }) => {
   const store = fixture(); await seed(page, store);
-  for (const route of ['progress', 'progress/bodyweight']) {
+  for (const route of ['progress/bodyweight']) {
     await page.goto('/#' + route);
     await expect(chart(page).locator('.body-weigh-in')).toHaveCount(5);
     await expect(chart(page).locator('.body-average-line')).toHaveCount(1);
@@ -34,7 +34,7 @@ test('Progress overview and detail retain every weigh-in within one week, with r
   }
   await page.reload();
   await expect(page.getByLabel('Weekly date range')).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Weekly bodyweight summaries' }).locator('div')).toHaveCount(1);
+  await page.getByText('Weekly summaries', {exact:true}).click(); await expect(page.getByRole('region', { name: 'Weekly bodyweight summaries' }).locator('div')).toHaveCount(1);
   expect((await data(page)).body).toEqual(store.body);
 });
 
@@ -91,7 +91,7 @@ test('replacement, deletion, offline reload, units and backups preserve chart da
   await page.goto('/#progress/bodyweight'); await expect(chart(page).locator('.body-chart-latest')).toContainText('70.6 kg');
   await page.getByRole('button', { name: 'Delete bodyweight for 2026-10-30', exact: true }).click(); await page.getByRole('button', { name: 'Delete entry', exact: true }).click();
   await expect(chart(page).locator('.body-weigh-in')).toHaveCount(4); await expect(chart(page).locator('.body-chart-latest')).toContainText('70.3 kg');
-  await page.goto('/#progress'); await expect(chart(page).locator('.body-weigh-in')).toHaveCount(4);
+  await page.goto('/#progress'); await expect(page.locator('.body-summary-value')).toContainText('70.3 kg');
 });
 
 test('Today hero text and bodyweight chart marks retain readable contrast', async ({ page }) => {
@@ -125,7 +125,7 @@ for (const [width, height] of [[320, 568], [390, 844], [768, 1000], [1440, 1000]
     const store = fixture(); store.body = Array.from({ length: 35 }, (_, index) => ({ id: 'weight-' + index, date: localDate(new Date(Date.UTC(2026, 8, 26 + index))), kg: Math.round((69.5 + index * .025 + [0, .18, -.12, .09, -.08][index % 5]) * 100) / 100 }));
     await seed(page, store); await page.goto('/#progress'); await settled(page);
     const directory = path.resolve('artifacts/sky-blue'); await fs.mkdir(directory, { recursive: true });
-    await page.locator('.body-trend').screenshot({ path: path.join(directory, `bodyweight-overview-${width}.png`), style: '.bottom-nav{visibility:hidden}' });
+    await page.locator('.body-summary').screenshot({ path: path.join(directory, `bodyweight-overview-${width}.png`), style: '.bottom-nav{visibility:hidden}' });
     await page.goto('/#progress/bodyweight'); await settled(page);
     await page.screenshot({ path: path.join(directory, `bodyweight-detail-${width}.png`) });
     await page.locator('.bodyweight-panel').screenshot({ path: path.join(directory, `bodyweight-chart-${width}.png`), style: '.bottom-nav{visibility:hidden}' });

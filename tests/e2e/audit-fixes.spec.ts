@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './fixture';
+import { setAction, workoutResource, test, expect, type Page } from './fixture';
 import { freshStore, localDate, newSession, validateStore } from '../../src/model';
 import { fixedWorkoutForDay } from '../../src/data';
 import fs from 'node:fs/promises';
@@ -60,12 +60,12 @@ test('set logging waits for the local transaction and retries without advancing'
 test('carry warm-up, substitute one exercise, skip a set, and edit the saved backdated workout',async({page})=>{
   await page.clock.setFixedTime(day);
   await page.goto('/#programme');
-  await page.getByText('Preparation & guidance',{exact:true}).click();
-  await page.getByRole('button',{name:'Warm-up',exact:true}).click();
+  await page.getByRole('link',{name:'Tuesday Lower A'}).click();
+  await page.getByRole('button',{name:/First, find your rhythm/}).click();
   await page.getByRole('dialog').getByRole('checkbox').first().check();
   await close(page);
-  await page.getByRole('button',{name:'Train this session today'}).click();
-  await page.getByRole('button',{name:'Warm-up',exact:true}).click();
+  await page.getByRole('button',{name:'Start workout'}).click();
+  await workoutResource(page,'Warm-up');
   await expect(page.getByRole('dialog').getByRole('checkbox').first()).toBeChecked();
   await close(page);
   await page.getByRole('button',{name:'More exercise options'}).click();
@@ -76,7 +76,7 @@ test('carry warm-up, substitute one exercise, skip a set, and edit the saved bac
   await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading',{name:'Belt Squat',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Skip set',exact:true}).click();
+  await setAction(page,1,'Skip');
   await page.getByRole('spinbutton',{name:'Set 2 weight in kg'}).fill('30');
   await page.getByRole('button',{name:'Log set 2',exact:true}).click();
   await page.getByRole('button',{name:'Review and finish workout'}).click();
@@ -156,8 +156,8 @@ test('edit a weigh-in and use manual rest and a separate timed hold',async({page
   await expect(page.getByRole('button',{name:'Edit bodyweight for 2026-11-15'})).toHaveCount(0);
   await page.getByRole('button',{name:'Go back',exact:true}).click();
   await page.getByRole('button',{name:'Programme',exact:true}).click();
-  await page.getByRole('tab',{name:'Thu Upper B'}).click();
-  await page.getByRole('button',{name:'Train this session today'}).click();
+  await page.getByRole('link', { name: 'Thursday Upper B'}).click();
+  await page.getByRole('button',{name:'Start workout'}).click();
   await page.getByRole('button',{name:'Start rest'}).click();
   await expect(page.getByRole('group',{name:'Rest timer'})).toBeVisible();
   await page.getByRole('button',{name:/Exercise 1 of/}).click();

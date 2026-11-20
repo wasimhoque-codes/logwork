@@ -92,6 +92,36 @@ export function recentMovements(series: MovementSeries[]) {
     || a.exercise.name.localeCompare(b.exercise.name) || a.key.localeCompare(b.key)).slice(0, 4);
 }
 
+// Overview follows the lifter's recent training, with main lifts first.
+export function featuredMovements(series: MovementSeries[]) {
+  return [...series].sort((a, b) => Number(b.exercise.role === 'main') - Number(a.exercise.role === 'main')
+    || compareTrainingDates(b.records.at(-1)!.session, a.records.at(-1)!.session)
+    || a.exercise.name.localeCompare(b.exercise.name) || a.key.localeCompare(b.key)).slice(0, 4);
+}
+
+export function movementComparison(series: MovementSeries) {
+  const days = movementDays(series), latest = days.at(-1)!.best;
+  const previousDays = days.slice(0, -1).reverse();
+  const previous = previousDays[0]?.best;
+  const usesLoad = series.mode !== 'bodyweight';
+  // Compare reps/seconds at the same load when there is a matching earlier set.
+  let comparable: MovementRecord | undefined;
+  for (const day of previousDays) {
+    for (const record of day.workouts) for (const set of record.sets) {
+      if ((!usesLoad || set.weight === latest.best.weight) && (!comparable || set.reps > comparable.best.reps)) {
+        comparable = { ...record, best: set };
+      }
+    }
+    if (comparable) break;
+  }
+  const delta = comparable ? latest.best.reps - comparable.best.reps : undefined;
+  const assistanceReduction = !comparable && previous && series.mode === 'assistance' && !series.exercise.timed
+    && latest.best.weight !== null && previous.best.weight !== null && latest.best.weight < previous.best.weight
+    && latest.best.reps >= previous.best.reps ? previous.best.weight - latest.best.weight : undefined;
+  return { latest, previous, comparable, delta, assistanceReduction,
+    direction: assistanceReduction ? 'up' as const : delta === undefined || delta === 0 ? 'neutral' as const : delta > 0 ? 'up' as const : 'down' as const };
+}
+
 export function exerciseChange(series: MovementSeries) {
   const days = movementDays(series);
   return { latest: days.at(-1)!.best, previous: days.at(-2)?.best };

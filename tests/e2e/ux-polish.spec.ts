@@ -1,5 +1,5 @@
 import { replaceLocal } from './fixture';
-import { test, expect, type Page } from './fixture';
+import { setAction, test, expect, type Page } from './fixture';
 import { freshStore, selectedWorkout, newSession, localDate, type Store } from '../../src/model';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -34,30 +34,18 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 }
 
-test('Programme reveals selected days on entry and keyboard navigation only scrolls the strip', async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 568 });
+test('Programme opens a session by keyboard and restores the overview card', async ({page}) => {
+  await page.setViewportSize({width:320,height:568});
   await page.clock.setFixedTime(new Date('2026-10-30T10:00:00Z'));
   await page.goto('/#programme');
-  const strip = page.getByRole('tablist', { name: 'Weekly programme' });
-  const friday = strip.getByRole('tab', { name: 'Fri Lower B', exact: true });
-  async function selectedVisible() {
-    await expect.poll(async () => {
-      const outer = await strip.boundingBox(), inner = await strip.locator('[aria-selected=true]').boundingBox();
-      return !!outer && !!inner && inner.x >= outer.x - 1 && inner.x + inner.width <= outer.x + outer.width + 1;
-    }).toBe(true);
-  }
-  await expect(friday).toHaveAttribute('aria-selected', 'true');
-  await selectedVisible();
-  await page.evaluate(() => window.scrollTo(0, 140));
-  await friday.evaluate(element => (element as HTMLElement).focus({ preventScroll: true }));
-  const scrollY = await page.evaluate(() => window.scrollY);
-  await friday.press('End');
-  await selectedVisible();
-  await expect(strip.getByRole('tab', { name: 'Sun Rest', exact: true })).toBeFocused();
-  expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);
-  await page.keyboard.press('Home'); await selectedVisible();
-  await expect(strip.getByRole('tab', { name: 'Mon Upper A', exact: true })).toBeFocused();
-  expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);
+  const friday=page.getByRole('link',{name:'Friday Lower B',exact:true});
+  await expect(friday).toHaveAttribute('data-today','true');
+  await friday.focus();
+  await friday.press('Enter');
+  await expect(page).toHaveURL(/#programme\/friday$/);
+  await expect(page.getByRole('heading',{name:'Lower B',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Back to programme'}).click();
+  await expect(friday).toBeFocused();
   await noOverflow(page);
 });
 
@@ -135,8 +123,10 @@ test('motion preserves workout inputs, edit drafts, rest and fixed dock position
   await expect(input).toHaveValue('18'); expect(await raw(page)).toBe(before);
   await input.evaluate(element => element.setAttribute('data-preserved-input', 'yes'));
   await page.getByRole('button', { name: 'Log set 1', exact: true }).click();
-  await expect(page.getByLabel('Set 2 weight in kg')).toHaveAttribute('data-preserved-input', 'yes');
-  await page.locator('.logged-sets summary').click(); await page.getByRole('button', { name: 'Edit set 1', exact: true }).click();
+  await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue(String((JSON.parse(before!) as Store).active!.exercises[0].sets[1].weight));
+  await expect(page.getByLabel('Set 1 weight in kg')).toHaveCount(0);
+  await expect(page.locator('.workout-set.is-logged')).toContainText('18 kg');
+  await setAction(page,1,'Edit');
   await input.fill('22');
   await page.getByRole('button', { name: 'More exercise options', exact: true }).click(); await dismiss(page);
   await expect(input).toHaveValue('22'); await expect(page.getByRole('button', { name: 'Save set 1', exact: true })).toBeVisible();

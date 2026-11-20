@@ -49,10 +49,6 @@ export function BodyweightChart({body,unit,onLog}:{body:BodyEntry[];unit:Unit;on
       <button aria-pressed={range==='recent'} onClick={()=>setRange('recent')}>Last 30 days</button>
       <button aria-pressed={range==='all'} onClick={()=>setRange('all')}>All time</button>
     </div>
-    <div className="body-chart-stats">
-      {change!==null?<div><span className="body-chart-label">Change vs previous 7 days</span><strong>{change>0?'+':''}{change.toFixed(1)} <small>{unit}</small></strong><span>{previous.length} {previous.length===1?'reading':'readings'} in the previous period</span></div>:<div><span className="body-chart-label">Change vs previous 7 days</span><span>No weigh-ins in the previous period</span></div>}
-      <div><span className="body-chart-label">7-day average</span><strong>{weight(selected.averageKg)} <small>{unit}</small></strong><span>{selected.count} {selected.count===1?'reading':'readings'} through {fullDate(selected.date)}</span></div>
-    </div>
     {first&&last?<>
       <div className="body-chart-legend" aria-label="Chart legend"><span><i className="weigh-in-key"/>Weigh-ins</span><span><i className="average-key"/>7-day average</span><span className="body-chart-unit">{unit}</span></div>
       <div ref={plotRef} className="body-chart-plot"><svg width="100%" height="228" viewBox={`0 0 ${width} 228`} role="group" aria-label="Bodyweight trend. Use arrow keys to select a reading.">
@@ -81,6 +77,10 @@ export function BodyweightChart({body,unit,onLog}:{body:BodyEntry[];unit:Unit;on
         </div>
       </div>
     </>:<p className="empty-chart-copy">No readings in the last 30 days. Select All time to view earlier weigh-ins.</p>}
+    <div className="body-chart-stats">
+      {change!==null?<div><span className="body-chart-label">Change vs previous 7 days</span><strong>{change>0?'+':''}{change.toFixed(1)} <small>{unit}</small></strong><span>{previous.length} {previous.length===1?'reading':'readings'} in the previous period</span></div>:<div><span className="body-chart-label">Change vs previous 7 days</span><span>No weigh-ins in the previous period</span></div>}
+      <div><span className="body-chart-label">7-day average</span><strong>{weight(selected.averageKg)} <small>{unit}</small></strong><span>{selected.count} {selected.count===1?'reading':'readings'} through {fullDate(selected.date)}</span></div>
+    </div>
     <details className="progress-method"><summary>How it’s calculated</summary><p>The seven-day rolling average uses readings recorded within each seven-day period.</p></details>
   </div>;
 }

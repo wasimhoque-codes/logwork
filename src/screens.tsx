@@ -1,44 +1,19 @@
-import { ExerciseIcon } from './exercise-icon';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, ChevronRight, Settings2, Dumbbell, Plus, Download, Upload, Search, Trash2, Scale, TrendingUp, ArrowUpRight, CalendarDays, Footprints } from './icons';
-import { WORKOUTS, DAY_NAMES, FIXED_WORKOUT_WEEK, fixedWorkoutForDay, weekEffort, workoutForDay, type Exercise, type Workout } from './data';
+import { WORKOUTS, fixedWorkoutForDay, type Workout } from './data';
 import { completeSession, sessionLabel, dateLabel, doneSets, fromKg, localDate, number, volume, bodyAverages, bodyGuidance, type BodyEntry, type Session, type Store, type Settings } from './model';
 import { Empty, Modal } from './components';
 import { BodyweightChart } from './body-chart';
 import { calendarDay, dateFromDay, mondayOf, trainingJourney, volumeDistribution } from './progress-data';
 import { TrainingRangeSelect, WeeklyChart, fullDate, type TrainingRange } from './progress-charts';
-import { motionPreference, useContentFade } from './motion';
 import { MobilityGuide } from './technique-demo';
 import { MuscleVolume } from './muscle-volume';
 import { createTodayArtPlayback, TodayIllustration } from './today-art';
 export { ExerciseDetails } from './programme-ui';
-export function WeekPicker({day,onDay}:{day:number;onDay:(day:number)=>void}) {
-  const stripRef=useRef<HTMLDivElement>(null),firstReveal=useRef(true);
-  useLayoutEffect(()=>{
-    const strip=stripRef.current;if(!strip)return;
-    const preference=motionPreference();
-    const stop=()=>strip.scrollTo({left:strip.scrollLeft,behavior:'instant'});
-    const reveal=(smooth=false)=>{
-      const selected=strip.querySelector<HTMLElement>('[aria-selected=true]');if(!selected)return;
-      const bounds=strip.getBoundingClientRect(),button=selected.getBoundingClientRect();
-      const delta=button.left<bounds.left+4||button.right>bounds.right-4?button.left-bounds.left-(bounds.width-button.width)/2:0;
-      if(delta)strip.scrollTo({left:strip.scrollLeft+delta,behavior:smooth&&!preference.matches?'smooth':'instant'});
-    };
-    const onPreference=()=>{if(preference.matches){stop();reveal();}};
-    reveal(!firstReveal.current);firstReveal.current=false;
-    let initialSize=true;const observer=new ResizeObserver(()=>{if(initialSize){initialSize=false;return;}reveal();});observer.observe(strip);
-    preference.addEventListener('change',onPreference);
-    return()=>{observer.disconnect();preference.removeEventListener('change',onPreference);stop();};
-  },[day]);
-  return <div ref={stripRef} className="week-picker" role="tablist" aria-label="Weekly programme">{DAY_NAMES.map((name,i)=>{
-    const label=workoutForDay((i+1)%7)?.name??'Rest';
-    return <button key={name} id={'programme-day-'+i} aria-controls="programme-day-panel" role="tab" aria-label={name.slice(0,3)+' '+label} aria-selected={day===i} tabIndex={day===i?0:-1} onClick={()=>onDay(i)} onKeyDown={e=>{const next=e.key==='ArrowRight'?(i+1)%7:e.key==='ArrowLeft'?(i+6)%7:e.key==='Home'?0:e.key==='End'?6:null;if(next!==null){e.preventDefault();onDay(next);e.currentTarget.parentElement?.querySelectorAll('button')[next]?.focus({preventScroll:true});}}}><span>{name.slice(0,3)}</span><strong>{label==='Active recovery'?'Rest':label}</strong></button>;
-  })}</div>;
-}
 function RestDaySuggestions() {
   return <div className="rest-day-suggestions"><ul aria-label="Optional rest-day activities"><li>Mobility</li><li>Running</li><li>Walking</li></ul><MobilityGuide title="Mobility guide"/></div>;
 }
-function useTodayDate() {
+export function useTodayDate() {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     let timer: number;
@@ -196,20 +171,6 @@ export function Today({store, handoffId, onStart, onPlan, onDetail, onBody, onPr
     </button>
   </div>;
 }
-export function Plan({store,day,onDay,workout,onStart,onResume,onOptions,onWarmup,onGuide,onUrgent,onExercise}:{store:Store;day:number;onDay:(day:number)=>void;workout?:Workout;onStart:()=>void;onResume:()=>void;onOptions:()=>void;onWarmup:()=>void;onGuide:()=>void;onUrgent:()=>void;onExercise:(e:Exercise)=>void}) {
-  const restDay=!workout||workout.category==='recovery'||!workout.exercises.length;
-  const dayRef=useRef<HTMLDivElement>(null);useContentFade(dayRef,day,'panel');
-  return <><div className="programme-heading"><p className="eyebrow">Weekly schedule</p>{workout?.optional&&<button className="text-button" onClick={onOptions}>Upper C settings</button>}</div><WeekPicker day={day} onDay={onDay}/>
-    {store.active&&<aside className="active-banner"><p><strong>{store.active.workout.name} is in progress</strong><span>Finish or discard it before starting another session.</span></p><button className="secondary full-width" onClick={onResume}>Resume {store.active.workout.name}<ArrowRight size={18}/></button></aside>}
-    <div ref={dayRef} id="programme-day-panel" role="tabpanel" aria-labelledby={'programme-day-'+day} tabIndex={0}><section className="plan-card"><p className="overline">{DAY_NAMES[day]}</p><h2>{restDay?'Rest day':workout?.name}</h2><p className="dialog-description">{restDay?'Optional movement, at your own pace.':workout?.focus}</p>{workout?.exercises.length?<p className="plan-effort">{workout.exercises.reduce((n,e)=>n+e.sets,0)} working sets · {weekEffort(FIXED_WORKOUT_WEEK)} reps in reserve</p>:null}
-      {!restDay&&<button className="primary full-width" disabled={!!store.active} onClick={onStart}>Train this session today<ArrowRight size={18}/></button>}
-      {!!workout?.exercises.length&&<p className="input-hint">The set and effort targets repeat each week. Your session is logged on the workout date you choose.</p>}
-    </section>
-    {!!workout?.exercises.length&&<section className="exercise-list" aria-label="Planned exercises">{workout.exercises.map((e,i)=><button className="exercise-row" key={e.slot??e.id} onClick={()=>onExercise(e)}><span className="exercise-order"><ExerciseIcon exercise={e}/><span className="row-number">{i+1}</span></span><span className="exercise-row-name">{e.name}<small>{e.sets} × {e.min===e.max?e.min:e.min+'–'+e.max}{e.timed?' sec':' reps'}{e.perSide?' / side':''} · {e.rest}s rest</small></span><ChevronRight size={18}/></button>)}</section>}
-    {restDay&&<RestDaySuggestions/>}
-    </div><details className="programme-resources"><summary>Preparation & guidance</summary><div className="guide-actions">{!!workout?.exercises.length&&<button className="secondary" onClick={onWarmup}>Warm-up</button>}<button className="secondary" onClick={onGuide}>Training guide</button></div><button className="text-button full-width" onClick={onUrgent}>Back pain: urgent help</button></details>
-  </>;
-}
 export const emptyHistory = { query:'', workout:'', status:'', from:'', to:'' };
 export type HistoryFilters = typeof emptyHistory;
 
@@ -239,6 +200,7 @@ export function History({store,filters,onFilters,onDetail,onStart}:{
   ].filter(chip=>chip.label);
   const count=[...weeks.values()].reduce((total,rows)=>total+rows.length,0);
   return <div className="progress-history">
+    <div className="progress-section-heading"><div><p className="progress-kicker">Your training journal</p><h2>Workout history</h2><p>Every session, with the details that matter.</p></div></div>
     <div className="directory-controls"><label className="search-field"><Search size={18}/><input type="search" aria-label="Search workout history" placeholder="Search workouts" value={filters.query} onChange={event=>onFilters({...filters,query:event.target.value})}/></label>
       <button className="secondary" onClick={()=>setDraft(filters)}><Settings2 size={16}/>Filters{chips.length>0&&` (${chips.length})`}</button>
     </div>
@@ -247,17 +209,17 @@ export function History({store,filters,onFilters,onDetail,onStart}:{
     {!count?<Empty title={store.sessions.length?'No matching workouts':'No workouts yet'} text={store.sessions.length?'Try a different search or date range.':'Saved workouts appear here.'} action={store.sessions.length?
       <button className="secondary" onClick={()=>onFilters(emptyHistory)}>Clear filters</button>:<button className="primary" onClick={onStart}>View programme<ArrowRight size={17}/></button>}/>:
       <div className="history-list">{[...weeks].map(([week,rows])=><section key={week}>
-        <h2 className="date-heading">{dateLabel(week)} – {fullDate(dateFromDay(calendarDay(week)+6))} · {rows.length} {rows.length===1?'workout':'workouts'}</h2>
+        <div className="history-week-heading"><h2 className="date-heading">{dateLabel(week)} – {fullDate(dateFromDay(calendarDay(week)+6))}</h2><span>{rows.length} {rows.length===1?'session':'sessions'} · {rows.reduce((total, session) => total + doneSets(session), 0)} logged sets</span></div>
         <div className="list-card">{rows.map(session=>{
           const {workout}=session;
           const monogram=workout.name.split(/\s+/).slice(0,2).map(part=>part[0]).join('');
           const date=dateLabel(session.date,{weekday:'short',day:'numeric',month:'short'});
           const duplicated=rows.filter(row=>row.date===session.date).length>1;
-          const tags=[sessionLabel(session),!completeSession(session)&&'Partial',workout.optional&&'Optional'].filter(Boolean);
+          const tags=[sessionLabel(session),workout.optional&&'Optional'].filter(Boolean);
           return <button className="history-row" data-session-id={session.id} key={session.id} onClick={()=>onDetail(session)}>
-            <span className="history-icon" data-split={workout.label} aria-hidden="true">{monogram}</span>
+            <span className="history-date-tile" aria-hidden="true"><strong>{Number(session.date.slice(8))}</strong><small>{dateLabel(session.date, {month:'short'})}</small></span><span className="sr-only">{monogram}</span>
             <span className="history-main"><strong>{workout.name}</strong><small>{date}{duplicated&&' · '+new Date(session.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}{tags.length>0&&' · '+tags.join(' · ')}</small>
-            <small>{doneSets(session)} sets · {number(fromKg(volume(session),store.settings.unit),0)} {store.settings.unit} × reps</small></span><ChevronRight size={18} aria-hidden="true"/>
+            <small>{doneSets(session)} logged sets{volume(session) > 0 && ` · ${number(fromKg(volume(session),store.settings.unit),0)} ${store.settings.unit} × reps`}</small></span><span className="history-status" data-complete={completeSession(session)}>{completeSession(session) ? 'Complete' : 'Partial'}</span>
           </button>;
         })}</div>
       </section>)}</div>}
@@ -280,14 +242,15 @@ export function History({store,filters,onFilters,onDetail,onStart}:{
 export type ProgressMetric='volume'|'body';
 export function ProgressDetail({store,segment,initialVolumeView,initialRange,onBody,onEditBody,onDeleteBody,onStart}:{store:Store;segment:ProgressMetric;initialVolumeView?:'muscles';initialRange?:TrainingRange;onBody:()=>void;onEditBody:(entry:BodyEntry)=>void;onDeleteBody:(id:string)=>void;onStart:()=>void}) {
   const [range,setRange]=useState<TrainingRange>(initialRange??'recent'),[deleteBody,setDeleteBody]=useState<string|null>(null),[nutrition,setNutrition]=useState(false);
-  const [volumeView,setVolumeView]=useState<'trend'|'muscles'>(initialVolumeView??'trend');
+  const [volumeView,setVolumeView]=useState<'trend'|'muscles'>(initialVolumeView??'muscles');
   const journey=segment==='volume'?trainingJourney(store):null;
   const sessions=journey?.sessions.filter(session=>range==='all'||session.date>=journey.recentWeeks[range==='short'?4:0].date&&session.date<=localDate())??[];
   const unit=store.settings.unit,body=[...store.body].sort((a,b)=>a.date.localeCompare(b.date)),averages=bodyAverages(body);
-  return <>
-    {segment==='body'&&<><div className="progress-toolbar"><button className="small-button" onClick={onBody}><Plus size={16}/>Log bodyweight</button></div><section className="chart-panel bodyweight-panel"><h2>Bodyweight trend</h2><BodyweightChart body={body} unit={unit}/></section></>}
+  return <div className={segment === 'body' ? 'bodyweight-screen' : 'volume-detail-screen'}>
+    {segment==='body'&&<><div className="progress-section-heading"><div><p className="progress-kicker">The trend behind the readings</p><h2>Bodyweight trend</h2><p>Follow your average alongside each weigh-in.</p></div><button className="primary" onClick={onBody}><Plus size={16}/>Log bodyweight</button></div><section className="chart-panel bodyweight-panel"><BodyweightChart body={body} unit={unit}/></section></>}
     {journey&&<>
-      <div className="progress-toolbar"><TrainingRangeSelect range={range} onRange={setRange}/></div>
+      <div className="progress-section-heading"><div><p className="progress-kicker">Understand your training</p><h2>Training volume</h2><p>See which muscles your logged work is reaching.</p></div><TrainingRangeSelect range={range} onRange={setRange}/></div>
+      <dl className="volume-period-summary"><div><dt>Workouts</dt><dd>{sessions.length}</dd></div><div><dt>Logged sets</dt><dd>{sessions.reduce((sum, session) => sum + doneSets(session), 0)}</dd></div><div><dt>Muscle groups</dt><dd>{volumeDistribution(sessions).muscles.length}</dd></div></dl>
       <div className="volume-detail-switch" role="group" aria-label="Volume views">
         <button className="small-button" aria-pressed={volumeView==='trend'} onClick={()=>setVolumeView('trend')}>Weekly trend</button>
         <button className="small-button" aria-pressed={volumeView==='muscles'} onClick={()=>setVolumeView('muscles')}>By muscle</button>
@@ -296,10 +259,10 @@ export function ProgressDetail({store,segment,initialVolumeView,initialRange,onB
         journey.sessions.length?<WeeklyChart journey={journey} unit={unit} range={range} volumeOnly/>:
         <Empty title="No training volume yet" text="Log a workout to see weekly training volume." action={<button className="primary" onClick={onStart}>Explore programme</button>}/>}
     </>}
-    {segment==='body'&&<><p className="recovery-callout">{bodyGuidance(store.body)}</p>{averages.length>0&&<><h2 className="body-weekly-heading">Weekly summaries</h2><section className="metric-records list-card" aria-label="Weekly bodyweight summaries">{averages.map(a=><div key={a.date}><span>Week of {dateLabel(a.date)}<small>{a.count} weigh-in{a.count===1?'':'s'}</small></span><strong>{number(fromKg(a.kg,unit))} {unit}</strong></div>)}</section></>}{body.length>0&&<section className="body-entries list-card" aria-label="Bodyweight entries">{[...body].reverse().map(b=><div key={b.id}><span>{dateLabel(b.date)}</span><strong>{number(fromKg(b.kg,unit))} {unit}</strong><button className="text-button" aria-label={'Edit bodyweight for '+b.date} onClick={()=>onEditBody(b)}>Edit</button><button className="icon-button" aria-label={'Delete bodyweight for '+b.date} onClick={()=>setDeleteBody(b.id)}><Trash2 size={17}/></button></div>)}</section>}<button className="summary-link" onClick={()=>setNutrition(true)}><span>Nutrition reference</span><ChevronRight size={17}/></button></>}
+    {segment==='body'&&<><p className="recovery-callout">{bodyGuidance(store.body)}</p>{averages.length>0&&<details className="body-weekly-summaries"><summary>Weekly summaries</summary><section className="metric-records list-card" aria-label="Weekly bodyweight summaries">{averages.map(a=><div key={a.date}><span>Week of {dateLabel(a.date)}<small>{a.count} weigh-in{a.count===1?'':'s'}</small></span><strong>{number(fromKg(a.kg,unit))} {unit}</strong></div>)}</section></details>}{body.length>0&&<section className="body-records-section"><div className="progress-section-heading"><div><h2>Weigh-in records</h2><p>{body.length} saved {body.length === 1 ? 'reading' : 'readings'}</p></div></div><section className="body-entries list-card" aria-label="Bodyweight entries">{[...body].reverse().map(b=><div key={b.id}><span>{dateLabel(b.date)}</span><strong>{number(fromKg(b.kg,unit))} {unit}</strong><button className="text-button" aria-label={'Edit bodyweight for '+b.date} onClick={()=>onEditBody(b)}>Edit</button><button className="icon-button" aria-label={'Delete bodyweight for '+b.date} onClick={()=>setDeleteBody(b.id)}><Trash2 size={17}/></button></div>)}</section></section>}<button className="summary-link" onClick={()=>setNutrition(true)}><span>Nutrition reference</span><ChevronRight size={17}/></button></>}
     {deleteBody&&<Modal variant="sheet" title="Delete this weigh-in?" onClose={()=>setDeleteBody(null)}><button className="danger full-width" onClick={()=>{onDeleteBody(deleteBody);setDeleteBody(null);}}>Delete entry</button><button className="text-button full-width" onClick={()=>setDeleteBody(null)}>Keep entry</button></Modal>}
     {nutrition&&<Modal variant="sheet" title="Nutrition reference" onClose={()=>setNutrition(false)}><ul className="guide-list"><li>Maintenance +200–300 kcal/day. No maintenance estimate is assumed.</li><li>At 60 kg: approximately 100–130 g protein/day, or 1.6–2.2 g/kg. Spread across three or four meals.</li><li>Sleep: 7–9 hours each night.</li></ul><p className="recovery-callout">{bodyGuidance(store.body)}</p><p className="input-hint">Programme references, not a personalized calorie prescription.</p></Modal>}
-  </>;
+  </div>;
 }
 export function SettingsScreen({settings,onChange,onExport,onImport}:{settings:Settings;onChange:(patch:Partial<Settings>)=>void;onExport:()=>void;onImport:()=>void}) {
   return <><section className="settings-group"><h2>Preferences</h2><div className="settings-card"><label className="name-field">What should we call you?<input className="text-input" maxLength={60} value={settings.name} placeholder="Your name" onChange={e=>onChange({name:e.target.value})}/></label><div className="setting-row"><span>Weight units</span><div className="segmented">{(['kg','lb'] as const).map(u=><button className={settings.unit===u?'selected':''} key={u} onClick={()=>onChange({unit:u})}>{u}</button>)}</div></div><div className="setting-row"><span>Automatic rest timer</span><button className={'switch '+(settings.autoRest?'on':'')} role="switch" aria-checked={settings.autoRest} aria-label="Automatic rest timer" onClick={()=>onChange({autoRest:!settings.autoRest})}><span/></button></div></div></section><section className="settings-group"><h2>Data</h2><div className="settings-card"><button className="settings-action" onClick={onExport}><Download size={19}/><span>Export backup</span><ChevronRight size={16}/></button><button className="settings-action" onClick={onImport}><Upload size={19}/><span>Import backup</span><ChevronRight size={16}/></button></div><p className="input-hint">Saved on this device first, then synced privately across your devices. Export a backup before clearing browser data. Version-4 backups include bodyweight, active and saved workouts, and historical programme and feedback data. Older backups cannot be restored.</p></section><section className="settings-group"><details className="settings-card install-details"><summary>Install & offline use</summary><p>iPhone: Safari → Share → Add to Home Screen.<br/>Android: browser menu → Install app.</p><p>Open once online to use the app offline.</p></details></section></>;

@@ -24,7 +24,7 @@ function historyRowInset(overlay: HTMLElement, row: HTMLElement | null) {
     return `inset(${top - frame.top}px ${frame.right - right}px ${frame.bottom - bottom}px ${left - frame.left}px round 14px)`;
 }
 
-export function Modal({ title, children, onClose, wide = false, variant = 'dialog', expandFromHistory = false, dismissDisabled=false, portal=false }: {
+export function Modal({ title, children, onClose, wide = false, variant = 'dialog', expandFromHistory = false, dismissDisabled=false, portal=false, className = '' }: {
     title: string;
     children: ReactNode;
     onClose: () => void;
@@ -33,6 +33,7 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
     expandFromHistory?: boolean;
     dismissDisabled?: boolean;
     portal?: boolean;
+    className?: string;
 }) {
     const historySurfaceRef = useRef<HTMLDivElement>(null);
     const backdropRef = useRef<HTMLDivElement>(null);
@@ -120,7 +121,7 @@ export function Modal({ title, children, onClose, wide = false, variant = 'dialo
     }, [expandFromHistory]);
     const content = <>
         <div ref={backdropRef} className="modal-backdrop" aria-hidden="true" onAnimationEnd={e=>{if(closing&&e.animationName==='overlay-out')finishDismiss();}}/>
-        <div className={`modal ${wide ? 'modal-wide' : ''} ${variant === 'sheet' ? 'modal-sheet' : variant === 'page'?'modal-page':''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading">{variant==='page'?<><button className="icon-button" aria-label="Back to previous screen" disabled={dismissDisabled} onClick={dismiss}><ChevronLeft size={22}/></button><h2>{title}</h2></>:<><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" disabled={dismissDisabled} onClick={dismiss}><X size={20}/></button></>}</div>{children}</div>
+        <div className={`modal ${wide ? 'modal-wide' : ''} ${variant === 'sheet' ? 'modal-sheet' : variant === 'page'?'modal-page':''} ${className}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading">{variant==='page'?<><button className="icon-button" aria-label="Back to previous screen" disabled={dismissDisabled} onClick={dismiss}><ChevronLeft size={22}/></button><h2>{title}</h2></>:<><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" disabled={dismissDisabled} onClick={dismiss}><X size={20}/></button></>}</div>{children}</div>
     </>;
     const overlay = <div className={`modal-overlay ${variant === 'sheet' ? 'sheet-overlay' : variant === 'page'?'page-overlay':''}`} data-state={closing?'closing':'open'}
         onClickCapture={e=>{if(closingRef.current){e.preventDefault();e.stopPropagation();}}}

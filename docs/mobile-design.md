@@ -16,7 +16,11 @@ Routes are `#today`, `#programme`, `#progress`, `#progress/history`, `#progress/
 
 Today shows the actual date, current programme week and a single Start or named Resume action. The four-session count is explicitly for the programme week/attempt, rather than the calendar week. Four completed main sessions reveal a week-review action; advancement remains manual. Log bodyweight and pending recovery follow-ups sit below the main task.
 
-The weekday/session selector belongs to Programme. It previews the source weekly split without calendar dates. “Train this session today” states that the workout is recorded on the actual training date. An active workout appears in its own named Resume banner; starting another session is disabled until it is finished or discarded. Programme settings, exercise choices, recent sets, preparation, guidance and the roadmap remain accessible without competing with the training action.
+Programme opens a seven-day recurring split with a today marker, four main sessions, optional Upper C and distinct recovery/rest cards. Each card opens a dedicated `#programme/monday` through `#programme/sunday` preview. These routes survive reloads; returning restores overview scroll and card focus. Today links directly to the appropriate preview. Unknown Programme day routes return to the overview. The overview describes the routine without calendar completion tracking.
+
+Session previews use the resolved fixed prescriptions and saved variations. Ordered exercise pictograms, sets/reps or seconds, per-side labels and rest take priority. Start workout trains the selected session today; the save screen retains its workout-date choice. An active workout replaces Start with a named Resume action. Future exercise choices remain editable without changing the active snapshot. Leaving a Programme-origin workout returns to its scheduled preview.
+
+Programme uses the app’s light-and-lime palette, with a single column on phones and a guidance rail on desktop. Exercise sheets present prescription, technique, variations and the last two matching logged sets. Upper C settings use draft radio choices and live exercise/set totals; closing discards changes. Warm-up checklists show numbered steps and checked counts, retaining the session-specific draft handoff. Sheet headers and save actions remain visible while their content scrolls, including above mobile keyboards. No data migration accompanies the redesign.
 
 ## One working set in focus
 
